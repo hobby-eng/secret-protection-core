@@ -12,412 +12,344 @@
   "snapshot": {
     "commit": "60adba5b2f2d144ccdd61cb4829e8e5abc9bc1ca",
     "commitComplete": true,
-    "workingTree": "Started with a clean checkout.",
-    "sourceFingerprint": "fb4878bfda6d080f9feb0f3b0041fded2abde098cfe775b39836eb8227843035",
     "tree": "54ef11f2815cf7909823d03282e41dfbb730cae5",
-    "signature": "Verified the SSH signature against the documented workspace public key.",
-    "sourceManifest": {
-      "definition": "One line per tracked file of the reviewed commit, in the order git lists them: the lowercase SHA-256 of the file, two spaces, its path, a newline. The fingerprint is the SHA-256 of these lines.",
-      "sha256": "fb4878bfda6d080f9feb0f3b0041fded2abde098cfe775b39836eb8227843035",
-      "files": [
-        {
-          "path": ".gitignore",
-          "sha256": "b2a431d9c614b6245398d8d82b6510fbaeafce599395ac0f355a18e7edef5835"
-        },
-        {
-          "path": "AGENTS.md",
-          "sha256": "86b438c5e9884f8871c4f011f72944250a8c2fb71a0f419d311890475c88fef7"
-        },
-        {
-          "path": "CHANGELOG.md",
-          "sha256": "7fdea69e6b77b9c59cd9b7cf631b91b5b43039b90219e745d326318767a4b7a1"
-        },
-        {
-          "path": "Cargo.lock",
-          "sha256": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388"
-        },
-        {
-          "path": "Cargo.toml",
-          "sha256": "0fbf4bab9e7a37e8d7021ed9442bf70f1dd28cc7f59b879580acb1e1b8bee0da"
-        },
-        {
-          "path": "LICENSE-APACHE",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
-        },
-        {
-          "path": "LICENSE-MIT",
-          "sha256": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044"
-        },
-        {
-          "path": "README.md",
-          "sha256": "84309adb0b423128251982120effcf86f7897d5354023d3718fa4d1118d5cf3e"
-        },
-        {
-          "path": "THIRD_PARTY_NOTICES.md",
-          "sha256": "26c040a8445d7b95c5239539080c8f51a3e9f75f795f4d4ff14bafd76f6691b9"
-        },
-        {
-          "path": "clippy.toml",
-          "sha256": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea"
-        },
-        {
-          "path": "docs/README.md",
-          "sha256": "311c39c5b372203c945bdd9ceb60664e0e8b4ba02bf7b77246abc3a4cfa607dc"
-        },
-        {
-          "path": "docs/TECHNICAL.md",
-          "sha256": "6b72c22bfbb744cf6d4bb13124ea76922ecf1c88869157ef50f4287a82c05cdd"
-        },
-        {
-          "path": "dprint.json",
-          "sha256": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77"
-        },
-        {
-          "path": "rust-toolchain.toml",
-          "sha256": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213"
-        },
-        {
-          "path": "src/channels.rs",
-          "sha256": "6669941e3966045a41f03836875a92c9758cb84a815ea04efadd025d0dc3ce79"
-        },
-        {
-          "path": "src/input.rs",
-          "sha256": "3e2f76018c481314589cc54f7e747d4e360eac0900135891a864f088d274c109"
-        },
-        {
-          "path": "src/lib.rs",
-          "sha256": "e8cd03bfeaf44b8a7ea1e7f88758a8a243816cb5fc15c30edfc42026383c123f"
-        },
-        {
-          "path": "src/os.rs",
-          "sha256": "1b393d59fac9a75587b21a04f63e890eb95c14416bcffe1df8e8087dcc6f9b56"
-        },
-        {
-          "path": "src/os/apple.rs",
-          "sha256": "fcb676f5112913bc9e97693352b8376c50cf7fca1cdceaee9e4711e44999b46b"
-        },
-        {
-          "path": "src/os/linux.rs",
-          "sha256": "8330b7965c28880575972efa433fbba9bf6a2aefcd07c7a6ebde560f27d816ee"
-        },
-        {
-          "path": "src/os/unix.rs",
-          "sha256": "1ac8e0b82a8a0549f4b2e3fd09b3bb2e658338c31839abb1907d0013ec2081a3"
-        },
-        {
-          "path": "src/os/windows.rs",
-          "sha256": "c844622efcd9a343307cb436fe11fc23085721a88f7034954139ab8d212719f9"
-        },
-        {
-          "path": "src/protect.rs",
-          "sha256": "0d65cf6e3523ebf6f1153daaa82bbc20ade0b90e588fdc0b224b4fafb18c2d2d"
-        },
-        {
-          "path": "src/protect/closed.rs",
-          "sha256": "9e722bda9629a4ab85907ae68df7ae63bb7815fc3d0c6b16282fb28dea3446be"
-        },
-        {
-          "path": "src/protect/options.rs",
-          "sha256": "8ffebde5d584daab8abd805ef5010f542c0d9313935b04ec12ed38980dbe5a70"
-        },
-        {
-          "path": "src/stack.rs",
-          "sha256": "2b4e475871b0d2f20d4061f7903c1f890fc9ef8a235b48d269496337a79f4fd9"
-        },
-        {
-          "path": "src/worker.rs",
-          "sha256": "082b26eb627bf741bf87d932e155fb2e07002dc053dcf38bc7d0c0ba16486035"
-        },
-        {
-          "path": "tests/isolation.rs",
-          "sha256": "e0e5aab22efe86f31033dc3f3a97743a6585c50bab1525d04f49adc81f3bbc97"
-        },
-        {
-          "path": "tests/secret_memory.rs",
-          "sha256": "f164bef3417f9480f13bade5abf2f2f6461260beee7f45f337eff91f73305e32"
-        },
-        {
-          "path": "tests/worker.rs",
-          "sha256": "23409d1f01b4ba3d058536b75abc512bea96d457754b97cae2befd0719902361"
-        }
-      ]
-    }
+    "workingTree": "clean before review; source compared byte-for-byte to the commit again at report generation",
+    "sourceFingerprint": "fb4878bfda6d080f9feb0f3b0041fded2abde098cfe775b39836eb8227843035",
+    "hashProtocol": "SHA-256 of sorted lines of SHA-256, two spaces, Git path, LF",
+    "signature": "git verify-commit succeeded against the configured workspace public key"
   },
   "scope": {
-    "methodology": [
-      "A coordinator reviewed the commit and test matrix. Three independent source reviews covered Linux confinement, memory lifetime and Unix/Windows/Apple IPC. The coordinator checked candidates against local code and operating-system contracts and kept runtime confirmations distinct from static findings.",
-      "Secret and WorkArea allocation, access, truncation, drop and flags; ClosedSecret access windows; Options, Protection, Isolation, Missing and measure reports; Worker startup, terminal variant, call, serve and drop; StackRun; fd listing and kinds; Keystroke and SecretLine; direct write_secret; platform fallbacks and all test entry points.",
-      "The inventory includes every tracked file. Runtime execution is recorded separately for each tool and target. The report uses this snapshot of the workspace procedures."
-    ],
-    "environment": "Linux x86_64 7.0.0-43-generic. rustc 1.99.1 (58cf8f9c3), LLVM 23.1.1, Clippy 0.1.99, rustfmt 1.10.0. Heavy operations used run-capped. No remote jobs.",
-    "procedures": [
-      {
-        "file": "docs/FULL_AUDIT_GUIDE.md",
-        "sha256": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2"
-      },
-      {
-        "file": "docs/audits/AUDIT_STANDARD.md",
-        "sha256": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa"
-      },
-      {
-        "file": "docs/audits/AUDIT_TEMPLATE.md",
-        "sha256": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210"
-      },
-      {
-        "file": "docs/audit-report.schema.json",
-        "sha256": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
-      }
-    ]
+    "method": "A coordinator reviewed the commit and test matrix. Three independent source reviews covered Linux confinement, memory lifetime and Unix/Windows/Apple IPC. The coordinator checked candidates against local code and operating-system contracts and kept runtime confirmations distinct from static findings.",
+    "files": {
+      ".gitignore": "b2a431d9c614b6245398d8d82b6510fbaeafce599395ac0f355a18e7edef5835",
+      "AGENTS.md": "86b438c5e9884f8871c4f011f72944250a8c2fb71a0f419d311890475c88fef7",
+      "CHANGELOG.md": "7fdea69e6b77b9c59cd9b7cf631b91b5b43039b90219e745d326318767a4b7a1",
+      "Cargo.lock": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388",
+      "Cargo.toml": "0fbf4bab9e7a37e8d7021ed9442bf70f1dd28cc7f59b879580acb1e1b8bee0da",
+      "LICENSE-APACHE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "LICENSE-MIT": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+      "README.md": "84309adb0b423128251982120effcf86f7897d5354023d3718fa4d1118d5cf3e",
+      "THIRD_PARTY_NOTICES.md": "26c040a8445d7b95c5239539080c8f51a3e9f75f795f4d4ff14bafd76f6691b9",
+      "clippy.toml": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+      "docs/README.md": "311c39c5b372203c945bdd9ceb60664e0e8b4ba02bf7b77246abc3a4cfa607dc",
+      "docs/TECHNICAL.md": "6b72c22bfbb744cf6d4bb13124ea76922ecf1c88869157ef50f4287a82c05cdd",
+      "dprint.json": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+      "rust-toolchain.toml": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+      "src/channels.rs": "6669941e3966045a41f03836875a92c9758cb84a815ea04efadd025d0dc3ce79",
+      "src/input.rs": "3e2f76018c481314589cc54f7e747d4e360eac0900135891a864f088d274c109",
+      "src/lib.rs": "e8cd03bfeaf44b8a7ea1e7f88758a8a243816cb5fc15c30edfc42026383c123f",
+      "src/os.rs": "1b393d59fac9a75587b21a04f63e890eb95c14416bcffe1df8e8087dcc6f9b56",
+      "src/os/apple.rs": "fcb676f5112913bc9e97693352b8376c50cf7fca1cdceaee9e4711e44999b46b",
+      "src/os/linux.rs": "8330b7965c28880575972efa433fbba9bf6a2aefcd07c7a6ebde560f27d816ee",
+      "src/os/unix.rs": "1ac8e0b82a8a0549f4b2e3fd09b3bb2e658338c31839abb1907d0013ec2081a3",
+      "src/os/windows.rs": "c844622efcd9a343307cb436fe11fc23085721a88f7034954139ab8d212719f9",
+      "src/protect.rs": "0d65cf6e3523ebf6f1153daaa82bbc20ade0b90e588fdc0b224b4fafb18c2d2d",
+      "src/protect/closed.rs": "9e722bda9629a4ab85907ae68df7ae63bb7815fc3d0c6b16282fb28dea3446be",
+      "src/protect/options.rs": "8ffebde5d584daab8abd805ef5010f542c0d9313935b04ec12ed38980dbe5a70",
+      "src/stack.rs": "2b4e475871b0d2f20d4061f7903c1f890fc9ef8a235b48d269496337a79f4fd9",
+      "src/worker.rs": "082b26eb627bf741bf87d932e155fb2e07002dc053dcf38bc7d0c0ba16486035",
+      "tests/isolation.rs": "e0e5aab22efe86f31033dc3f3a97743a6585c50bab1525d04f49adc81f3bbc97",
+      "tests/secret_memory.rs": "f164bef3417f9480f13bade5abf2f2f6461260beee7f45f337eff91f73305e32",
+      "tests/worker.rs": "23409d1f01b4ba3d058536b75abc512bea96d457754b97cae2befd0719902361"
+    },
+    "publicAPI": "Secret and WorkArea allocation, access, truncation, drop and flags; ClosedSecret access windows; Options, Protection, Isolation, Missing and measure reports; Worker startup, terminal variant, call, serve and drop; StackRun; fd listing and kinds; Keystroke and SecretLine; direct write_secret; platform fallbacks and all test entry points.",
+    "procedureSha256": {
+      "docs/FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "docs/audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "docs/audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "docs/audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
   },
+  "environment": "Linux x86_64 7.0.0-43-generic. rustc 1.99.1 (58cf8f9c3), LLVM 23.1.1, Clippy 0.1.99, rustfmt 1.10.0. Heavy operations used run-capped. No remote jobs.",
   "checks": {
-    "commands": [
+    "ledger": [
       {
-        "command": "git -c gpg.ssh.allowedSignersFile=<temporary-public-key-list> verify-commit HEAD",
-        "result": "passed with documented workspace public signing key",
-        "logSha256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202"
-      },
-      {
-        "command": "cargo test --locked --offline",
-        "result": "passed: 11 unit, 9 isolation, 4 memory and 5 worker checks; 0 doctests",
-        "logSha256": "bdb8e66fb99d345d0f802e37afda9b544282292632e59c3e2f042dfbabb5a0ce"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-darwin -- -D warnings",
-        "result": "passed",
-        "logSha256": "d4583b2a2c83a715755e90316bcb5d2cb58a18960f479d958dd73a602457d5de"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-ios -- -D warnings",
-        "result": "passed",
-        "logSha256": "8b5d384e9eec67661ca870cb7b53c375d679574ec097ea50cc13fa489c475ca6"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target aarch64-linux-android -- -D warnings",
-        "result": "passed",
-        "logSha256": "82d5018ebd69577ab642eac43fc7cfdb7c7b90e575ab5a8cc79d6d5fc9e1601c"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target wasm32-unknown-unknown -- -D warnings",
-        "result": "passed",
-        "logSha256": "1760a1cb43876b164b2e0ac44d3e7c658733d9661e791590a1dac22e0cadf706"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-gnu -- -D warnings",
-        "result": "passed",
-        "logSha256": "431c2701e6d60f12ce0df68378038f9ceea46e6c6f60eed370cf8c5ebba901d3"
-      },
-      {
-        "command": "cargo clippy --locked --offline --all-targets --target x86_64-unknown-linux-gnu -- -D warnings",
-        "result": "passed",
-        "logSha256": "252cd8b2a44e64b4f46875defb59c830a5d65bf447a331e35c18383a71a62c9a"
-      },
-      {
-        "command": "cargo fmt --check",
-        "result": "passed",
-        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      {
-        "command": "rustc --edition 2024 -L dependency=<deps> --extern secret_protection_core=<reviewed rlib> report_state.rs -o <probe>; <probe>",
-        "result": "ran successfully and observed inconsistent MemoryLocked state and evidence",
-        "logSha256": "00796f310f2e0c82c58146a6195fa147995aeb0f438c08e3d307f289ba3d5d5a"
-      }
-    ],
-    "notes": [
-      "The native suite started 11 unit tests and three custom integration harnesses. The suite includes bounds and wipe-on-truncation, panic propagation, mapping flags, denied calls and worker handshake tests. Its explicit self-only option case uses signal 0 for the parent and caller. A separate Landlock case uses a real signal outside the domain. The protected-stack test checks mapping flags, guard boundaries and panic propagation. It does not inspect all bytes after thread termination. The long-reply test uses 100 bytes. The host lock test checks a nonzero counter only if the crate already reports success.",
-      "The [public diagnostic](AUD-001-harnesses/README.md) observed the secretmem backend with a zero-filled sample. Whole-process locking returned true on the first call. Default re-entry returned false while the proof string still said `mlockall accepted` and `VmLck` remained 3348 kB. No sensitive data was used."
-    ],
-    "coverageLedger": [
-      {
-        "check": "CHECK-SEC-001",
-        "scope": "Threat model and secret ownership",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-SEC-001",
+        "title": "Threat model and secret ownership",
+        "result": "reviewed with scope below",
         "evidence": "Traced process and per-thread boundaries, private and shared memory, process launch and previously held descriptors."
       },
       {
-        "check": "CHECK-SEC-002",
-        "scope": "Secret Vault, CSP, sandbox, and transport",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-SEC-002",
+        "title": "Secret Vault, CSP, sandbox, and transport",
+        "result": "reviewed with scope below",
         "evidence": "Native sandbox, worker handshake, stack mappings and IPC reviewed. No browser vault or CSP in this crate."
       },
       {
-        "check": "CHECK-SEC-003",
-        "scope": "Network egress and secret guards",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-SEC-003",
+        "title": "Network egress and secret guards",
+        "result": "reviewed with scope below",
         "evidence": "Native network gates, Landlock and pre-opened channels reviewed. Cross-OS readback and policy gaps remain."
       },
       {
-        "check": "CHECK-SEC-004",
-        "scope": "Randomness, encryption, and authentication",
-        "outcome": "not-applicable",
+        "id": "CHECK-SEC-004",
+        "title": "Randomness, encryption, and authentication",
+        "result": "not-applicable",
         "evidence": "No encryption, key derivation or authentication primitives. getrandom is used to touch memory pages."
       },
       {
-        "check": "CHECK-SEC-005",
-        "scope": "Secret lifecycle and exceptional paths",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-SEC-005",
+        "title": "Secret lifecycle and exceptional paths",
+        "result": "reviewed with scope below",
         "evidence": "Reviewed truncation, drop, closed pages, callback unwinding, post-fork lifecycle and IPC error paths. No exhaustive optimizer analysis."
       },
       {
-        "check": "CHECK-SEC-006",
-        "scope": "Browser injection, persistence, and sensitive APIs",
-        "outcome": "not-applicable",
+        "id": "CHECK-SEC-006",
+        "title": "Browser injection, persistence, and sensitive APIs",
+        "result": "not-applicable",
         "evidence": "No browser app, page injection surface or persistence layer."
       },
       {
-        "check": "CHECK-SEC-007",
-        "scope": "Read-only guarantees and availability bounds",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-SEC-007",
+        "title": "Read-only guarantees and availability bounds",
+        "result": "reviewed with scope below",
         "evidence": "Worker frame sizes, pipe shutdown, descriptor enumeration and stack arithmetic reviewed."
       },
       {
-        "check": "CHECK-FUN-001",
-        "scope": "BIP39, entropy, and seed interpretation",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-001",
+        "title": "BIP39, entropy, and seed interpretation",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-002",
-        "scope": "HD derivation and every coin/profile",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-002",
+        "title": "HD derivation and every coin/profile",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-003",
-        "scope": "BIP85, BIP38, messages, and Silent Payments",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-003",
+        "title": "BIP85, BIP38, messages, and Silent Payments",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-004",
-        "scope": "Scripts, descriptors, Miniscript, and multisig",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-004",
+        "title": "Scripts, descriptors, Miniscript, and multisig",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-005",
-        "scope": "Transactions, PSBT version context, and commitments",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-005",
+        "title": "Transactions, PSBT version context, and commitments",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-006",
-        "scope": "Recovery and backup formats",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-006",
+        "title": "Recovery and backup formats",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-FUN-007",
-        "scope": "Discovery, providers, proofs, and accounting",
-        "outcome": "not-applicable",
+        "id": "CHECK-FUN-007",
+        "title": "Discovery, providers, proofs, and accounting",
+        "result": "not-applicable",
         "evidence": "No wallet protocol, coin, recovery format, transaction or provider in this memory-protection crate."
       },
       {
-        "check": "CHECK-API-001",
-        "scope": "Actual dependency call contracts",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-API-001",
+        "title": "Actual dependency call contracts",
+        "result": "reviewed with scope below",
         "evidence": "Compared Rust raw-slice, libc, kernel and Win32 call preconditions against first-party use."
       },
       {
-        "check": "CHECK-API-002",
-        "scope": "Async state, cancellation, and revisions",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-API-002",
+        "title": "Async state, cancellation, and revisions",
+        "result": "reviewed with scope below",
         "evidence": "Reviewed re-entry, cleanup, blocking IPC, inherited state and protected callback completion."
       },
       {
-        "check": "CHECK-API-003",
-        "scope": "Public export schema and monetary fidelity",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-API-003",
+        "title": "Public export schema and monetary fidelity",
+        "result": "reviewed with scope below",
         "evidence": "Inspected public status, scope and proof fields; no financial exports."
       },
       {
-        "check": "CHECK-API-004",
-        "scope": "Encoding and import/export interoperability",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-API-004",
+        "title": "Encoding and import/export interoperability",
+        "result": "reviewed with scope below",
         "evidence": "Reviewed UTF-8 keystroke tags, little-endian framing and option/protection bit round trips."
       },
       {
-        "check": "CHECK-BLD-001",
-        "scope": "Manifest, flags, and feature composition",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-BLD-001",
+        "title": "Manifest, flags, and feature composition",
+        "result": "reviewed with scope below",
         "evidence": "Inspected Cargo manifest, target dependencies, lint policy and toolchain. Ran all-target lint for each supported target."
       },
       {
-        "check": "CHECK-BLD-002",
-        "scope": "Matrix depth and runtime sampling",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-BLD-002",
+        "title": "Matrix depth and runtime sampling",
+        "result": "reviewed with scope below",
         "evidence": "Native Linux suite and public API diagnostic executed. Five other triples checked with Clippy only."
       },
       {
-        "check": "CHECK-BLD-003",
-        "scope": "Lockfiles, source provenance, and licenses",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-BLD-003",
+        "title": "Lockfiles, source provenance, and licenses",
+        "result": "reviewed with scope below",
         "evidence": "Checked manifest pins, Cargo.lock, license files, notices and offline dependency resolution. No independent transitive source or vulnerability database audit."
       },
       {
-        "check": "CHECK-BLD-004",
-        "scope": "Canonical WASM and Docker bytes",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-BLD-004",
+        "title": "Canonical WASM and Docker bytes",
+        "result": "reviewed with scope below",
         "evidence": "WASM target linted. No standalone WASM release artifact, Docker image or reproducibility comparison in scope."
       },
       {
-        "check": "CHECK-BLD-005",
-        "scope": "Artifacts, CI, and release workflows",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-BLD-005",
+        "title": "Artifacts, CI, and release workflows",
+        "result": "reviewed with scope below",
         "evidence": "No tracked workflow in this snapshot. No release artifact produced or native foreign CI executed."
       },
       {
-        "check": "CHECK-UI-001",
-        "scope": "Real files and representative viewports",
-        "outcome": "not-applicable",
+        "id": "CHECK-UI-001",
+        "title": "Real files and representative viewports",
+        "result": "not-applicable",
         "evidence": "No GUI, browser interface, navigation, QR or rendering in the reviewed crate."
       },
       {
-        "check": "CHECK-UI-002",
-        "scope": "Navigation, inputs, and state preservation",
-        "outcome": "not-applicable",
+        "id": "CHECK-UI-002",
+        "title": "Navigation, inputs, and state preservation",
+        "result": "not-applicable",
         "evidence": "No GUI, browser interface, navigation, QR or rendering in the reviewed crate."
       },
       {
-        "check": "CHECK-UI-003",
-        "scope": "Secret visibility, help, QR, and accessibility",
-        "outcome": "not-applicable",
+        "id": "CHECK-UI-003",
+        "title": "Secret visibility, help, QR, and accessibility",
+        "result": "not-applicable",
         "evidence": "No GUI, browser interface, navigation, QR or rendering in the reviewed crate."
       },
       {
-        "check": "CHECK-ARC-001",
-        "scope": "Ownership, imports, and composition seams",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-ARC-001",
+        "title": "Ownership, imports, and composition seams",
+        "result": "reviewed with scope below",
         "evidence": "Inspected API exports and platform routing, owned mappings, IPC and isolation boundaries."
       },
       {
-        "check": "CHECK-ARC-002",
-        "scope": "Dead code, duplication, and false positives",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-ARC-002",
+        "title": "Dead code, duplication, and false positives",
+        "result": "reviewed with scope below",
         "evidence": "Compared platform-specific measure/flag handling against shared strict requirements; no whole-program dead-code proof."
       },
       {
-        "check": "CHECK-ARC-003",
-        "scope": "Comments, tests, and production-path fidelity",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-ARC-003",
+        "title": "Comments, tests, and production-path fidelity",
+        "result": "reviewed with scope below",
         "evidence": "Compared source assertions with the Linux suite and its platform guards; noted gaps for fork, failure, large replies and strict statuses."
       },
       {
-        "check": "CHECK-DOC-001",
-        "scope": "User-facing capability and safety descriptions",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-DOC-001",
+        "title": "User-facing capability and safety descriptions",
+        "result": "reviewed with scope below",
         "evidence": "Reviewed README, technical guidance and changelog against code and platform evidence."
       },
       {
-        "check": "CHECK-DOC-002",
-        "scope": "Commands, metadata, links, and legal materials",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-DOC-002",
+        "title": "Commands, metadata, links, and legal materials",
+        "result": "reviewed with scope below",
         "evidence": "Checked package metadata, toolchain, licensing files, gate instructions and known usage examples. No external link crawl."
       },
       {
-        "check": "CHECK-DOC-003",
-        "scope": "Audit records and evidence consistency",
-        "outcome": "reviewed with scope below",
+        "id": "CHECK-DOC-003",
+        "title": "Audit records and evidence consistency",
+        "result": "reviewed with scope below",
         "evidence": "Numbered paired records validated against the workspace schema, source hash manifest and current check results."
+      }
+    ],
+    "commands": [
+      {
+        "name": "snapshot signature",
+        "command": "git -c gpg.ssh.allowedSignersFile=<temporary-public-key-list> verify-commit HEAD",
+        "outcome": "passed with documented workspace public signing key",
+        "exit": 0,
+        "log": "verify-commit.log",
+        "sha256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202"
+      },
+      {
+        "name": "native Linux suite",
+        "command": "cargo test --locked --offline",
+        "outcome": "passed: 11 unit, 9 isolation, 4 memory and 5 worker checks; 0 doctests",
+        "exit": 0,
+        "log": "test.log",
+        "sha256": "bdb8e66fb99d345d0f802e37afda9b544282292632e59c3e2f042dfbabb5a0ce"
+      },
+      {
+        "name": "clippy-aarch64-apple-darwin",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-darwin -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-aarch64-apple-darwin.log",
+        "sha256": "d4583b2a2c83a715755e90316bcb5d2cb58a18960f479d958dd73a602457d5de",
+        "start": "2026-11-15T04:23:31.198434+00:00",
+        "end": "2026-11-15T04:23:32.153608+00:00"
+      },
+      {
+        "name": "clippy-aarch64-apple-ios",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-ios -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-aarch64-apple-ios.log",
+        "sha256": "8b5d384e9eec67661ca870cb7b53c375d679574ec097ea50cc13fa489c475ca6",
+        "start": "2026-11-15T04:23:32.153747+00:00",
+        "end": "2026-11-15T04:23:33.021990+00:00"
+      },
+      {
+        "name": "clippy-aarch64-linux-android",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-linux-android -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-aarch64-linux-android.log",
+        "sha256": "82d5018ebd69577ab642eac43fc7cfdb7c7b90e575ab5a8cc79d6d5fc9e1601c",
+        "start": "2026-11-15T04:23:30.320566+00:00",
+        "end": "2026-11-15T04:23:31.198284+00:00"
+      },
+      {
+        "name": "clippy-wasm32-unknown-unknown",
+        "command": "cargo clippy --locked --offline --all-targets --target wasm32-unknown-unknown -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-wasm32-unknown-unknown.log",
+        "sha256": "1760a1cb43876b164b2e0ac44d3e7c658733d9661e791590a1dac22e0cadf706",
+        "start": "2026-11-15T04:23:34.807164+00:00",
+        "end": "2026-11-15T04:23:35.241548+00:00"
+      },
+      {
+        "name": "clippy-x86_64-pc-windows-gnu",
+        "command": "cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-gnu -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-x86_64-pc-windows-gnu.log",
+        "sha256": "431c2701e6d60f12ce0df68378038f9ceea46e6c6f60eed370cf8c5ebba901d3",
+        "start": "2026-11-15T04:23:33.022132+00:00",
+        "end": "2026-11-15T04:23:34.807024+00:00"
+      },
+      {
+        "name": "clippy-x86_64-unknown-linux-gnu",
+        "command": "cargo clippy --locked --offline --all-targets --target x86_64-unknown-linux-gnu -- -D warnings",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "clippy-x86_64-unknown-linux-gnu.log",
+        "sha256": "252cd8b2a44e64b4f46875defb59c830a5d65bf447a331e35c18383a71a62c9a",
+        "start": "2026-11-15T04:23:24.977565+00:00",
+        "end": "2026-11-15T04:23:30.320413+00:00"
+      },
+      {
+        "name": "format",
+        "command": "cargo fmt --check",
+        "outcome": "passed",
+        "exit": 0,
+        "log": "format.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "start": "2026-11-15T04:23:24.872585+00:00",
+        "end": "2026-11-15T04:23:24.977408+00:00"
+      },
+      {
+        "name": "public diagnostic",
+        "command": "rustc --edition 2024 -L dependency=<deps> --extern secret_protection_core=<reviewed rlib> report_state.rs -o <probe>; <probe>",
+        "outcome": "ran successfully and observed inconsistent MemoryLocked state and evidence",
+        "exit": 0,
+        "log": "report-state.log",
+        "sha256": "00796f310f2e0c82c58146a6195fa147995aeb0f438c08e3d307f289ba3d5d5a"
       }
     ]
   },
@@ -425,545 +357,503 @@
     {
       "id": "AUD-001-SEC001",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Linux secret-memory allocation and concurrent fork share an inheritance window",
       "severity": "high",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. The native public diagnostic identified the active backend only. No secret transfer was tested. [src/os/linux.rs line 44](../../src/os/linux.rs#L44) · [src/os/linux.rs line 57](../../src/os/linux.rs#L57) · [src/os/linux.rs line 74](../../src/os/linux.rs#L74) · [src/os/unix.rs line 33](../../src/os/unix.rs#L33) · [OS or language contract](https://man7.org/linux/man-pages/man2/memfd_secret.2.html) · [OS or language contract](https://man7.org/linux/man-pages/man2/mlock.2.html)",
-      "reproduction": null,
+      "title": "Linux secret-memory allocation and concurrent fork share an inheritance window",
+      "evidence": [
+        "src/os/linux.rs:44",
+        "src/os/linux.rs:57",
+        "src/os/linux.rs:74",
+        "src/os/unix.rs:33"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit. The native public diagnostic identified the active backend only. No secret transfer was tested.",
       "expected": "Child exclusion must hold for a buffer reported out of children.",
-      "observed": "During successful secretmem allocation, the shared backing file is temporarily open across fork. DONTFORK affects a mapping and CLOEXEC takes effect at exec. Neither revokes an already inherited descriptor. A concurrent fork without immediate exec can retain the same backing object into which the parent later places secret bytes. The private anonymous fallback has different sharing semantics. The diagnostic confirmed use of secretmem on the host, without testing disclosure.",
-      "impact": null,
+      "observed": "During successful secretmem allocation, the shared backing file is temporarily open across fork. DONTFORK affects a mapping and CLOEXEC takes effect at exec. Neither revokes an already inherited descriptor.",
+      "impact": "A concurrent fork without immediate exec can retain the same backing object into which the parent later places secret bytes. The private anonymous fallback has different sharing semantics. The diagnostic confirmed use of secretmem on the host, without testing disclosure.",
       "recommendedFix": "Use the private anonymous backend when fork can run concurrently. Reserve shared secretmem for a fork-free worker or a caller with an enforceable fork-free lifecycle. Make this precondition part of the guarantee.",
-      "requiredVerification": "Check both backends, allocation lifecycle and process model using public fixtures on supported Linux kernels. Verify the claimed scope before accepting sensitive input."
+      "requiredVerification": "Check both backends, allocation lifecycle and process model using public fixtures on supported Linux kernels. Verify the claimed scope before accepting sensitive input.",
+      "references": [
+        "https://man7.org/linux/man-pages/man2/memfd_secret.2.html",
+        "https://man7.org/linux/man-pages/man2/mlock.2.html"
+      ]
     },
     {
       "id": "AUD-001-SEC002",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Unix worker acknowledges isolation after incomplete descriptor cleanup",
       "severity": "high",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/unix.rs line 252](../../src/os/unix.rs#L252) · [src/os/unix.rs line 264](../../src/os/unix.rs#L264) · [src/os/unix.rs line 274](../../src/os/unix.rs#L274) · [src/worker.rs line 150](../../src/worker.rs#L150)",
-      "reproduction": null,
+      "title": "Unix worker acknowledges isolation after incomplete descriptor cleanup",
+      "evidence": [
+        "src/os/unix.rs:252",
+        "src/os/unix.rs:264",
+        "src/os/unix.rs:274",
+        "src/worker.rs:150"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A worker advertising clean inherited channels must know that all unintended descriptors were closed.",
-      "observed": "After the bulk close fails or is unavailable, directory-open failure silently returns, directory-entry errors are discarded and close results are ignored. Startup still sends the protection bits. If the worker inherited a writable file or socket and fallback enumeration fails, the strict handshake can accept secrets with the channel still present. The normal Linux close_range path is unaffected.",
-      "impact": null,
+      "observed": "After the bulk close fails or is unavailable, directory-open failure silently returns, directory-entry errors are discarded and close results are ignored. Startup still sends the protection bits.",
+      "impact": "If the worker inherited a writable file or socket and fallback enumeration fails, the strict handshake can accept secrets with the channel still present. The normal Linux close_range path is unaffected.",
       "recommendedFix": "Propagate the cleanup outcome before sending the handshake. Use a supported close-from operation or a verified fallback, with explicit handling of the listing descriptor and OS close semantics.",
-      "requiredVerification": "Verify clean startup and startup refusal on incomplete cleanup with public descriptors, including the fallback on macOS."
+      "requiredVerification": "Verify clean startup and startup refusal on incomplete cleanup with public descriptors, including the fallback on macOS.",
+      "references": []
     },
     {
       "id": "AUD-001-SEC003",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Linux tracer evidence for one thread is reported process-wide",
       "severity": "high",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/linux.rs line 140](../../src/os/linux.rs#L140) · [src/os/linux.rs line 282](../../src/os/linux.rs#L282) · [src/os/linux.rs line 775](../../src/os/linux.rs#L775) · [src/protect.rs line 241](../../src/protect.rs#L241) · [OS or language contract](https://man7.org/linux/man-pages/man2/ptrace.2.html)",
-      "reproduction": null,
+      "title": "Linux tracer evidence for one thread is reported process-wide",
+      "evidence": [
+        "src/os/linux.rs:140",
+        "src/os/linux.rs:282",
+        "src/os/linux.rs:775",
+        "src/protect.rs:241"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A positive process-wide result requires evidence covering prior tracers on all relevant threads.",
-      "observed": "TracerPid is read only for the calling thread. Setting the process non-dumpable restricts new access and does not detach existing tracers. Linux ptrace attaches per thread. A multithreaded caller can pass a required NoMemoryReading check despite an existing tracer of a different thread sharing its memory. The single-threaded worker avoids this particular mismatch.",
-      "impact": null,
+      "observed": "TracerPid is read only for the calling thread. Setting the process non-dumpable restricts new access and does not detach existing tracers. Linux ptrace attaches per thread.",
+      "impact": "A multithreaded caller can pass a required NoMemoryReading check despite an existing tracer of a different thread sharing its memory. The single-threaded worker avoids this particular mismatch.",
       "recommendedFix": "Establish the property before concurrency, or implement a sound process-wide check under a controlled thread lifecycle. Otherwise mark it unverified for a multithreaded caller.",
-      "requiredVerification": "Cover single-thread initialization, multithread scope and unavailable thread inventory. A process-wide positive result must refer to the entire claimed scope."
+      "requiredVerification": "Cover single-thread initialization, multithread scope and unavailable thread inventory. A process-wide positive result must refer to the entire claimed scope.",
+      "references": [
+        "https://man7.org/linux/man-pages/man2/ptrace.2.html"
+      ]
     },
     {
       "id": "AUD-001-SEC004",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Windows worker pipe ends are briefly inheritable by unrelated launches",
       "severity": "high",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/windows.rs line 855](../../src/os/windows.rs#L855) · [src/os/windows.rs line 919](../../src/os/windows.rs#L919) · [src/os/windows.rs line 962](../../src/os/windows.rs#L962) · [src/os/windows.rs line 987](../../src/os/windows.rs#L987) · [OS or language contract](https://learn.microsoft.com/en-us/windows/win32/procthread/inheritance)",
-      "reproduction": null,
+      "title": "Windows worker pipe ends are briefly inheritable by unrelated launches",
+      "evidence": [
+        "src/os/windows.rs:855",
+        "src/os/windows.rs:919",
+        "src/os/windows.rs:962",
+        "src/os/windows.rs:987"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Only the designated worker and its parent may hold secret request and response pipe handles.",
-      "observed": "Both ends are created inheritable. Inheritance is cleared later on the parent ends. The explicit handle list limits inheritance for the worker launch only. A separate child spawned concurrently by the same parent using broad handle inheritance can receive an IPC endpoint. This applies to applications with such process-launch behavior. No Windows runtime observation.",
-      "impact": null,
+      "observed": "Both ends are created inheritable. Inheritance is cleared later on the parent ends. The explicit handle list limits inheritance for the worker launch only.",
+      "impact": "A separate child spawned concurrently by the same parent using broad handle inheritance can receive an IPC endpoint. This applies to applications with such process-launch behavior. No Windows runtime observation.",
       "recommendedFix": "Keep inheritable ends in a dedicated launch broker with controlled child creation, or enforce coordinated allowlisted inheritance across all launchers in the process. Creating parent ends non-inheritable also narrows the window.",
-      "requiredVerification": "Validate handle ownership during concurrent independent benign launches on Windows. Verify only designated actors can own the IPC endpoints."
+      "requiredVerification": "Validate handle ownership during concurrent independent benign launches on Windows. Verify only designated actors can own the IPC endpoints.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/procthread/inheritance"
+      ]
     },
     {
       "id": "AUD-001-SEC005",
       "category": "SEC",
-      "kind": "finding",
-      "title": "macOS accepts local probe denials without a confirmed sandbox profile",
       "severity": "high",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/apple.rs line 103](../../src/os/apple.rs#L103) · [src/os/apple.rs line 108](../../src/os/apple.rs#L108) · [src/os/apple.rs line 127](../../src/os/apple.rs#L127)",
-      "reproduction": null,
+      "title": "macOS accepts local probe denials without a confirmed sandbox profile",
+      "evidence": [
+        "src/os/apple.rs:103",
+        "src/os/apple.rs:108",
+        "src/os/apple.rs:127"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A strict, process-wide file or network restriction requires confirmation of the intended profile or independently equivalent policy.",
-      "observed": "The result of sandbox_init is used only to free an error message. A permission denial creating one temporary file can come from its directory. A single UDP loopback check likewise cannot characterize an unknown profile. When profile installation fails, an ordinary pre-existing directory restriction can satisfy NoFileChanges while other directories remain writable. A caller requiring the flag can then admit secret input.",
-      "impact": null,
+      "observed": "The result of sandbox_init is used only to free an error message. A permission denial creating one temporary file can come from its directory. A single UDP loopback check likewise cannot characterize an unknown profile.",
+      "impact": "When profile installation fails, an ordinary pre-existing directory restriction can satisfy NoFileChanges while other directories remain writable. A caller requiring the flag can then admit secret input.",
       "recommendedFix": "Track actual successful profile installation, including re-entry, and combine it with the intended readbacks. Return unknown on an unverified external sandbox.",
-      "requiredVerification": "On macOS verify first success, repeat entry, and refused installation with independently restricted probe locations in disposable processes."
+      "requiredVerification": "On macOS verify first success, repeat entry, and refused installation with independently restricted probe locations in disposable processes.",
+      "references": []
     },
     {
       "id": "AUD-001-SEC006",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Signal-domain isolation can satisfy a stricter self-only claim",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/linux.rs line 150](../../src/os/linux.rs#L150) · [src/os/linux.rs line 170](../../src/os/linux.rs#L170) · [src/os/linux.rs line 223](../../src/os/linux.rs#L223) · [src/os/linux.rs line 624](../../src/os/linux.rs#L624) · [src/protect.rs line 272](../../src/protect.rs#L272) · [OS or language contract](https://docs.kernel.org/userspace-api/landlock.html)",
-      "reproduction": null,
+      "title": "Signal-domain isolation can satisfy a stricter self-only claim",
+      "evidence": [
+        "src/os/linux.rs:150",
+        "src/os/linux.rs:170",
+        "src/os/linux.rs:223",
+        "src/os/linux.rs:624",
+        "src/protect.rs:272"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Evidence must distinguish self-only addressing, a Landlock domain boundary and unsupported enforcement.",
-      "observed": "A successful seccomp installation plus Landlock ABI support can stand in for a failed Landlock application. An enforced Landlock signal scope groups processes. The self-only filter separately embeds the installing process ID, which is inherited across fork. A required ForeignSignalsRefused result can mean separate things and can be positive without the advertised restriction. A child cannot interpret an inherited fixed-ID filter as its own self-only policy.",
-      "impact": null,
+      "observed": "A successful seccomp installation plus Landlock ABI support can stand in for a failed Landlock application. An enforced Landlock signal scope groups processes. The self-only filter separately embeds the installing process ID, which is inherited across fork.",
+      "impact": "A required ForeignSignalsRefused result can mean separate things and can be positive without the advertised restriction. A child cannot interpret an inherited fixed-ID filter as its own self-only policy.",
       "recommendedFix": "Distinguish confirmed signal-domain scope from self-only mode, track enforcement separately from availability, and bind or restrict the supported process lifecycle.",
-      "requiredVerification": "Test each enforcement state independently, including unavailable Landlock, repeated entry and supported descendant semantics. Verify the strict requirement accepts only the requested property."
+      "requiredVerification": "Test each enforcement state independently, including unavailable Landlock, repeated entry and supported descendant semantics. Verify the strict requirement accepts only the requested property.",
+      "references": [
+        "https://docs.kernel.org/userspace-api/landlock.html"
+      ]
     },
     {
       "id": "AUD-001-SEC007",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Unsupported speculation control is accepted as confirmed mitigation",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/linux.rs line 259](../../src/os/linux.rs#L259) · [src/os/linux.rs line 272](../../src/os/linux.rs#L272) · [src/protect.rs line 257](../../src/protect.rs#L257) · [OS or language contract](https://docs.kernel.org/userspace-api/spec_ctrl.html)",
-      "reproduction": null,
+      "title": "Unsupported speculation control is accepted as confirmed mitigation",
+      "evidence": [
+        "src/os/linux.rs:259",
+        "src/os/linux.rs:272",
+        "src/protect.rs:257"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A positive mitigation claim needs a confirmed protection or a supported indication that the CPU is unaffected.",
-      "observed": "For indirect branches the implementation accepts ENODEV. The kernel defines it as an unsupported selector, while a successful zero return identifies an unaffected CPU. The code also groups ordinary disable with irreversible disable. The strict requirement or detailed report can overstate speculative-execution mitigation on particular architectures and configurations. No leakage was observed.",
-      "impact": null,
+      "observed": "For indirect branches the implementation accepts ENODEV. The kernel defines it as an unsupported selector, while a successful zero return identifies an unaffected CPU. The code also groups ordinary disable with irreversible disable.",
+      "impact": "The strict requirement or detailed report can overstate speculative-execution mitigation on particular architectures and configurations. No leakage was observed.",
       "recommendedFix": "Represent unsupported as unknown and distinguish reversible from permanent disable where the public contract promises permanence. Permit platform-specific equivalents only with evidence.",
-      "requiredVerification": "Validate the mapping from independent kernel results to supported, unaffected, reversible, irreversible and unknown statuses."
+      "requiredVerification": "Validate the mapping from independent kernel results to supported, unaffected, reversible, irreversible and unknown statuses.",
+      "references": [
+        "https://docs.kernel.org/userspace-api/spec_ctrl.html"
+      ]
     },
     {
       "id": "AUD-001-SEC008",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Protected stack properties cannot be required before secret work",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/stack.rs line 12](../../src/stack.rs#L12) · [src/os/unix.rs line 170](../../src/os/unix.rs#L170) · [src/os/unix.rs line 184](../../src/os/unix.rs#L184) · [src/os/unix.rs line 358](../../src/os/unix.rs#L358) · [src/os/unix.rs line 391](../../src/os/unix.rs#L391)",
-      "reproduction": null,
+      "title": "Protected stack properties cannot be required before secret work",
+      "evidence": [
+        "src/stack.rs:12",
+        "src/os/unix.rs:170",
+        "src/os/unix.rs:184",
+        "src/os/unix.rs:358",
+        "src/os/unix.rs:391"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A caller relying on exclusion or locking must verify those properties before invoking its callback.",
-      "observed": "Page advice and locking are best effort. Apple explicitly reports no per-mapping dump exclusion. The callback runs before the caller receives even the lock result. Dump and child flags are omitted from StackRun. A standalone caller on Apple, or a caller under Linux policy or quota restrictions, can put secret temporaries on a stack that falls short of the documented protection.",
-      "impact": null,
+      "observed": "Page advice and locking are best effort. Apple explicitly reports no per-mapping dump exclusion. The callback runs before the caller receives even the lock result. Dump and child flags are omitted from StackRun.",
+      "impact": "A standalone caller on Apple, or a caller under Linux policy or quota restrictions, can put secret temporaries on a stack that falls short of the documented protection.",
       "recommendedFix": "Provide a pre-callback required-properties policy and report the mapping outcomes. Identify when a separately confirmed process-wide measure supplies an equivalent guarantee.",
-      "requiredVerification": "On Linux and Apple assert that missing required flags prevent callback entry. Test the best-effort API and normal/panic completion separately."
+      "requiredVerification": "On Linux and Apple assert that missing required flags prevent callback entry. Test the best-effort API and normal/panic completion separately.",
+      "references": []
     },
     {
       "id": "AUD-001-SEC009",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Stack wiping assumes every post-pthread byte is an initialized Rust u8",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": true,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/unix.rs line 379](../../src/os/unix.rs#L379) · [src/os/unix.rs line 386](../../src/os/unix.rs#L386) · [src/os.rs line 105](../../src/os.rs#L105) · [OS or language contract](https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)",
-      "reproduction": null,
+      "title": "Stack wiping assumes every post-pthread byte is an initialized Rust u8",
+      "evidence": [
+        "src/os/unix.rs:379",
+        "src/os/unix.rs:386",
+        "src/os.rs:105"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Final wiping must be valid for arbitrary used stack memory and may begin only once all thread access has ended.",
-      "observed": "The code forms a mutable slice of initialized bytes over an entire used stack. Arbitrary frames can contain uninitialized storage or padding even though the original mapping was zero-filled. pthread_join's return value is discarded. The unsafe conversion lacks an initialization proof for a safe public API. Successful ordinary tests do not establish this invariant. No optimizer-induced leak was observed.",
-      "impact": null,
+      "observed": "The code forms a mutable slice of initialized bytes over an entire used stack. Arbitrary frames can contain uninitialized storage or padding even though the original mapping was zero-filled. pthread_join's return value is discarded.",
+      "impact": "The unsafe conversion lacks an initialization proof for a safe public API. Successful ordinary tests do not establish this invariant. No optimizer-induced leak was observed.",
       "recommendedFix": "Use a write-only raw wipe or a MaybeUninit byte representation with an optimization-resistant wipe. Establish successful join before releasing the backing allocation and job.",
-      "requiredVerification": "Review lifetime and initialization invariants, check generated wipe code, and exercise normal and panic paths on supported Unix runtimes."
+      "requiredVerification": "Review lifetime and initialization invariants, check generated wipe code, and exercise normal and panic paths on supported Unix runtimes.",
+      "references": [
+        "https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html"
+      ]
     },
     {
       "id": "AUD-001-SEC010",
       "category": "SEC",
-      "kind": "finding",
-      "title": "ClosedSecret forgets the previous access mode after a refused reseal",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/protect/closed.rs line 112](../../src/protect/closed.rs#L112) · [src/protect/closed.rs line 135](../../src/protect/closed.rs#L135) · [src/protect/closed.rs line 144](../../src/protect/closed.rs#L144)",
-      "reproduction": null,
+      "title": "ClosedSecret forgets the previous access mode after a refused reseal",
+      "evidence": [
+        "src/protect/closed.rs:112",
+        "src/protect/closed.rs:135",
+        "src/protect/closed.rs:144"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A mutable reference or destructor wipe requires confirmed write access, including after OS protection failures.",
-      "observed": "A read-only opening followed by refused resealing leaves the closed boolean false. A subsequent refused read-write transition can therefore be ignored even if the mapping is still read-only. When OS policy refuses both transitions, a write or cleanup can fault. The condition does not establish disclosure and was not observed on this host.",
-      "impact": null,
+      "observed": "A read-only opening followed by refused resealing leaves the closed boolean false. A subsequent refused read-write transition can therefore be ignored even if the mapping is still read-only.",
+      "impact": "When OS policy refuses both transitions, a write or cleanup can fault. The condition does not establish disclosure and was not observed on this host.",
       "recommendedFix": "Track actual access permissions explicitly and distinguish unsupported backends. Refuse any operation whose required access cannot be established before producing the reference or wiping.",
-      "requiredVerification": "Exercise policy-refused transitions from read-only state, including drop and callback unwinding, with public data."
+      "requiredVerification": "Exercise policy-refused transitions from read-only state, including drop and callback unwinding, with public data.",
+      "references": []
     },
     {
       "id": "AUD-001-SEC011",
       "category": "SEC",
-      "kind": "finding",
-      "title": "Windows dynamic-code status ignores permitted exemptions",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/windows.rs line 327](../../src/os/windows.rs#L327) · [src/os/windows.rs line 334](../../src/os/windows.rs#L334) · [src/os/windows.rs line 389](../../src/os/windows.rs#L389) · [OS or language contract](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_dynamic_code_policy)",
-      "reproduction": null,
+      "title": "Windows dynamic-code status ignores permitted exemptions",
+      "evidence": [
+        "src/os/windows.rs:327",
+        "src/os/windows.rs:334",
+        "src/os/windows.rs:389"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A process-wide permanent prohibition must account for Windows policy exceptions.",
-      "observed": "Readback tests ProhibitDynamicCode alone. A policy may also set AllowThreadOptOut or AllowRemoteDowngrade. A strict requirement can accept a preconfigured and weaker dynamic-code policy. The scope is installations carrying those mitigation settings.",
-      "impact": null,
+      "observed": "Readback tests ProhibitDynamicCode alone. A policy may also set AllowThreadOptOut or AllowRemoteDowngrade.",
+      "impact": "A strict requirement can accept a preconfigured and weaker dynamic-code policy. The scope is installations carrying those mitigation settings.",
       "recommendedFix": "Classify opt-out and downgrade flags explicitly and require the promised properties before reporting strict success.",
-      "requiredVerification": "Validate the official policy combinations on supported Windows versions and expose partial coverage explicitly."
+      "requiredVerification": "Validate the official policy combinations on supported Windows versions and expose partial coverage explicitly.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_dynamic_code_policy"
+      ]
     },
     {
       "id": "AUD-001-FUN001",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Dropping a worker can wait forever after rejecting a large reply",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/worker.rs line 112](../../src/worker.rs#L112) · [src/worker.rs line 125](../../src/worker.rs#L125) · [src/worker.rs line 173](../../src/worker.rs#L173) · [src/os/unix.rs line 243](../../src/os/unix.rs#L243) · [src/os/windows.rs line 785](../../src/os/windows.rs#L785) · [OS or language contract](https://man7.org/linux/man-pages/man7/pipe.7.html)",
-      "reproduction": null,
+      "title": "Dropping a worker can wait forever after rejecting a large reply",
+      "evidence": [
+        "src/worker.rs:112",
+        "src/worker.rs:125",
+        "src/worker.rs:173",
+        "src/os/unix.rs:243",
+        "src/os/windows.rs:785"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "A rejected, oversized answer should permit prompt disposal and reaping of the worker.",
-      "observed": "The parent rejects the advertised size, retains the unread output pipe, closes only the input and waits. The child can be blocked writing the rest of a legitimate answer. When the remaining reply exceeds pipe capacity, both sides can wait indefinitely. The standard test uses a 100-byte reply that fits in the pipe.",
-      "impact": null,
+      "observed": "The parent rejects the advertised size, retains the unread output pipe, closes only the input and waits. The child can be blocked writing the rest of a legitimate answer.",
+      "impact": "When the remaining reply exceeds pipe capacity, both sides can wait indefinitely. The standard test uses a 100-byte reply that fits in the pipe.",
       "recommendedFix": "Close both IPC directions before waiting. Define a bounded shutdown policy for broken workers and mark partial transport failures terminal.",
-      "requiredVerification": "Use a normal large public response with a bounded test deadline on Unix and Windows. Verify prompt return and child reaping."
+      "requiredVerification": "Use a normal large public response with a bounded test deadline on Unix and Windows. Verify prompt return and child reaping.",
+      "references": [
+        "https://man7.org/linux/man-pages/man7/pipe.7.html"
+      ]
     },
     {
       "id": "AUD-001-FUN002",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Fork-based work inside a protected stack may lose its active stack",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/unix.rs line 170](../../src/os/unix.rs#L170) · [src/os/unix.rs line 183](../../src/os/unix.rs#L183) · [src/os/unix.rs line 220](../../src/os/unix.rs#L220) · [src/os/unix.rs line 358](../../src/os/unix.rs#L358)",
-      "reproduction": null,
+      "title": "Fork-based work inside a protected stack may lose its active stack",
+      "evidence": [
+        "src/os/unix.rs:170",
+        "src/os/unix.rs:183",
+        "src/os/unix.rs:220",
+        "src/os/unix.rs:358"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "The callback contract should identify supported ways to launch children safely.",
-      "observed": "The active stack is configured to be wiped or excluded on fork. A non-terminal Unix Worker start registers a pre_exec closure, where the child needs usable execution state before exec. A caller that starts a fork-based operation from the protected stack can lose its active return frames in the child. Normal stack-only tests do not exercise this composition.",
-      "impact": null,
+      "observed": "The active stack is configured to be wiped or excluded on fork. A non-terminal Unix Worker start registers a pre_exec closure, where the child needs usable execution state before exec.",
+      "impact": "A caller that starts a fork-based operation from the protected stack can lose its active return frames in the child. Normal stack-only tests do not exercise this composition.",
       "recommendedFix": "Document and enforce the relevant process lifecycle where feasible. Start workers outside this stack or use a launch design independent of its post-fork frames.",
-      "requiredVerification": "Check supported process-launch combinations with plain public operations on Linux and Apple and document any unsupported ones."
+      "requiredVerification": "Check supported process-launch combinations with plain public operations on Linux and Apple and document any unsupported ones.",
+      "references": []
     },
     {
       "id": "AUD-001-API001",
       "category": "API",
-      "kind": "finding",
-      "title": "MemoryLocked loses a successful process lock on re-entry",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "New public Linux diagnostic in AUD-001-harnesses/report_state.rs. See report-state.log and the static implementation. [src/os/linux.rs line 125](../../src/os/linux.rs#L125) · [tests/isolation.rs line 868](../../tests/isolation.rs#L868) · [tests/isolation.rs line 880](../../tests/isolation.rs#L880) · [OS or language contract](https://man7.org/linux/man-pages/man2/mlock.2.html)",
-      "reproduction": null,
+      "title": "MemoryLocked loses a successful process lock on re-entry",
+      "evidence": [
+        "src/os/linux.rs:125",
+        "tests/isolation.rs:868",
+        "tests/isolation.rs:880"
+      ],
+      "reproduction": "New public Linux diagnostic in AUD-001-harnesses/report_state.rs. See report-state.log and the static implementation.",
       "expected": "Repeated default entry should report a still-effective process lock or explicitly describe uncertainty.",
-      "observed": "memory_locked reads the options of this call. The public Linux diagnostic observed true then false without an unlock, with VmLck still nonzero. Health reporting or strict checks can reject a correctly locked worker. The existing test only validates VmLck if the flag happens to be true.",
-      "impact": null,
+      "observed": "memory_locked reads the options of this call. The public Linux diagnostic observed true then false without an unlock, with VmLck still nonzero.",
+      "impact": "Health reporting or strict checks can reject a correctly locked worker. The existing test only validates VmLck if the flag happens to be true.",
       "recommendedFix": "Track established state within the supported process lifecycle and invalidate it appropriately on fork or external changes. Distinguish requested, observed and unverified.",
-      "requiredVerification": "Check positive and negative configurations under known quotas, repeated entry, and the documented scope of external changes."
+      "requiredVerification": "Check positive and negative configurations under known quotas, repeated entry, and the documented scope of external changes.",
+      "references": [
+        "https://man7.org/linux/man-pages/man2/mlock.2.html"
+      ]
     },
     {
       "id": "AUD-001-API002",
       "category": "API",
-      "kind": "finding",
-      "title": "open_channels can return an apparently complete partial inventory",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/channels.rs line 27](../../src/channels.rs#L27) · [src/os/unix.rs line 288](../../src/os/unix.rs#L288) · [src/os/unix.rs line 297](../../src/os/unix.rs#L297) · [src/os/unix.rs line 301](../../src/os/unix.rs#L301) · [src/os/unix.rs line 310](../../src/os/unix.rs#L310)",
-      "reproduction": null,
+      "title": "open_channels can return an apparently complete partial inventory",
+      "evidence": [
+        "src/channels.rs:27",
+        "src/os/unix.rs:288",
+        "src/os/unix.rs:297",
+        "src/os/unix.rs:301",
+        "src/os/unix.rs:310"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Callers need to distinguish a complete inventory from an unavailable or inconclusive scan.",
-      "observed": "Entry and fstat failures can silently remove descriptors. F_GETFL failure becomes a non-writable classification. A writable nonregular handle can be labelled WritableFile. Concurrent changes also limit a live snapshot. An isolation UI can omit a real channel, mislabel a non-file FD, or interpret an incomplete scan as a clean report. Windows and WASM explicitly return None.",
-      "impact": null,
+      "observed": "Entry and fstat failures can silently remove descriptors. F_GETFL failure becomes a non-writable classification. A writable nonregular handle can be labelled WritableFile. Concurrent changes also limit a live snapshot.",
+      "impact": "An isolation UI can omit a real channel, mislabel a non-file FD, or interpret an incomplete scan as a clean report. Windows and WASM explicitly return None.",
       "recommendedFix": "Report incomplete scans and unknown kinds, handle transient disappearance separately, and identify regular files explicitly. Document snapshot scope.",
-      "requiredVerification": "Check incomplete enumeration, harmless special descriptors and concurrent lifecycle changes. Confirm the listing's own transient descriptor is excluded."
+      "requiredVerification": "Check incomplete enumeration, harmless special descriptors and concurrent lifecycle changes. Confirm the listing's own transient descriptor is excluded.",
+      "references": []
     },
     {
       "id": "AUD-001-API003",
       "category": "API",
-      "kind": "finding",
-      "title": "Detailed protection reports describe possible proofs as if observed",
       "severity": "medium",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "New public Linux diagnostic in AUD-001-harnesses/report_state.rs. See report-state.log and the static implementation. [src/protect.rs line 339](../../src/protect.rs#L339) · [src/protect.rs line 405](../../src/protect.rs#L405) · [src/os/linux.rs line 790](../../src/os/linux.rs#L790) · [src/os/windows.rs line 273](../../src/os/windows.rs#L273) · [src/os/windows.rs line 311](../../src/os/windows.rs#L311)",
-      "reproduction": null,
+      "title": "Detailed protection reports describe possible proofs as if observed",
+      "evidence": [
+        "src/protect.rs:339",
+        "src/protect.rs:405",
+        "src/os/linux.rs:790",
+        "src/os/windows.rs:273",
+        "src/os/windows.rs:311"
+      ],
+      "reproduction": "New public Linux diagnostic in AUD-001-harnesses/report_state.rs. See report-state.log and the static implementation.",
       "expected": "Each result should tell the integrator what was observed and the scope of the evidence.",
-      "observed": "Proof strings are static by protection type even for an unrequested or refused protection. On Windows several attempted measures, including reporting and integrity restrictions, have no corresponding per-measure outcome. The diagnostic observed holds=false with proof='mlockall accepted'. A UI can display evidence that was never obtained on that call.",
-      "impact": null,
+      "observed": "Proof strings are static by protection type even for an unrequested or refused protection. On Windows several attempted measures, including reporting and integrity restrictions, have no corresponding per-measure outcome.",
+      "impact": "The diagnostic observed holds=false with proof='mlockall accepted'. A UI can display evidence that was never obtained on that call.",
       "recommendedFix": "Separate mechanisms from observed outcomes. Represent applied, refused, unsupported, unrequested and unknown, including scope. Identify Windows measures with no readback.",
-      "requiredVerification": "Check every advertised measure against actual positive, refused and unsupported states, including serialization across the worker handshake."
+      "requiredVerification": "Check every advertised measure against actual positive, refused and unsupported states, including serialization across the worker handshake.",
+      "references": []
     },
     {
       "id": "AUD-001-FUN003",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Oversized protected stack requests overflow during rounding",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/unix.rs line 355](../../src/os/unix.rs#L355)",
-      "reproduction": null,
+      "title": "Oversized protected stack requests overflow during rounding",
+      "evidence": [
+        "src/os/unix.rs:355"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "An unrepresentable requested stack size should return an error without running work.",
-      "observed": "next_multiple_of is unchecked near usize::MAX. Depending on overflow checks, it can panic or wrap and select the minimum stack. A caller-supplied size can produce a different result from the documented minimum-size contract.",
-      "impact": null,
+      "observed": "next_multiple_of is unchecked near usize::MAX. Depending on overflow checks, it can panic or wrap and select the minimum stack.",
+      "impact": "A caller-supplied size can produce a different result from the documented minimum-size contract.",
       "recommendedFix": "Use checked rounding and reject unrepresentable or platform-invalid sizes before thread creation.",
-      "requiredVerification": "Check boundary values in checked and optimized builds without allocating a huge buffer."
+      "requiredVerification": "Check boundary values in checked and optimized builds without allocating a huge buffer.",
+      "references": []
     },
     {
       "id": "AUD-001-FUN004",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Hard-coded MCL_ONFAULT is incorrect on some Linux architectures",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/linux.rs line 159](../../src/os/linux.rs#L159) · [src/os/linux.rs line 165](../../src/os/linux.rs#L165)",
-      "reproduction": null,
+      "title": "Hard-coded MCL_ONFAULT is incorrect on some Linux architectures",
+      "evidence": [
+        "src/os/linux.rs:159",
+        "src/os/linux.rs:165"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "The lock flag must match the target's Linux UAPI.",
-      "observed": "The crate uses 4 unconditionally. Linux headers on PowerPC and SPARC define 0x8000. Whole-process locking may be refused despite kernel support on those targets, outside the six lint targets.",
-      "impact": null,
+      "observed": "The crate uses 4 unconditionally. Linux headers on PowerPC and SPARC define 0x8000.",
+      "impact": "Whole-process locking may be refused despite kernel support on those targets, outside the six lint targets.",
       "recommendedFix": "Use an authoritative target binding or correct cfg-specific constants and define the supported targets explicitly.",
-      "requiredVerification": "Check against UAPI headers and cross-build the affected targets if supported."
+      "requiredVerification": "Check against UAPI headers and cross-build the affected targets if supported.",
+      "references": []
     },
     {
       "id": "AUD-001-FUN005",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Windows work areas skip a potentially available page lock",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/windows.rs line 102](../../src/os/windows.rs#L102) · [src/os/windows.rs line 110](../../src/os/windows.rs#L110) · [OS or language contract](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtuallock)",
-      "reproduction": null,
+      "title": "Windows work areas skip a potentially available page lock",
+      "evidence": [
+        "src/os/windows.rs:102",
+        "src/os/windows.rs:110"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Strict work-area locking should use existing working-set allowance where Windows permits it.",
-      "observed": "A refused working-set enlargement short-circuits VirtualLock even if the current allowance could hold the pages. The ordinary Secret path already attempts VirtualLock independently. Under a restricted process policy a strict work-area allocation can be rejected unnecessarily.",
-      "impact": null,
+      "observed": "A refused working-set enlargement short-circuits VirtualLock even if the current allowance could hold the pages. The ordinary Secret path already attempts VirtualLock independently.",
+      "impact": "Under a restricted process policy a strict work-area allocation can be rejected unnecessarily.",
       "recommendedFix": "Attempt VirtualLock within available allowance independently of successful growth. Restore only quota actually increased.",
-      "requiredVerification": "On Windows verify both available and exhausted allowance when a working-set change is refused."
+      "requiredVerification": "On Windows verify both available and exhausted allowance when a working-set change is refused.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtuallock"
+      ]
     },
     {
       "id": "AUD-001-FUN006",
       "category": "FUN",
-      "kind": "finding",
-      "title": "Windows cleanup is attempted on a potentially uninitialized attribute list",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/os/windows.rs line 873](../../src/os/windows.rs#L873) · [src/os/windows.rs line 929](../../src/os/windows.rs#L929) · [OS or language contract](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-deleteprocthreadattributelist)",
-      "reproduction": null,
+      "title": "Windows cleanup is attempted on a potentially uninitialized attribute list",
+      "evidence": [
+        "src/os/windows.rs:873",
+        "src/os/windows.rs:929"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Destroy a process attribute list only after its initialization succeeds.",
-      "observed": "Cleanup is unconditional after the second InitializeProcThreadAttributeList call, including the path where initialization itself fails. Zero-filled storage does not establish the API precondition. An OS startup failure can lead to an invalid cleanup call rather than the intended clean error.",
-      "impact": null,
+      "observed": "Cleanup is unconditional after the second InitializeProcThreadAttributeList call, including the path where initialization itself fails. Zero-filled storage does not establish the API precondition.",
+      "impact": "An OS startup failure can lead to an invalid cleanup call rather than the intended clean error.",
       "recommendedFix": "Guard destruction with successful initialization and preserve the underlying initialization or update error.",
-      "requiredVerification": "Check initialization failure and later attribute-update failure as separate cleanup paths."
+      "requiredVerification": "Check initialization failure and later attribute-update failure as separate cleanup paths.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-deleteprocthreadattributelist"
+      ]
     },
     {
       "id": "AUD-001-DOC001",
       "category": "DOC",
-      "kind": "finding",
-      "title": "Keystroke serialization leaves wiping to a caller that is promised a wipe",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [src/input.rs line 23](../../src/input.rs#L23) · [src/input.rs line 28](../../src/input.rs#L28) · [src/input.rs line 35](../../src/input.rs#L35)",
-      "reproduction": null,
+      "title": "Keystroke serialization leaves wiping to a caller that is promised a wipe",
+      "evidence": [
+        "src/input.rs:23",
+        "src/input.rs:28",
+        "src/input.rs:35"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "The owner of all five scratch bytes and the time of wiping should be explicit.",
-      "observed": "The serializer accepts caller-owned storage, writes only a prefix and cannot wipe it after transmission. Reuse for a shorter event can leave old UTF-8 bytes in the tail. A GUI following the text literally may retain typed bytes in ordinary memory. SecretLine separately wipes its own encoding scratch.",
-      "impact": null,
+      "observed": "The serializer accepts caller-owned storage, writes only a prefix and cannot wipe it after transmission. Reuse for a shorter event can leave old UTF-8 bytes in the tail.",
+      "impact": "A GUI following the text literally may retain typed bytes in ordinary memory. SecretLine separately wipes its own encoding scratch.",
       "recommendedFix": "Return a zeroizing scoped owner or document and demonstrate wiping the whole caller buffer on every exit after sending.",
-      "requiredVerification": "Check reuse across different encoded lengths and error exits. Confirm that the transport receives only the used prefix."
+      "requiredVerification": "Check reuse across different encoded lengths and error exits. Confirm that the transport receives only the used prefix.",
+      "references": []
     },
     {
       "id": "AUD-001-DOC002",
       "category": "DOC",
-      "kind": "finding",
-      "title": "Usage guidance overstates disk guarantees and lists shipped restrictions as planned",
       "severity": "low",
+      "kind": "finding",
       "status": "open",
       "releaseBlocking": false,
-      "releaseBlockingReason": "The report records whether the finding blocks the affected strict use.",
-      "evidence": "Static control-flow and contract review of the cited lines at the reviewed commit. [README.md line 37](../../README.md#L37) · [README.md line 101](../../README.md#L101) · [docs/TECHNICAL.md line 119](../../docs/TECHNICAL.md#L119) · [docs/TECHNICAL.md line 171](../../docs/TECHNICAL.md#L171) · [docs/TECHNICAL.md line 172](../../docs/TECHNICAL.md#L172)",
-      "reproduction": null,
+      "title": "Usage guidance overstates disk guarantees and lists shipped restrictions as planned",
+      "evidence": [
+        "README.md:37",
+        "README.md:101",
+        "docs/TECHNICAL.md:119",
+        "docs/TECHNICAL.md:171",
+        "docs/TECHNICAL.md:172"
+      ],
+      "reproduction": "Static control-flow and contract review of the cited lines at the reviewed commit.",
       "expected": "Integration guidance must agree with platform guarantees and the shipped options.",
-      "observed": "The README literally promises that no secret ever reaches disk alongside exceptions. The technical notes describe file locks and sendmsg switches as future work, and omit self-only seccomp in that summary. The Windows overview also omits earlier non-debug read handles. Applications may choose the wrong policy or promise protection from hibernation, crash capture, or old handles beyond the documented API.",
-      "impact": null,
+      "observed": "The README literally promises that no secret ever reaches disk alongside exceptions. The technical notes describe file locks and sendmsg switches as future work, and omit self-only seccomp in that summary. The Windows overview also omits earlier non-debug read handles.",
+      "impact": "Applications may choose the wrong policy or promise protection from hibernation, crash capture, or old handles beyond the documented API.",
       "recommendedFix": "Correct the contradictory sentences and state pre-existing process/thread handle, snapshot, crash and caller-copy limits next to the summaries.",
-      "requiredVerification": "Compare each user-facing protection against its implementation and tests on current and older kernels."
+      "requiredVerification": "Compare each user-facing protection against its implementation and tests on current and older kernels.",
+      "references": []
     }
   ],
   "observations": [],
-  "remediation": [
-    {
-      "id": "AUD-001-SEC001",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC002",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC003",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC004",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC005",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC006",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC007",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC008",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC009",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC010",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-SEC011",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN001",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN002",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-API001",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-API002",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-API003",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN003",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN004",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN005",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-FUN006",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-DOC001",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    },
-    {
-      "id": "AUD-001-DOC002",
-      "status": "open",
-      "fixCommit": null,
-      "verificationCommit": null,
-      "evidence": "Open against the reviewed commit; no fix or verification commit was made in this review."
-    }
-  ],
-  "limitations": [
-    "Native runtime evidence is limited to Linux x86_64 on kernel 7.0.0-43-generic. Clippy type-checked other targets. No native Windows, macOS, iOS, Android or WASM runtime, installer, link test or end-to-end consuming application was exercised.",
-    "The ordinary suite, diagnostic and code review do not certify complete memory erasure, impossibility of disclosure, or resistance to privileged OS access. No secret transfer or exploit was demonstrated. No formal proof, sanitizer or disassembly campaign was performed.",
-    "The host used a fresh target directory and offline locked dependencies. Upstream dependency internals and current transitive advisories were not audited.",
-    "Terminal password input integration in MHFE, actual StegoCode integration, browser UI, suspend images, VM snapshots and device-wide crash collectors are outside the library tests."
-  ],
-  "remediationNote": [
-    "All findings are open against the reviewed commit. No fixes or fix-verification commits were made. A blocker in the register applies to integrations relying on the affected guarantee. Address the five high-severity boundary failures first. Verify required flags, stack entry and unsafe cleanup before enabling their strict profiles."
-  ],
-  "integrationGuidance": [
+  "guidance": [
     "Use a fresh single-threaded, fork-free worker where the platform supports one. Verify required protections and intended channel ownership before admitting test or user secrets. Mobile integrations need their own platform-specific isolation and device evidence.",
     "Protect long-lived secrets and Argon2 work areas explicitly. Determine whether a given allocation fits the lock quota. A strict configuration that requires locked work memory must refuse the sensitive operation when it cannot obtain it. Keep whole-process locking opt-in.",
     "The current worker protocol accepts a u32 byte count and makes a non-fallible allocation on the receiving side. Define application-specific request/reply maxima, use fallible allocation for untrusted sizes, and retire broken transports on partial I/O.",
@@ -971,11 +861,11 @@
     "Forked descendants should not reuse copied protected-buffer objects or cached lock flags. Memory locks are not inherited and mappings can be wiped or absent.",
     "Verify the integration against native OS crash handling. Windows reports no whole-process NoCoreDumps and Windows Error Reporting can retain stacks and registers. WASM offers buffer wiping only. SIGKILL and abort do not execute Rust Drop. Hibernation and VM snapshots require OS policy."
   ],
-  "normalization": {
-    "origin": "This file was rebuilt on 2026-11-15 from the Markdown report beside it. A later report was written over both files of this audit; the Markdown was recovered byte for byte and the JSON companion was not. Every value here is taken from the Markdown, and no check was run again for it.",
-    "markdownSha256": "962f3c601035f8052fe0f89d95639934183f6e2ff88df02af46e3eb5ed7450f3",
-    "originalJsonSha256": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
-    "recomputed": "The per-file hashes under snapshot.sourceManifest were computed again from the reviewed commit; they reproduce the manifest digest the report states.",
-    "notRecordedSeparately": "The report gives no reproduction or impact apart from its description of each finding: both are null, and the description is under observed."
-  }
+  "remediation": [],
+  "limitations": [
+    "Native runtime evidence is limited to Linux x86_64 on kernel 7.0.0-43-generic. Clippy type-checked other targets. No native Windows, macOS, iOS, Android or WASM runtime, installer, link test or end-to-end consuming application was exercised.",
+    "The ordinary suite, diagnostic and code review do not certify complete memory erasure, impossibility of disclosure, or resistance to privileged OS access. No secret transfer or exploit was demonstrated. No formal proof, sanitizer or disassembly campaign was performed.",
+    "The host used a fresh target directory and offline locked dependencies. Upstream dependency internals and current transitive advisories were not audited.",
+    "Terminal password input integration in MHFE, actual StegoCode integration, browser UI, suspend images, VM snapshots and device-wide crash collectors are outside the library tests."
+  ]
 }

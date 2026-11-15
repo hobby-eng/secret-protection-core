@@ -1,0 +1,715 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-004",
+  "auditNumber": 4,
+  "date": "2026-11-15",
+  "reviewer": {
+    "name": "Codex independent reviewer and coordinating verifier",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "title": "Protected memory, Windows and Apple isolation, platform contracts",
+  "snapshot": {
+    "commit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+    "baseCommit": "60adba5b2f2d144ccdd61cb4829e8e5abc9bc1ca",
+    "tree": "076dc8c85dcf180a60ca639d7fbc491dc5e46d06",
+    "commitComplete": true,
+    "workingTree": "Reviewed commit bytes from Git. The separate 370c651 audit-record commit appeared during review. All 19 Rust, manifest and toolchain inputs were independently compared with the tested checkout.",
+    "sourceFingerprint": "7117fe67f4436b30ebff3279f0d829aebb9c35f2e2d20f286a085e08d4262b51",
+    "coverageInputsFingerprint": "94b7977be8bcd621f932ba7c8bd01986b6cf98232b64bdbc540de4917105dbf5"
+  },
+  "scope": {
+    "publicOperations": "Secret and WorkArea allocation, ClosedSecret and access guards, protected stack requirements, KeystrokeBytes and SecretLine. Unix launching from a protected stack. Windows worker handle lifetime and mitigation policies, Apple sandbox state, and the WebAssembly heap fallback.",
+    "changedFiles": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/COVERAGE.md",
+      "docs/README.md",
+      "docs/TECHNICAL.md",
+      "src/channels.rs",
+      "src/input.rs",
+      "src/lib.rs",
+      "src/os.rs",
+      "src/os/apple.rs",
+      "src/os/linux.rs",
+      "src/os/unix.rs",
+      "src/os/windows.rs",
+      "src/protect.rs",
+      "src/protect/closed.rs",
+      "src/protect/options.rs",
+      "src/stack.rs",
+      "src/worker.rs",
+      "tests/isolation.rs",
+      "tests/secret_memory.rs",
+      "tests/worker.rs"
+    ],
+    "trackedFileSha256": {
+      ".gitignore": "b2a431d9c614b6245398d8d82b6510fbaeafce599395ac0f355a18e7edef5835",
+      "AGENTS.md": "86b438c5e9884f8871c4f011f72944250a8c2fb71a0f419d311890475c88fef7",
+      "CHANGELOG.md": "5595064cd69c47206837031cbfb28ebace4f7f573eac8ee4bca39663a8950b40",
+      "Cargo.lock": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388",
+      "Cargo.toml": "0fbf4bab9e7a37e8d7021ed9442bf70f1dd28cc7f59b879580acb1e1b8bee0da",
+      "LICENSE-APACHE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "LICENSE-MIT": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+      "README.md": "6bc05673f5658c92c73a4802ef733884fec514ecbf708b6ff6e1cb3d6086bb1f",
+      "THIRD_PARTY_NOTICES.md": "26c040a8445d7b95c5239539080c8f51a3e9f75f795f4d4ff14bafd76f6691b9",
+      "clippy.toml": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+      "docs/COVERAGE.md": "a77728f698daeb3cf98711895aa0efd44704d06b0bd2b000c284191cc1f49dd0",
+      "docs/README.md": "129bf39ba2b773587b79a4a3b3c7163ce5e8d631512cfe0bd3c00d2b1969b1d4",
+      "docs/TECHNICAL.md": "cc4af116476da6bd5d904daa2e5dffff71cfa76a9d696761588bf605cf181275",
+      "dprint.json": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+      "rust-toolchain.toml": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+      "src/channels.rs": "d49a4115488fa46c78d800448c8d533341bc022c12c24023d5f12f0f65f76680",
+      "src/input.rs": "bfd5f6ba13848128d7f0ea0b3821fff91afcb814415d0df5b4186cba83912241",
+      "src/lib.rs": "c104fdb9914cb770cdfd444aef06d748462507dc1ede697e76cf364e47e9483d",
+      "src/os.rs": "23d74524bfa9f1c804be08289ac3041dc821a1e5d6fedacb3483512a378dafcd",
+      "src/os/apple.rs": "731c896f0312f17d0d6482c89a4c3c01b22f53ad26551025451588c12804d2ab",
+      "src/os/linux.rs": "2a3ee9e81c02a8e77977b51983c9141133883f268a88d6bb5eb680647d9386b0",
+      "src/os/unix.rs": "94db4b293439843eb0f15ffe7cf5aa2a68fcac8290e285de161d8fed08675e06",
+      "src/os/windows.rs": "4103765925460962ee71b567acae42c4e064158a42f0138b3f5ae6095efed82a",
+      "src/protect.rs": "4766c89dfe0bcd097e5e3095802ff20acfdaa9e0b436301919b67b3f5c166a29",
+      "src/protect/closed.rs": "cd0f9af2c4fd0cf3ed59a9c43b277c5a88775556eaea234d46890e8b840be444",
+      "src/protect/options.rs": "eeefbc06f53526e6752f0e781419b5327c0c7f048ce4fcf9482b47fbceca5db1",
+      "src/stack.rs": "9b77b3802c0d4a2b5056a231b38e516ab76c626dcb8b4692c29ed46963f06c81",
+      "src/worker.rs": "432a0cebf45f0e845d071596aa1712c46ff391be3733caee322cac77a3d7b8e3",
+      "tests/isolation.rs": "a0f1cec129d9c673ca55c20b9cea99be357227cfc4cac037303e12d37501238d",
+      "tests/secret_memory.rs": "bd59eebb155f29e4e69d8c391b1cc85b20ca7a51490e39e6c044dd2d0a4afdec",
+      "tests/worker.rs": "ae0ef8b8cba35fb658ee89d063cc2a949bacaad96b435123c5e7692f190f005f"
+    },
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    },
+    "method": "Scoped independent source review, coordinator challenge, shared native Linux checks and cross-target Clippy. The two reports share execution evidence and assign each historical finding to exactly one report."
+  },
+  "environment": "Linux x86-64, kernel 7.0.0-43-generic. Rust 1.99.1 locked for ordinary checks. Miri and ASan use the installed nightly. Heavy jobs run via run-capped with two Cargo jobs, a 2 GiB cap and separate audit-owned output directories.",
+  "checks": {
+    "commands": [
+      {
+        "name": "advisories",
+        "command": "cargo audit --no-fetch --db <local-RustSec-db> --no-yanked",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:51:36.359264+00:00",
+        "endUTC": "2026-11-15T05:51:36.512957+00:00",
+        "logSha256": "8a42a4df92253530832e6226b39229ca643b97d0fa9cfc6e26230ae6719309ae",
+        "result": "15 dependencies, 1,509 advisories, no matches. Local RustSec commit 4ef2df8e806a65e2f1ecc14f56f51249062b23d6, yanked-package lookup excluded."
+      },
+      {
+        "name": "asan",
+        "command": "cargo +nightly test --locked --offline --target x86_64-unknown-linux-gnu -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip 'locking all memory' --skip 'a secret works under every lock limit' --skip 'the work area lies on pages of its own'",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:51:36.543134+00:00",
+        "endUTC": "2026-11-15T05:52:07.298836+00:00",
+        "logSha256": "9d87e036f2e601bc4c49504212ba4fc06c6f32016ae8c5682bc62540e26b785e",
+        "result": "45 cases ran and four lock-sensitive checks were omitted. Top-level exit zero. A worker-test subprocess emitted a fatal LeakSanitizer diagnostic. AddressSanitizer reported no memory-access violation. Leak checking for that subprocess is inconclusive."
+      },
+      {
+        "name": "audit-db",
+        "command": "cargo audit --no-fetch --db <local-RustSec-db> --no-yank",
+        "exit": 2,
+        "startUTC": "2026-11-15T05:50:31.806220+00:00",
+        "endUTC": "2026-11-15T05:50:31.884719+00:00",
+        "logSha256": "6620071ad54fd3a535fe4dd12a179e2cdca2799138b9e556f495a399dbd723e1",
+        "result": "Initial invocation used an invalid flag. No audit ran on this attempt. The corrected advisories invocation completed."
+      },
+      {
+        "name": "clippy-aarch64-apple-darwin",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-darwin -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:25.434714+00:00",
+        "endUTC": "2026-11-15T05:50:26.959595+00:00",
+        "logSha256": "fee67a4a97047f78c6d3bd2652ad4f7e606c934960e9914443c9c25900d42c09",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "clippy-aarch64-apple-ios",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-apple-ios -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:26.960346+00:00",
+        "endUTC": "2026-11-15T05:50:28.355326+00:00",
+        "logSha256": "e67adbb8f77291cb9eab627fc62cbadb42ba6dc931499b9cd7ea0716ec01f202",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "clippy-aarch64-linux-android",
+        "command": "cargo clippy --locked --offline --all-targets --target aarch64-linux-android -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:24.145941+00:00",
+        "endUTC": "2026-11-15T05:50:25.434359+00:00",
+        "logSha256": "fd07b2e2a0f7ff7427f68b1354f047ded6bf8ec23895ba982f9802c5e77e88cb",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "clippy-wasm32-unknown-unknown",
+        "command": "cargo clippy --locked --offline --all-targets --target wasm32-unknown-unknown -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:31.063858+00:00",
+        "endUTC": "2026-11-15T05:50:31.805850+00:00",
+        "logSha256": "3d956314af45ffcb6837e76a8309bc89cbd07fe82227f861eaae74778a196442",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "clippy-x86_64-pc-windows-gnu",
+        "command": "cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-gnu -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:28.355689+00:00",
+        "endUTC": "2026-11-15T05:50:31.063581+00:00",
+        "logSha256": "c30a1f50646266803ad55d510328a485fd29344017fc636013556d1d161c469f",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "clippy-x86_64-unknown-linux-gnu",
+        "command": "cargo clippy --locked --offline --all-targets --target x86_64-unknown-linux-gnu -- -D warnings",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:16.546233+00:00",
+        "endUTC": "2026-11-15T05:50:24.145527+00:00",
+        "logSha256": "2af8ea83ab5a46c78a197d007f8fc9d1759b908e77f587a52ee3d6e3e9dc9d2d",
+        "result": "All targets of this Cargo package type-checked for the named triple with warnings denied."
+      },
+      {
+        "name": "coverage-env",
+        "command": "cargo llvm-cov show-env --sh",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:40.355679+00:00",
+        "endUTC": "2026-11-15T05:50:40.582295+00:00",
+        "logSha256": "4e53af677b0797e0a03dace5134cd1c642b661596c68dabc5a0927173e0ce862",
+        "result": "The tool supplies instrumentation via its rustc wrapper."
+      },
+      {
+        "name": "coverage",
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo llvm-cov clean --workspace\ncargo test --locked --offline -- --skip \"nothing of its parent'\"'\"'s\"\ncargo llvm-cov report --summary-only'",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:40.582702+00:00",
+        "endUTC": "2026-11-15T05:50:58.657655+00:00",
+        "logSha256": "c516fdd5176e1eec06c9a55ede566a751ce83e67cca8c84edc02a1f989ea7e55",
+        "result": "1,660 covered of 1,870 lines, 88.77%. One worker environment case excluded. Empty-environment child counters and non-Linux source are outside the metric."
+      },
+      {
+        "name": "format",
+        "command": "cargo fmt --check",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:16.271463+00:00",
+        "endUTC": "2026-11-15T05:50:16.545681+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "result": "Formatting passed."
+      },
+      {
+        "name": "linux-tests",
+        "command": "cargo test --locked --offline",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:49:58.049493+00:00",
+        "endUTC": "2026-11-15T05:50:16.270998+00:00",
+        "logSha256": "fdc5eda69fe4975c932e62d6ecb0cb8005defd50e0bd9b570a2c085798ac0d1c",
+        "result": "49 passed, comprising 19 unit, 14 isolation, 5 memory and 11 worker cases. Zero doctests."
+      },
+      {
+        "name": "miri-wipe",
+        "command": "cargo +nightly miri test --locked --offline --lib os::tests::unwritten_bytes_are_wiped_without_being_read -- --exact",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:50:31.885188+00:00",
+        "endUTC": "2026-11-15T05:50:40.355386+00:00",
+        "logSha256": "bfc7232e0b896f2a66ca4ed0aab407f068adc1ecf617f702f25cddeed8ef8949",
+        "result": "One exact wipe helper test passed, 18 filtered out. Miri did not exercise pthread and the complete worker."
+      },
+      {
+        "name": "release-asm",
+        "command": "cargo rustc --release --locked --offline --lib -- --emit=asm",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:53:21.130414+00:00",
+        "endUTC": "2026-11-15T05:53:27.418482+00:00",
+        "logSha256": "7ed8f99b3d3813ade891f214f2f14f0f8c4d400bc9ae1ca19556dae8578ce170",
+        "result": "Optimized x86-64 assembly emitted. The Pages::wipe_any loop writes zero bytes and covers the tail."
+      },
+      {
+        "name": "signature",
+        "command": "git -c gpg.ssh.allowedSignersFile=<workspace-public-signers> verify-commit 6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+        "exit": 0,
+        "startUTC": "2026-11-15T05:51:36.513417+00:00",
+        "endUTC": "2026-11-15T05:51:36.542619+00:00",
+        "logSha256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202",
+        "result": "Git accepted the snapshot signature against the workspace public signing key."
+      }
+    ],
+    "ledger": [
+      {
+        "id": "CHECK-SEC-001",
+        "title": "Threat model and secret ownership",
+        "result": "reviewed",
+        "evidence": "Secret and WorkArea allocation, ClosedSecret and access guards, protected stack requirements, KeystrokeBytes and SecretLine. Unix launching from a protected stack. Windows worker handle lifetime and mitigation policies, Apple sandbox state, and the WebAssembly heap fallback."
+      },
+      {
+        "id": "CHECK-SEC-002",
+        "title": "Secret Vault, CSP, sandbox, and transport",
+        "result": "reviewed",
+        "evidence": "Worker and OS boundaries inspected, including unsupported environments."
+      },
+      {
+        "id": "CHECK-SEC-003",
+        "title": "Network egress and secret guards",
+        "result": "reviewed",
+        "evidence": "Network measure evidence and platform scope reviewed."
+      },
+      {
+        "id": "CHECK-SEC-004",
+        "title": "Randomness, encryption, and authentication",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-SEC-005",
+        "title": "Secret lifecycle and exceptional paths",
+        "result": "reviewed",
+        "evidence": "Reviewed lifetime and exceptional paths within this report scope."
+      },
+      {
+        "id": "CHECK-SEC-006",
+        "title": "Browser injection, persistence, and sensitive APIs",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-SEC-007",
+        "title": "Read-only guarantees and availability bounds",
+        "result": "reviewed",
+        "evidence": "Reviewed blocking behavior, allocation decisions and strict admission."
+      },
+      {
+        "id": "CHECK-FUN-001",
+        "title": "BIP39, entropy, and seed interpretation",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-002",
+        "title": "HD derivation and every coin/profile",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-003",
+        "title": "BIP85, BIP38, messages, and Silent Payments",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-004",
+        "title": "Scripts, descriptors, Miniscript, and multisig",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-005",
+        "title": "Transactions, PSBT version context, and commitments",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-006",
+        "title": "Recovery and backup formats",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-FUN-007",
+        "title": "Discovery, providers, proofs, and accounting",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-API-001",
+        "title": "Actual dependency call contracts",
+        "result": "reviewed",
+        "evidence": "Checked operating-system API contracts at each cited finding."
+      },
+      {
+        "id": "CHECK-API-002",
+        "title": "Async state, cancellation, and revisions",
+        "result": "reviewed",
+        "evidence": "Examined concurrency, repeated entry and cleanup order in scope."
+      },
+      {
+        "id": "CHECK-API-003",
+        "title": "Public export schema and monetary fidelity",
+        "result": "reviewed",
+        "evidence": "Compared strict outcomes, scopes and evidence with public guarantees."
+      },
+      {
+        "id": "CHECK-API-004",
+        "title": "Encoding and import/export interoperability",
+        "result": "reviewed",
+        "evidence": "Reviewed handshake framing or status representation as applicable."
+      },
+      {
+        "id": "CHECK-BLD-001",
+        "title": "Manifest, flags, and feature composition",
+        "result": "reviewed",
+        "evidence": "Cargo metadata and pinned toolchain reviewed. Six Clippy jobs."
+      },
+      {
+        "id": "CHECK-BLD-002",
+        "title": "Matrix depth and runtime sampling",
+        "result": "reviewed",
+        "evidence": "Linux tests, coverage and targeted Miri. No foreign native runtime."
+      },
+      {
+        "id": "CHECK-BLD-003",
+        "title": "Lockfiles, source provenance, and licenses",
+        "result": "reviewed",
+        "evidence": "Offline dependency resolution and local advisory database check."
+      },
+      {
+        "id": "CHECK-BLD-004",
+        "title": "Canonical WASM and Docker bytes",
+        "result": "reviewed",
+        "evidence": "WASM type-check only. No shipped browser artifact identified."
+      },
+      {
+        "id": "CHECK-BLD-005",
+        "title": "Artifacts, CI, and release workflows",
+        "result": "reviewed",
+        "evidence": "No tracked CI workflow or release artifact in snapshot."
+      },
+      {
+        "id": "CHECK-UI-001",
+        "title": "Real files and representative viewports",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-UI-002",
+        "title": "Navigation, inputs, and state preservation",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-UI-003",
+        "title": "Secret visibility, help, QR, and accessibility",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic transformation, GUI or web application surface for this check in this library."
+      },
+      {
+        "id": "CHECK-ARC-001",
+        "title": "Ownership, imports, and composition seams",
+        "result": "reviewed",
+        "evidence": "Secret and WorkArea allocation, ClosedSecret and access guards, protected stack requirements, KeystrokeBytes and SecretLine. Unix launching from a protected stack. Windows worker handle lifetime and mitigation policies, Apple sandbox state, and the WebAssembly heap fallback."
+      },
+      {
+        "id": "CHECK-ARC-002",
+        "title": "Dead code, duplication, and false positives",
+        "result": "reviewed",
+        "evidence": "Checked shared reporting logic against OS-specific outcomes."
+      },
+      {
+        "id": "CHECK-ARC-003",
+        "title": "Comments, tests, and production-path fidelity",
+        "result": "reviewed",
+        "evidence": "Compared new tests with residual cases and their preconditions."
+      },
+      {
+        "id": "CHECK-DOC-001",
+        "title": "User-facing capability and safety descriptions",
+        "result": "reviewed",
+        "evidence": "Checked README and TECHNICAL guarantees with relevant code."
+      },
+      {
+        "id": "CHECK-DOC-002",
+        "title": "Commands, metadata, links, and legal materials",
+        "result": "reviewed",
+        "evidence": "Replayed COVERAGE instructions. No release package validation."
+      },
+      {
+        "id": "CHECK-DOC-003",
+        "title": "Audit records and evidence consistency",
+        "result": "reviewed",
+        "evidence": "Schema, scoped remediation, command hashes and paired reports checked."
+      }
+    ],
+    "optimizedAssemblySha256": "2480921bc44aaec1fcb347bf682245af37b7ca54d8671d632c8834ff45479dbc",
+    "wipeFunctionSha256": "a9e31003bcbbfdef7b60bbc34baaf3d24d638fc1df31cf676e01f2a6cfc9e6a6"
+  },
+  "findings": [
+    {
+      "id": "AUD-004-SEC001",
+      "title": "Default DLL search policy is presented as a universal allow-list",
+      "category": "SEC",
+      "kind": "finding",
+      "status": "open",
+      "severity": "medium",
+      "releaseBlocking": true,
+      "evidence": [
+        "src/protect.rs:285",
+        "src/os/windows.rs:288",
+        "src/os/windows.rs:439"
+      ],
+      "reproduction": "Static review of the pinned implementation and its stated operating conditions.",
+      "expected": "An enforced allow-list must govern all load paths admitted by the documented contract.",
+      "observed": "KnownLibrariesOnly can satisfy a strict requirement after the default search directories and image mitigations were set. Windows applies those directories to default name resolution. An explicit permitted local path or per-call search flags can select locations outside them. This matters to callers relying on an enforced directory boundary.",
+      "impact": "A host that requires directory-based DLL isolation may accept a weaker boundary.",
+      "recommendedFix": "Name the actual default-search guarantee or enforce and verify an executable image policy matching the stronger promise.",
+      "requiredVerification": "On Windows check default resolution and explicit-path behavior independently. Require the exact policy intended by the caller.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-setdefaultdlldirectories"
+      ]
+    },
+    {
+      "id": "AUD-004-API001",
+      "title": "Concurrent macOS isolation calls can erase confirmation of the sandbox",
+      "category": "API",
+      "kind": "finding",
+      "status": "open",
+      "severity": "medium",
+      "releaseBlocking": false,
+      "evidence": [
+        "src/os/apple.rs:131",
+        "src/os/apple.rs:140"
+      ],
+      "reproduction": "Static review of the pinned implementation and its stated operating conditions.",
+      "expected": "Established process-wide sandbox state must remain confirmed across concurrent entry.",
+      "observed": "Two callers can enter initialization together. A later refusal can overwrite an earlier success with false. Future strict checks can then reject an already sandboxed process. The sandbox itself remains active.",
+      "impact": "Strict workloads can become unavailable in a process that successfully entered the sandbox.",
+      "recommendedFix": "Serialize initialization or publish success monotonically and consult the shared result after a competing refusal.",
+      "requiredVerification": "Test two initializers with one success and one refusal in both completion orders, then repeat on macOS.",
+      "references": []
+    },
+    {
+      "id": "AUD-004-API002",
+      "title": "The child-process policy ignores its secure-process exception",
+      "category": "API",
+      "kind": "finding",
+      "status": "open",
+      "severity": "low",
+      "releaseBlocking": false,
+      "evidence": [
+        "src/os/windows.rs:291",
+        "src/os/windows.rs:337",
+        "src/os/windows.rs:425"
+      ],
+      "reproduction": "Static review of the pinned implementation and its stated operating conditions.",
+      "expected": "An unconditional denial must exclude policy exceptions.",
+      "observed": "The Windows readback accepts the child-creation denial bit with no disallowed exception mask. The API defines a separate AllowSecureProcessCreation exception. If both are present, the reported blanket NoNewPrograms guarantee is stronger than the policy. This is limited to secure processes.",
+      "impact": "A strict caller can accept a narrower child-process restriction on a host with this exceptional policy.",
+      "recommendedFix": "Reject the secure-process exception for the blanket guarantee, or report the narrower policy explicitly.",
+      "requiredVerification": "Check policy words with and without the exception, then compare with native readback.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_process_mitigation_child_process_policy"
+      ]
+    },
+    {
+      "id": "AUD-004-DOC001",
+      "title": "ClosedSecret availability of page sealing is overstated",
+      "category": "DOC",
+      "kind": "finding",
+      "status": "open",
+      "severity": "low",
+      "releaseBlocking": false,
+      "evidence": [
+        "README.md:37",
+        "src/protect/closed.rs:8",
+        "src/protect/closed.rs:94",
+        "src/protect/closed.rs:170"
+      ],
+      "reproduction": "Static review of the pinned implementation and its stated operating conditions.",
+      "expected": "Documentation must state when idle pages are inaccessible.",
+      "observed": "The summary promises inaccessible pages between uses. The implementation correctly tracks access after a failed sealing attempt and supports a heap fallback that cannot close pages. Under those conditions idle bytes may remain readable.",
+      "impact": "Applications can assume idle secret pages are inaccessible when the platform or resealing attempt left them readable.",
+      "recommendedFix": "Describe the fallible guarantee and show strict callers when to inspect is_closed, including after a use.",
+      "requiredVerification": "Check public guidance against the refused transition test and heap fallback.",
+      "references": []
+    }
+  ],
+  "observations": [],
+  "additionalContext": [
+    "The stack checks requirements before the callback starts. Successful pthread_join precedes zeroization of the mapped stack and resumption of a Rust panic. Tests, Miri and the release assembly address different parts of this chain.",
+    "WebAssembly WorkArea uses try_reserve_exact and can return a failure. Native page locking and sealing are unavailable on this backend.",
+    "Windows socket status is derived from token/AppContainer capability information. The fixed-size TokenCapabilities query and the exact advertised distinction between socket creation and connectivity need native evidence. Treat this as an unresolved validation question."
+  ],
+  "remediation": [
+    {
+      "id": "AUD-001-SEC004",
+      "title": "Windows worker pipe ends are briefly inheritable by unrelated launches",
+      "severity": "high",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "High for Windows hosts with another inheriting launcher. The new mutex serializes this crate and shortens the window, but an unrelated concurrent process launch can still inherit the worker pipe ends. The limitation is acknowledged in docs/TECHNICAL.md:213. Do not rely on these pipes as an exclusive secret channel in such a host. Use an isolated launcher or establish a process-wide launch contract, then test native concurrent launches. src/os/windows.rs:964.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/procthread/inheritance"
+      ]
+    },
+    {
+      "id": "AUD-001-SEC005",
+      "title": "macOS accepts local probe denials without a confirmed sandbox profile",
+      "severity": "high",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The macOS probes require confirmed installation of this profile. Native execution is pending. A separate concurrency defect that can lose a success is AUD-004-API001. src/os/apple.rs:142.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-SEC008",
+      "title": "Protected stack properties cannot be required before secret work",
+      "severity": "medium",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The Unix entry point checks required stack properties before pthread_create. The Linux suite exercised rejection under a low lock limit and normal callback and panic paths. src/os/unix.rs:438.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-SEC009",
+      "title": "Stack wiping assumes every post-pthread byte is an initialized Rust u8",
+      "severity": "medium",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The wipe takes a MaybeUninit byte slice. Joining precedes the wipe and panic propagation. The targeted Miri check passed and Pages::wipe_any retains zero stores in the fresh optimized x86-64 assembly. src/os.rs:104, src/os/unix.rs:467.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-SEC010",
+      "title": "ClosedSecret forgets the previous access mode after a refused reseal",
+      "severity": "medium",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The remembered access mode changes only after the OS accepts a change. The Linux unit case checks refused transitions. The idle-page wording is tracked separately. src/protect/closed.rs:147.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-SEC011",
+      "title": "Windows dynamic-code status ignores permitted exemptions",
+      "severity": "medium",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The dynamic-code allow mask now rejects opt-out and remote downgrade in the policy readback. Native Windows evidence is pending. src/os/windows.rs:365, src/os/windows.rs:425.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-FUN002",
+      "title": "Fork-based work inside a protected stack may lose its active stack",
+      "severity": "medium",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Medium, conditional. Removing pre_exec enables posix_spawn on the tested host. The Rust GNU/Linux implementation still has a fork fallback on glibc before 2.24 or an unrecognized version. A child stack marked for wiping cannot support the ordinary child-side fork/exec path. Use an ordinary launcher stack or guarantee the safe launch path on every supported host. Verify the fallback or exclude it explicitly. src/os/unix.rs:175, src/os/unix.rs:227, tests/worker.rs:368.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": [
+        "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/sys/process/unix/unix.rs",
+        "https://doc.rust-lang.org/rustc/platform-support.html"
+      ]
+    },
+    {
+      "id": "AUD-001-API003",
+      "title": "Detailed protection reports describe possible proofs as if observed",
+      "severity": "medium",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Public evidence is selected by the recorded outcome, with unspecified proof types labelled accordingly. Linux status/handshake checks passed. Native Windows readback is pending. src/protect.rs:354, src/os/windows.rs:1191.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-FUN003",
+      "title": "Oversized protected stack requests overflow during rounding",
+      "severity": "low",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Checked arithmetic and a stack-size regression test cover overflow before creating a thread. src/stack.rs, src/os/unix.rs.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-FUN005",
+      "title": "Windows work areas skip a potentially available page lock",
+      "severity": "low",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "VirtualLock is attempted even if the working-set change failed. Native Windows pending. src/os/windows.rs:105.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-FUN006",
+      "title": "Windows cleanup is attempted on a potentially uninitialized attribute list",
+      "severity": "low",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The attribute-list destructor is gated on successful initialization. Native Windows pending. src/os/windows.rs:1037.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-001-DOC001",
+      "title": "Keystroke serialization leaves wiping to a caller that is promised a wipe",
+      "severity": "low",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "KeystrokeBytes owns its serialized scratch and drops it with zeroize. The Linux suite checks encoding and Debug. src/input.rs:62, src/input.rs:74.",
+      "baselineReportSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+      "references": []
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "title": "Several advertised Windows protections discard their read-back results",
+      "severity": "medium",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "New fields and readbacks expose job, integrity, DLL-related and child-process outcomes. Windows has only been type-checked. The semantics of the directory and child-policy promises still have separate findings AUD-004-SEC001 and AUD-004-API002. src/os/windows.rs:288, src/os/windows.rs:334.",
+      "baselineReportSha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+      "references": []
+    },
+    {
+      "id": "AUD-002-API001",
+      "title": "Overflowing protected-stack size panics instead of returning an error",
+      "severity": "low",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "assessedAt": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "The oversize stack now returns an error. Same original defect as AUD-001-FUN003. src/stack.rs.",
+      "baselineReportSha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+      "references": []
+    }
+  ],
+  "limitations": [
+    "New native execution used x86-64 Linux only. Android, iOS, macOS, Windows and WebAssembly had cross-target Clippy checks only. No native foreign runtime, linked release package, or consuming GUI was exercised. No tracked CI workflow exists at the reviewed snapshot.",
+    "The current source fingerprint exactly matches the coverage document. Line coverage includes unit-test lines in src and excludes tests/, uninstrumented clean-environment worker-side execution and foreign-platform code.",
+    "The Miri replay checks the wipe helper. The optimized assembly inspection checks the wipe loop for this x86-64 build. Neither measures registers, arbitrary copies made by application code, or cleanup after abrupt process death.",
+    "Twenty mutation detections were reported on the preceding development run. Local mutation scripts were observed. Per-mutant logs bound to this entire frozen snapshot were not established and the campaign was not independently replayed.",
+    "The security findings use source and OS contracts unless a local command result is explicitly named. No actual disclosure of secret data was measured. No dependency source audit, remote CI, or release publication took place."
+  ],
+  "historicalEvidence": {
+    "originalCodexJsonSha256": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
+    "registeredAudit1JsonSha256": "cdcd786b3a908a58c4cd385a5cd492b821df73b339e8e34b07f74289a1d24d59",
+    "registeredAudit2JsonSha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70"
+  }
+}

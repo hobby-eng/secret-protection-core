@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-005",
+  "auditNumber": 5,
+  "date": "2026-11-15",
+  "title": "Independent remediation review of secret-protection-core",
+  "reviewer": {
+    "name": "Kimi Code",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+    "commitComplete": true,
+    "workingTree": "Production source clean and unchanged; independent audit records were being updated separately. Documentation-only commit 370c651 renumbered historical reports.",
+    "sourceFingerprint": "f7c567f39e6c20270d89beb83c2cfac2283b00f6f5ef96c4aa1504df04bf7e65"
+  },
+  "scope": {
+    "included": [
+      "Complete 60adba5..6aa7e56 source and test diff",
+      "All 28 historical findings and current source",
+      "Outcome serialization and strict mode",
+      "Worker admission, IPC and teardown",
+      "Protected memory and stack",
+      "Linux, Windows and Apple platform contracts",
+      "Documentation and retained reproduction harness"
+    ],
+    "excluded": [
+      "Windows, macOS, Android, iOS and WebAssembly runtime",
+      "Release artifacts and CI execution",
+      "Repeated sanitizer, Miri, coverage, mutation and advisory campaigns"
+    ],
+    "environment": "Linux 7.0.0-43-generic x86-64; rustc and Cargo 1.99.1",
+    "tree": "076dc8c85dcf180a60ca639d7fbc491dc5e46d06",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked --offline --lib",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "19 checks passed"
+    },
+    {
+      "command": "cargo test --locked --offline --test isolation",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "14 checks passed"
+    },
+    {
+      "command": "cargo test --locked --offline --test worker",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "11 checks passed"
+    },
+    {
+      "command": "cargo run --quiet --locked --offline in AUD-005-harnesses",
+      "outcome": "failed",
+      "exitCode": 1,
+      "result": "Existing AUD-003-SEC003 reproduced: child outcome=Confirmed, kill(self)=-1, kill(parent)=0",
+      "evidence": "local AUD-005-evidence/signal-owner.log; SHA-256 8312346a4839d642ed25e8ab7f0fad5cd7082c072708de2e3e42cd43cd60ee38"
+    },
+    {
+      "command": "cargo fmt --check in AUD-005-harnesses",
+      "outcome": "passed",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo clippy --locked --offline --all-targets -- -D warnings in AUD-005-harnesses",
+      "outcome": "passed",
+      "exitCode": 0
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-005-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Existing Windows job need not confirm the documented one-process limit",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/windows.rs:461-517",
+        "docs/TECHNICAL.md:115"
+      ],
+      "evidence": "Source control flow checks only JobObjectBasicUIRestrictions before the early return; no basic active-process limit is queried. Windows runtime was not available.",
+      "reproduction": "Enter isolation from a job with every desktop UI restriction but without JOB_OBJECT_LIMIT_ACTIVE_PROCESS set to one.",
+      "expected": "The documented one-process job limit is read back and confirmed.",
+      "observed": "enter_restricted_job returns after the UI check without checking ActiveProcessLimit.",
+      "impact": "The documented second job restriction is unconfirmed. NoNewPrograms is independently read back, so no process-creation bypass is demonstrated.",
+      "recommendedFix": "Query JobObjectBasicLimitInformation and require the active-process limit of one, or qualify the documentation.",
+      "requiredVerification": "On Windows test a UI-restricted job without an active limit, a correctly limited job and assignment failure."
+    }
+  ],
+  "observations": [],
+  "confirmations": [
+    {
+      "id": "AUD-003-SEC003",
+      "severity": "medium",
+      "status": "open",
+      "evidence": "A failed filter upgrade after fork produced Confirmed; signal 0 to self failed and signal 0 to parent succeeded. SIGNAL_OWNER must be updated only after successful installation."
+    },
+    {
+      "id": "AUD-003-DOC001",
+      "severity": "low",
+      "status": "open",
+      "evidence": "Implementation uses MARK=0xE00 (3584), while TECHNICAL.md says 4001."
+    },
+    {
+      "topic": "macOS sandbox/ptrace ordering",
+      "status": "unresolved",
+      "evidence": "sandbox_init now precedes PT_DENY_ATTACH. Whether the profile permits the operation requires native macOS execution; no finding is asserted."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-005-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original source/document comparison"
+    },
+    {
+      "id": "AUD-002-SEC001",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Unclean worker admission refused; 11 worker checks passed"
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Atomic namespaces; 14 isolation checks passed"
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Windows fields/read-backs added; native verification pending"
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Oversized-answer and forced-teardown checks passed"
+    },
+    {
+      "id": "AUD-002-API001",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Checked stack-size arithmetic and unit regression passed"
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "evidence": "Previous future-work and test-count text corrected"
+    }
+  ],
+  "limitations": [
+    "Only Linux runtime was executed; Windows, macOS, Android, iOS and WebAssembly remain unexecuted.",
+    "The 44 stock checks run here pass, but the failed filter-upgrade probe exposes an existing Medium defect outside their coverage.",
+    "No new six-target clippy, sanitizer, Miri, assembly, coverage, mutation or advisory campaign was repeated.",
+    "AUD-003 and AUD-004 were used to deduplicate findings, not represented as independent execution by this review.",
+    "This is not a security certification or release acceptance."
+  ]
+}
