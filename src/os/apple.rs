@@ -6,24 +6,33 @@
     reason = "sysctl, ptrace and sandbox_init are foreign functions"
 )]
 
-use crate::protect::{Isolation, Options};
+use crate::protect::{Findings, Isolation, Options};
+use crate::{Outcome, Protection};
 
 /// The options of [`Options`] are for Linux, Android and Windows: none applies here.
 pub(crate) fn enter(_options: Options) -> Isolation {
-    let no_core_dumps = super::unix::forbid_core_dumps();
+    let mut found = Findings::new();
+    found.check(
+        Protection::NoCoreDumps,
+        super::unix::forbid_core_dumps(),
+        true,
+    );
     #[cfg(target_os = "macos")]
-    let (no_memory_reading, (no_new_sockets, no_file_changes)) =
-        (macos::refuse_debuggers(), macos::enter_sandbox());
-    #[cfg(not(target_os = "macos"))]
-    let (no_memory_reading, no_new_sockets, no_file_changes) = (false, false, false);
-    Isolation {
-        no_core_dumps,
-        no_memory_reading,
-        no_new_sockets,
-        no_file_changes,
-        whole_process: true,
-        ..Isolation::default()
+    {
+        let (sockets, files) = macos::enter_sandbox();
+        found.set(Protection::NoMemoryReading, macos::refuse_debuggers(), true);
+        found.set(Protection::NoNewSockets, sockets, true);
+        found.set(Protection::NoFileChanges, files, true);
+        // The profile allows neither a new program nor a fork; no probe confirms it yet.
+        let programs = if macos::entered() {
+            Outcome::Unknown
+        } else {
+            Outcome::Refused
+        };
+        found.set(Protection::NoNewPrograms, programs, true);
     }
+    found.check(Protection::WholeProcess, true, true);
+    found.finish()
 }
 
 #[cfg(target_os = "macos")]
@@ -31,6 +40,9 @@ mod macos {
     use std::io;
     use std::net::{Ipv4Addr, UdpSocket};
     use std::ptr;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use crate::Outcome;
 
     unsafe extern "C" {
         fn sandbox_init(
@@ -56,15 +68,24 @@ mod macos {
     /// P_TRACED of sys/proc.h, as `kern.proc.pid` reports it in `kp_proc.p_flag`.
     const TRACED: i32 = 0x0000_0800;
 
-    /// Refuses a debugger from now on (`PT_DENY_ATTACH`), and returns whether the kernel agreed.
-    /// A process that a debugger already traces would end at the call, with ENOTSUP, so it is left
-    /// as it is. No public call reads the refusal back: the kernel's answer stands for it.
-    pub(super) fn refuse_debuggers() -> bool {
-        if traced() != Some(false) {
-            return false;
+    /// Refuses a debugger from now on (`PT_DENY_ATTACH`). A process that a debugger already traces
+    /// would end at the call, so it is left as it is, and reads as refused. No public call reads
+    /// the refusal back: the kernel's answer stands for it.
+    pub(super) fn refuse_debuggers() -> Outcome {
+        match traced() {
+            None => Outcome::Unknown,
+            Some(true) => Outcome::Refused,
+            Some(false) => {
+                // SAFETY: PT_DENY_ATTACH takes no process, address or data and touches no memory.
+                let denied =
+                    unsafe { libc::ptrace(libc::PT_DENY_ATTACH, 0, ptr::null_mut(), 0) } == 0;
+                if denied {
+                    Outcome::Confirmed
+                } else {
+                    Outcome::Refused
+                }
+            }
         }
-        // SAFETY: PT_DENY_ATTACH takes no process, address or data and touches no memory.
-        unsafe { libc::ptrace(libc::PT_DENY_ATTACH, 0, ptr::null_mut(), 0) == 0 }
     }
 
     /// Whether a debugger traces this process, as `kern.proc.pid` reports it.
@@ -94,18 +115,36 @@ mod macos {
         (read && size == KINFO_PROC_BYTES).then_some(flags & TRACED != 0)
     }
 
-    /// Enters the sandbox, for the whole process and for good, and returns whether the network and
-    /// file writes read back as refused.
-    pub(super) fn enter_sandbox() -> (bool, bool) {
-        let mut error = ptr::null_mut();
-        // SAFETY: the profile is a NUL-terminated text; on a failure the call allocates a message
-        // into `error`, freed below.
-        let entered = unsafe { sandbox_init(PROFILE.as_ptr(), 0, &mut error) } == 0;
-        if !entered && !error.is_null() {
-            // SAFETY: frees the message sandbox_init allocated, once.
-            unsafe { sandbox_free_error(error) };
+    /// Whether this crate's profile went in, in this process or one it was forked from: the
+    /// sandbox is inherited, and a second profile is refused.
+    static ENTERED: AtomicBool = AtomicBool::new(false);
+
+    /// Whether this crate's profile is in place.
+    pub(super) fn entered() -> bool {
+        ENTERED.load(Ordering::Relaxed)
+    }
+
+    /// Enters the sandbox, for the whole process and for good, and returns what became of the
+    /// network and of file writes. A refusal read back without this crate's profile in place may
+    /// come from the folder or from another sandbox, which says nothing of the rest: unknown.
+    pub(super) fn enter_sandbox() -> (Outcome, Outcome) {
+        if !ENTERED.load(Ordering::Relaxed) {
+            let mut error = ptr::null_mut();
+            // SAFETY: the profile is a NUL-terminated text; on a failure the call allocates a
+            // message into `error`, freed below.
+            let entered = unsafe { sandbox_init(PROFILE.as_ptr(), 0, &mut error) } == 0;
+            if !error.is_null() {
+                // SAFETY: frees the message sandbox_init allocated, once.
+                unsafe { sandbox_free_error(error) };
+            }
+            ENTERED.store(entered, Ordering::Relaxed);
         }
-        (network_refused(), file_writes_refused())
+        let outcome = |refused: bool| match (ENTERED.load(Ordering::Relaxed), refused) {
+            (true, true) => Outcome::Confirmed,
+            (false, true) => Outcome::Unknown,
+            (_, false) => Outcome::Refused,
+        };
+        (outcome(network_refused()), outcome(file_writes_refused()))
     }
 
     /// Whether the sandbox refuses a new file in the temporary folder. The probe only ever makes
@@ -140,17 +179,32 @@ mod macos {
     }
 }
 
-/// Whether a protection always holds for the whole process here, and what confirms it.
-pub(crate) fn measure(protection: crate::Protection) -> (bool, &'static str) {
-    use crate::Protection::*;
-    match protection {
-        NoCoreDumps => (true, "RLIMIT_CORE reads back 0"),
-        NoMemoryReading if cfg!(target_os = "macos") => {
-            (true, "PT_DENY_ATTACH accepted, with no debugger attached")
+/// What a call observed for `protection` when it reports `outcome`, in words.
+pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'static str> {
+    use {Outcome as O, Protection as P};
+    Some(match (protection, outcome) {
+        (P::NoCoreDumps, O::Confirmed) => "RLIMIT_CORE reads back 0",
+        (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE did not read back 0",
+        (P::NoMemoryReading, O::Confirmed) => "PT_DENY_ATTACH accepted, with no debugger attached",
+        (P::NoMemoryReading, O::Refused) => "a debugger is attached, or PT_DENY_ATTACH was refused",
+        (P::NoMemoryReading, O::Unknown) => "the process could not be asked whether it is traced",
+        (P::NoNewPrograms, O::Unknown) => "the sandbox profile allows no new program; not probed",
+        (P::NoNewPrograms, O::Refused) => "the sandbox was not entered",
+        (P::NoNewSockets, O::Confirmed) => {
+            "this crate's sandbox is in, and a UDP socket was refused"
         }
-        NoNewSockets if cfg!(target_os = "macos") => (true, "the sandbox refuses a UDP socket"),
-        NoFileChanges if cfg!(target_os = "macos") => (true, "the sandbox refuses a new file"),
-        WholeProcess => (true, "everything here holds for the process"),
-        _ => (true, "not offered on this system"),
-    }
+        (P::NoNewSockets, O::Refused) => "a UDP socket was not refused",
+        (P::NoNewSockets, O::Unknown) => {
+            "a UDP socket was refused, but this crate's sandbox profile is not in"
+        }
+        (P::NoFileChanges, O::Confirmed) => {
+            "this crate's sandbox is in, and a new file was refused"
+        }
+        (P::NoFileChanges, O::Refused) => "a new file was not refused",
+        (P::NoFileChanges, O::Unknown) => {
+            "a new file was refused, but this crate's sandbox profile is not in"
+        }
+        (P::WholeProcess, O::Confirmed) => "everything here holds for the process",
+        _ => return None,
+    })
 }

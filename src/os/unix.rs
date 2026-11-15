@@ -13,6 +13,7 @@ use std::mem::ManuallyDrop;
 use std::os::fd::FromRawFd;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::ptr::{self, NonNull};
+use std::time::{Duration, Instant};
 
 use super::{Access, Pages, Region};
 
@@ -90,6 +91,10 @@ impl Drop for Pages {
 impl Region {
     /// Lets the pages be reached as `access` says, and returns whether the system agreed.
     pub(crate) fn allow(self, access: Access) -> bool {
+        #[cfg(test)]
+        if super::refused_for_a_test() {
+            return false;
+        }
         let protection = match access {
             Access::Nothing => libc::PROT_NONE,
             Access::Read => libc::PROT_READ,
@@ -193,40 +198,33 @@ fn advise(_start: NonNull<u8>, _bytes: usize) -> (bool, bool) {
 /// The parent's end of a worker: the worker's standard input and output, and the process.
 pub(crate) struct WorkerProcess {
     pub(crate) to: Option<ChildStdin>,
-    pub(crate) from: ChildStdout,
+    pub(crate) from: Option<ChildStdout>,
     child: Child,
 }
 
+/// How long a worker gets to end by itself once its pipes are closed, before it is killed.
+const GRACE: Duration = Duration::from_secs(1);
+
 impl WorkerProcess {
-    /// Starts this program again with an empty environment but the worker's variable, its standard
-    /// input and output piped; without `terminal`, its standard error goes nowhere and it starts a
-    /// session of its own, so that it has no controlling terminal. Android and iOS start no worker.
-    pub(crate) fn start(options: u32, terminal: bool) -> io::Result<Self> {
+    /// Starts this program again with an environment of the worker's variable alone, set to
+    /// `setting`, and its standard input and output piped. Without `terminal` its standard error
+    /// goes nowhere. No code runs between `fork` and the start of the program, so it can be
+    /// started from any thread and stack. Android and iOS start no worker.
+    pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         if cfg!(any(target_os = "android", target_os = "ios")) {
             return Err(io::ErrorKind::Unsupported.into());
         }
-        let mut command = Command::new(std::env::current_exe()?);
-        command
+        let mut child = Command::new(std::env::current_exe()?)
             .env_clear()
-            .env(crate::worker::WORKER, options.to_string())
+            .env(crate::worker::WORKER, setting)
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped());
-        if terminal {
-            command.stderr(Stdio::inherit());
-        } else {
-            command.stderr(Stdio::null());
-            // SAFETY: runs in the child between fork and exec, where only async-signal-safe calls
-            // are allowed; setsid is one and touches no memory.
-            unsafe {
-                std::os::unix::process::CommandExt::pre_exec(&mut command, || {
-                    if libc::setsid() < 0 {
-                        return Err(io::Error::last_os_error());
-                    }
-                    Ok(())
-                });
-            }
-        }
-        let mut child = command.spawn()?;
+            .stdout(Stdio::piped())
+            .stderr(if terminal {
+                Stdio::inherit()
+            } else {
+                Stdio::null()
+            })
+            .spawn()?;
         let (Some(to), Some(from)) = (child.stdin.take(), child.stdout.take()) else {
             let _ = child.kill();
             let _ = child.wait();
@@ -234,85 +232,162 @@ impl WorkerProcess {
         };
         Ok(Self {
             to: Some(to),
-            from,
+            from: Some(from),
             child,
         })
     }
 
-    /// Closes the worker's input, which ends it, and waits for it.
-    pub(crate) fn finish(&mut self) {
+    /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
+    pub(crate) fn close(&mut self) {
         self.to = None;
-        let _ = self.child.wait();
+        self.from = None;
+    }
+
+    /// Closes both pipes and waits for the worker; one still running after [`GRACE`] is killed,
+    /// so that this never waits for ever.
+    pub(crate) fn finish(&mut self) {
+        self.close();
+        let deadline = Instant::now() + GRACE;
+        while let Ok(None) = self.child.try_wait() {
+            if Instant::now() >= deadline {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
     }
 }
 
-/// Closes every descriptor of the worker but its standard streams: whatever the program opened
-/// without close-on-exec reached it. Linux closes them in one call (`close_range`, Linux 5.9);
-/// otherwise each one listed in /proc/self/fd or /dev/fd.
-pub(crate) fn close_inherited() {
+/// Where the system lists the open descriptors of the process.
+const DESCRIPTORS: &str = if cfg!(target_vendor = "apple") {
+    "/dev/fd"
+} else {
+    "/proc/self/fd"
+};
+
+/// The numbers of the open descriptors, the listing's own among them; `None` when the listing
+/// fails or holds a name that is no number.
+fn listed_descriptors() -> Option<Vec<i32>> {
+    let mut numbers = Vec::new();
+    for entry in std::fs::read_dir(DESCRIPTORS).ok()? {
+        numbers.push(entry.ok()?.file_name().to_str()?.parse().ok()?);
+    }
+    Some(numbers)
+}
+
+/// Closes every descriptor of the worker but its standard streams, and returns whether that is
+/// certain: whatever the program opened without close-on-exec reached the worker. Linux closes
+/// them in one call (`close_range`, Linux 5.9). Otherwise each listed one is closed, and a second
+/// listing must show nothing above the standard streams.
+pub(crate) fn close_inherited() -> bool {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     // SAFETY: close_range takes integers and closes descriptors that nothing in this new process
     // refers to yet, the worker calling it first.
     if unsafe { libc::syscall(libc::SYS_close_range, 3_u32, u32::MAX, 0_u32) } == 0 {
-        return;
+        return true;
     }
-    let listed = if cfg!(target_vendor = "apple") {
-        "/dev/fd"
-    } else {
-        "/proc/self/fd"
+    let Some(open) = listed_descriptors() else {
+        return false;
     };
-    let Ok(entries) = std::fs::read_dir(listed) else {
-        return;
-    };
-    let descriptors: Vec<i32> = entries
-        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
-        .filter(|&descriptor| descriptor > 2)
-        .collect();
-    for descriptor in descriptors {
+    for descriptor in open.into_iter().filter(|&descriptor| descriptor > 2) {
         // SAFETY: closes a descriptor the worker inherited, which nothing in it refers to; the
         // listing's own descriptor is closed already, and closing it again does nothing.
         unsafe { libc::close(descriptor) };
     }
+    // The second listing's own descriptor takes the lowest free number, 3, and is gone with it.
+    let nothing_left = listed_descriptors().is_some_and(|left| left.iter().all(|&d| d <= 3));
+    // SAFETY: fcntl with F_GETFD takes integers and only reads.
+    nothing_left && unsafe { libc::fcntl(3, libc::F_GETFD) } == -1
 }
 
-/// The open descriptors, from /proc/self/fd (or /dev/fd on Apple systems), each judged by
-/// `fstat` and its open flags. The listing's own descriptor is closed by the time they are judged,
-/// so it drops out.
-pub(crate) fn open_channels() -> Option<Vec<crate::Channel>> {
+/// Leaves the terminal the program was started on: a session of its own has no controlling
+/// terminal. The worker calls it itself, first thing, so its start needs no code after `fork`.
+pub(crate) fn leave_terminal() -> bool {
+    // SAFETY: setsid takes nothing and touches no memory.
+    unsafe { libc::setsid() >= 0 }
+}
+
+/// What looking at one descriptor gave.
+enum Examined {
+    Open(crate::Channel),
+    /// Closed since it was listed, as the listing's own descriptor is.
+    Gone,
+    Failed,
+}
+
+fn examine(descriptor: i32) -> Examined {
     use crate::ChannelKind;
-    let listed = if cfg!(target_vendor = "apple") {
-        "/dev/fd"
-    } else {
-        "/proc/self/fd"
-    };
-    let mut numbers: Vec<i32> = std::fs::read_dir(listed)
-        .ok()?
-        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
-        .collect();
-    numbers.sort_unstable();
-    let channels = numbers.into_iter().filter_map(|descriptor| {
-        // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
-        let mut status: libc::stat = unsafe { std::mem::zeroed() };
-        // SAFETY: as above; fstat touches nothing else.
-        if unsafe { libc::fstat(descriptor, &mut status) } != 0 {
-            return None;
-        }
-        // SAFETY: fcntl with F_GETFL takes an integer and returns the flags.
-        let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
-        let writable =
-            flags >= 0 && matches!(flags & libc::O_ACCMODE, libc::O_WRONLY | libc::O_RDWR);
-        let kind = match status.st_mode & libc::S_IFMT {
-            libc::S_IFSOCK => ChannelKind::Socket,
-            libc::S_IFIFO => ChannelKind::Pipe,
-            // SAFETY: isatty takes an integer.
-            libc::S_IFCHR if unsafe { libc::isatty(descriptor) } == 1 => ChannelKind::Terminal,
-            libc::S_IFDIR => ChannelKind::Other,
-            _ if writable => ChannelKind::WritableFile,
-            _ => ChannelKind::Other,
+    // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: as above; fstat touches nothing else.
+    if unsafe { libc::fstat(descriptor, &mut status) } != 0 {
+        return if io::Error::last_os_error().raw_os_error() == Some(libc::EBADF) {
+            Examined::Gone
+        } else {
+            Examined::Failed
         };
-        Some(crate::Channel { descriptor, kind })
-    });
-    Some(channels.collect())
+    }
+    // SAFETY: fcntl with F_GETFL takes an integer and returns the flags.
+    let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    if flags < 0 && io::Error::last_os_error().raw_os_error() == Some(libc::EBADF) {
+        return Examined::Gone;
+    }
+    let writable = (flags >= 0).then_some(matches!(
+        flags & libc::O_ACCMODE,
+        libc::O_WRONLY | libc::O_RDWR
+    ));
+    let kind = match status.st_mode & libc::S_IFMT {
+        libc::S_IFSOCK => ChannelKind::Socket,
+        libc::S_IFIFO => ChannelKind::Pipe,
+        libc::S_IFREG => ChannelKind::File,
+        libc::S_IFDIR => ChannelKind::Directory,
+        // SAFETY: isatty takes an integer.
+        libc::S_IFCHR if unsafe { libc::isatty(descriptor) } == 1 => ChannelKind::Terminal,
+        libc::S_IFCHR | libc::S_IFBLK => ChannelKind::Device,
+        _ => ChannelKind::Other,
+    };
+    Examined::Open(crate::Channel {
+        descriptor,
+        kind,
+        writable,
+    })
+}
+
+/// The open descriptors at this moment, each judged by `fstat` and its open flags. The listing is
+/// not complete when a name could not be read or a descriptor could not be examined.
+pub(crate) fn open_channels() -> io::Result<crate::OpenChannels> {
+    let mut complete = true;
+    let mut numbers = Vec::new();
+    for entry in std::fs::read_dir(DESCRIPTORS)? {
+        let number = entry
+            .ok()
+            .and_then(|entry| entry.file_name().to_str()?.parse::<i32>().ok());
+        match number {
+            Some(number) => numbers.push(number),
+            None => complete = false,
+        }
+    }
+    numbers.sort_unstable();
+    let mut channels = Vec::new();
+    for descriptor in numbers {
+        match examine(descriptor) {
+            Examined::Open(channel) => {
+                complete &= channel.writable.is_some();
+                channels.push(channel);
+            }
+            Examined::Gone => {}
+            Examined::Failed => {
+                complete = false;
+                channels.push(crate::Channel {
+                    descriptor,
+                    kind: crate::ChannelKind::Unknown,
+                    writable: None,
+                });
+            }
+        }
+    }
+    Ok(crate::OpenChannels { channels, complete })
 }
 
 #[cfg(not(target_vendor = "apple"))]
@@ -329,13 +404,15 @@ unsafe extern "C" {
 }
 
 /// Runs `work` on a new thread whose stack is a work area of at least `bytes` (guard pages, out of
-/// dumps and children, locked where the limit allows), wiped after the thread ends. glibc also puts
-/// the thread's own data and static TLS at the top of a stack it is given.
+/// dumps and children, locked where the limit allows), wiped after the thread ends. The work runs
+/// only when the stack has every property in `required`. glibc also puts the thread's own data and
+/// static TLS at the top of a stack it is given.
 pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
     bytes: usize,
+    required: crate::StackProperties,
     work: F,
-) -> io::Result<(R, bool)> {
-    use zeroize::Zeroize;
+) -> Result<(R, crate::StackProperties), crate::StackError> {
+    use crate::StackError;
 
     struct Job<F, R> {
         work: Option<F>,
@@ -353,19 +430,30 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
     }
 
     let size = bytes
-        .next_multiple_of(page_size())
+        .checked_next_multiple_of(page_size())
+        .ok_or(StackError::Size)?
         .max(libc::PTHREAD_STACK_MIN);
-    let mut stack = Pages::work_area(size).ok_or(io::ErrorKind::OutOfMemory)?;
+    let mut stack = Pages::work_area(size)
+        .ok_or_else(|| StackError::System(io::ErrorKind::OutOfMemory.into()))?;
+    let has = crate::StackProperties {
+        locked: stack.is_locked(),
+        out_of_dumps: stack.is_out_of_dumps(),
+        out_of_children: stack.is_out_of_children(),
+    };
+    if !has.covers(required) {
+        return Err(StackError::NotProtected(has));
+    }
     let mut job = Job {
         work: Some(work),
         result: None,
     };
     // SAFETY: the attribute is initialized before use and destroyed once; the stack pages belong
     // to `stack`, which outlives the thread because the thread is joined before it is dropped.
-    let made = unsafe {
+    let (made, joined) = unsafe {
         let mut attributes: libc::pthread_attr_t = std::mem::zeroed();
         let mut thread: libc::pthread_t = std::mem::zeroed();
         let mut made = libc::pthread_attr_init(&mut attributes);
+        let mut joined = 0;
         if made == 0 {
             made = pthread_attr_setstack(&mut attributes, stack.start.as_ptr().cast(), size);
             if made == 0 {
@@ -376,21 +464,29 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
                     (&raw mut job).cast(),
                 );
                 if made == 0 {
-                    libc::pthread_join(thread, ptr::null_mut());
+                    joined = libc::pthread_join(thread, ptr::null_mut());
                 }
             }
             libc::pthread_attr_destroy(&mut attributes);
         }
-        made
+        (made, joined)
     };
-    stack.as_mut_slice().zeroize();
+    if joined != 0 {
+        // The thread may still run on the stack and write to the job: neither may be given back.
+        std::process::abort();
+    }
+    // The thread has ended: nothing else reaches the stack, whose frames may hold bytes that
+    // were never written.
+    stack.wipe_any();
     if made != 0 {
-        return Err(io::Error::from_raw_os_error(made));
+        return Err(StackError::System(io::Error::from_raw_os_error(made)));
     }
     match job.result {
-        Some(Ok(value)) => Ok((value, stack.is_locked())),
+        Some(Ok(value)) => Ok((value, has)),
         Some(Err(panic)) => std::panic::resume_unwind(panic),
-        None => Err(io::Error::other("the thread did not run the work")),
+        None => Err(StackError::System(io::Error::other(
+            "the thread did not run the work",
+        ))),
     }
 }
 

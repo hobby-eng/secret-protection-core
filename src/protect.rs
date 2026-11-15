@@ -14,7 +14,7 @@ mod closed;
 mod options;
 
 pub use closed::ClosedSecret;
-pub use options::{Missing, Options, Protection};
+pub use options::{Missing, Options, Outcome, Protection};
 
 /// Why bytes were not put in a [`Secret`], or a buffer was not made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -227,37 +227,36 @@ impl fmt::Debug for WorkArea {
     }
 }
 
-/// What holds against a secret leaving the process, as [`Isolation::enter`] read it back after it
-/// applied what the system offers: a field is true only when reading it back confirmed it, so a
-/// refusal of the system shows as false.
+/// What holds against a secret leaving the process, as [`Isolation::enter`] read it back. A field
+/// is true only when the call confirmed the protection. [`Isolation::outcome`] tells the rest
+/// apart: refused, not asked for, not offered on this system, or not checkable.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Isolation {
     /// On Unix a crash writes no core dump: RLIMIT_CORE is 0, and on Linux and Android the process
-    /// is not dumpable, which a pipe in `core_pattern` respects too. False on Windows, whose error
-    /// reports, which [`Isolation::enter`] keeps from the heap, still hold the threads' stacks and
-    /// registers.
+    /// is not dumpable, which a pipe in `core_pattern` respects too. Not offered on Windows, whose
+    /// error reports, which [`Isolation::enter`] keeps from the heap, still hold the threads'
+    /// stacks and registers.
     pub no_core_dumps: bool,
     /// Other programs of the same user cannot open the process to read or change its memory, nor
-    /// on Windows its threads to read or change their registers; and no debugger was attached
-    /// before, which would keep reading.
+    /// on Windows its threads to read or change their registers; and no thread had a debugger
+    /// attached before, which would keep reading.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it.
     pub no_new_sockets: bool,
-    /// The process runs in a network namespace of its own, with only a loopback interface, which
-    /// stays down, and no route (Linux).
+    /// The process runs in network and IPC namespaces of its own, with only a loopback interface,
+    /// which stays down, and no route (Linux).
     pub empty_network: bool,
     /// Files cannot be opened for writing, created, renamed or removed, apart from the exceptions
-    /// [`Isolation::enter`] names for each system; what else is refused depends on the system too.
-    /// False on Windows, whose low integrity level still writes where a low label allows it, and
-    /// on Linux where no seccomp filter is written, whose Landlock layer leaves modes, owners,
-    /// extended attributes and times.
+    /// docs/TECHNICAL.md names for each system. Not offered on Windows, whose low integrity level
+    /// still writes where a low label allows it; refused on Linux without the seccomp filter,
+    /// whose Landlock layer alone leaves modes, owners, extended attributes and times.
     pub no_file_changes: bool,
     /// The processor's speculation that leaks across programs is limited for the calling thread
-    /// and what it starts, against Spectre variants 4 and 2: speculative store bypass and indirect
-    /// branch speculation are disabled for good, the system disables them for every program, or
-    /// the processor is not affected (Linux and Android); on Windows, side-channel isolation.
+    /// and what it starts (Spectre variants 4 and 2): off for good, kept off by the system, or the
+    /// processor is not affected. Unknown where the kernel gives a program no control of one of
+    /// them, as on AArch64. On Windows, side-channel isolation.
     pub speculation_limited: bool,
     /// The protections above cover every thread of the process, not only the calling one.
     pub whole_process: bool,
@@ -265,24 +264,47 @@ pub struct Isolation {
     pub file_locks_refused: bool,
     /// `sendmsg` is refused (Linux and Android, with [`Options::refuse_sendmsg`]).
     pub sendmsg_refused: bool,
-    /// No new executable code can run (Windows, with [`Options::refuse_dynamic_code`]).
+    /// No new executable code can run, with no way for a thread or another process to opt out
+    /// (Windows, with [`Options::refuse_dynamic_code`]).
     pub dynamic_code_refused: bool,
     /// Only DLLs signed by Microsoft load (Windows, with [`Options::microsoft_signed_only`]).
     pub microsoft_signed_only: bool,
-    /// No signal reaches another process: Landlock from Linux 6.12, or
-    /// [`Options::signals_to_self_only`] (Linux and Android).
-    pub foreign_signals_refused: bool,
-    /// Every page of the process stays out of swap ([`Options::lock_all_memory`], Linux and
+    /// Signals go only to this process itself ([`Options::signals_to_self_only`], Linux and
     /// Android).
+    pub signals_to_self_only: bool,
+    /// Signals go only to processes inside this one's Landlock layer: itself and the children it
+    /// starts afterwards (Linux 6.12 and later).
+    pub signals_within_layer: bool,
+    /// Every page of the process stays out of swap ([`Options::lock_all_memory`], Linux and
+    /// Android), unless the program itself unlocks them.
     pub memory_locked: bool,
+    /// No other program can be started, which would carry a secret out in its command line or
+    /// input: on Linux and Android the filter refuses `execve`, on Windows the child-process
+    /// policy holds. Unknown on macOS, whose sandbox allows it to no one but is not probed.
+    pub no_new_programs: bool,
+    /// Libraries load only from the program's folder and System32, none from a remote share or
+    /// from where a low-integrity process could write, and other programs cannot put theirs in
+    /// through AppInit DLLs, window hooks or input methods (Windows).
+    pub known_libraries_only: bool,
+    /// A job keeps the process from writing the clipboard, from global atoms, from other
+    /// programs' windows and from changing the desktop (Windows). Reading the clipboard stays,
+    /// so that a secret can be pasted in.
+    pub desktop_restricted: bool,
+    /// The process runs at low integrity or below, as in an AppContainer: it writes only where a
+    /// low label allows, not to the user's files or the user's other programs (Windows).
+    pub low_integrity: bool,
+    /// What became of each protection, by its place in [`Protection::ALL`].
+    outcomes: [Outcome; Protection::COUNT],
+    /// Which protections reach every thread of the process.
+    process_wide: [bool; Protection::COUNT],
 }
 
 impl Isolation {
-    /// Closes the process against a secret leaving it, for good, and returns what actually took effect.
-    /// Call it before reading a secret. Refusals show up as `false`, never as errors, and descriptors
-    /// opened earlier stay usable. Protections that can break programs are in
-    /// [`Isolation::enter_with`]; [`Isolation::enter_requiring`] stops if a required one is missing.
-    /// What each system applies is listed in docs/TECHNICAL.md.
+    /// Closes the process against a secret leaving it, for good, and returns what took effect.
+    /// Call it before reading a secret. Refusals show up in the answer, never as errors, and
+    /// descriptors opened earlier stay usable. Protections that can break programs are in
+    /// [`Isolation::enter_with`]; [`Isolation::enter_requiring`] stops if a required one is
+    /// missing. What each system applies is listed in docs/TECHNICAL.md.
     pub fn enter() -> Self {
         crate::os::enter(Options::new())
     }
@@ -293,13 +315,13 @@ impl Isolation {
     }
 
     /// The strict mode: as [`Isolation::enter_with`], but refuses with [`Missing`] when a
-    /// protection in `required` does not read back, so that a program stops before it reads a
+    /// protection in `required` is not confirmed, so that a program stops before it reads a
     /// secret. What was applied stays applied either way.
     pub fn enter_requiring(options: Options, required: &[Protection]) -> Result<Self, Missing> {
         Self::enter_with(options).require(required)
     }
 
-    /// `Ok` with this answer when every protection in `required` holds, else [`Missing`].
+    /// `Ok` with this answer when every protection in `required` is confirmed, else [`Missing`].
     pub fn require(self, required: &[Protection]) -> Result<Self, Missing> {
         let missing: Vec<Protection> = Protection::ALL
             .into_iter()
@@ -315,65 +337,116 @@ impl Isolation {
         }
     }
 
-    /// Whether `protection` holds, as its field says.
+    /// Whether `protection` is confirmed.
     pub fn has(&self, protection: Protection) -> bool {
-        match protection {
-            Protection::NoCoreDumps => self.no_core_dumps,
-            Protection::NoMemoryReading => self.no_memory_reading,
-            Protection::NoNewSockets => self.no_new_sockets,
-            Protection::EmptyNetwork => self.empty_network,
-            Protection::NoFileChanges => self.no_file_changes,
-            Protection::SpeculationLimited => self.speculation_limited,
-            Protection::WholeProcess => self.whole_process,
-            Protection::FileLocksRefused => self.file_locks_refused,
-            Protection::SendmsgRefused => self.sendmsg_refused,
-            Protection::DynamicCodeRefused => self.dynamic_code_refused,
-            Protection::MicrosoftSignedOnly => self.microsoft_signed_only,
-            Protection::ForeignSignalsRefused => self.foreign_signals_refused,
-            Protection::MemoryLocked => self.memory_locked,
-        }
+        self.outcome(protection) == Outcome::Confirmed
     }
 
-    /// Every protection with whether it holds, how far it reaches and what confirmed it, for a
+    /// What became of `protection` in the call.
+    pub fn outcome(&self, protection: Protection) -> Outcome {
+        self.outcomes[protection.index()]
+    }
+
+    /// Every protection with its outcome, how far it reaches and what the call observed, for a
     /// program that shows the details.
     pub fn measures(&self) -> Vec<Measure> {
         Protection::ALL
             .into_iter()
             .map(|protection| {
-                let (process_wide, proof) = crate::os::measure(protection);
+                let outcome = self.outcome(protection);
                 Measure {
                     protection,
-                    holds: self.has(protection),
-                    reach: if process_wide || self.whole_process {
+                    outcome,
+                    reach: if self.process_wide[protection.index()] {
                         Reach::Process
                     } else {
                         Reach::Thread
                     },
-                    proof,
+                    evidence: crate::os::evidence(protection, outcome).unwrap_or(match outcome {
+                        Outcome::Confirmed => "confirmed",
+                        Outcome::Refused => "the system refused it, or it did not read back",
+                        Outcome::NotRequested => "the call did not ask for it",
+                        Outcome::Unsupported => "not offered on this system",
+                        Outcome::Unknown => "it could not be checked",
+                    }),
                 }
             })
             .collect()
     }
 
-    /// One bit for each protection that holds, in the order of [`Protection::ALL`]: how a worker
-    /// tells its parent.
-    pub(crate) fn to_bits(self) -> u32 {
-        Protection::ALL
-            .into_iter()
-            .enumerate()
-            .filter(|(_, protection)| self.has(*protection))
-            .fold(0, |bits, (index, _)| bits | 1 << index)
+    /// One byte for each protection, in the order of [`Protection::ALL`]: its outcome, and 8 added
+    /// when it reaches the whole process. How a worker tells its parent.
+    pub(crate) fn to_bytes(self) -> [u8; Protection::COUNT] {
+        std::array::from_fn(|index| {
+            self.outcomes[index].to_bits() | u8::from(self.process_wide[index]) << 3
+        })
     }
 
-    /// The answer that [`Isolation::to_bits`] made.
-    pub(crate) fn from_bits(bits: u32) -> Self {
-        let has = |protection: Protection| {
-            Protection::ALL
-                .iter()
-                .position(|&each| each == protection)
-                .is_some_and(|index| bits & 1 << index != 0)
-        };
+    /// The answer that [`Isolation::to_bytes`] made, or `None` for other bytes.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let bytes: &[u8; Protection::COUNT] = bytes.try_into().ok()?;
+        let mut findings = Findings::new();
+        for (protection, &byte) in Protection::ALL.into_iter().zip(bytes) {
+            findings.set(protection, Outcome::from_bits(byte & 7)?, byte & 8 != 0);
+        }
+        (bytes.iter().all(|&byte| byte < 16)).then(|| findings.finish())
+    }
+}
+
+/// What a system's module found for each protection, before it becomes an [`Isolation`].
+pub(crate) struct Findings {
+    outcomes: [Outcome; Protection::COUNT],
+    process_wide: [bool; Protection::COUNT],
+}
+
+impl Findings {
+    /// Nothing found yet: every protection counts as not offered.
+    pub(crate) fn new() -> Self {
         Self {
+            outcomes: [Outcome::Unsupported; Protection::COUNT],
+            process_wide: [false; Protection::COUNT],
+        }
+    }
+
+    /// Records what became of `protection`, and whether it reaches the whole process.
+    pub(crate) fn set(&mut self, protection: Protection, outcome: Outcome, process_wide: bool) {
+        self.outcomes[protection.index()] = outcome;
+        self.process_wide[protection.index()] = process_wide;
+    }
+
+    /// Records `protection` as confirmed when `holds`, else as refused.
+    #[cfg(any(unix, windows, test))]
+    pub(crate) fn check(&mut self, protection: Protection, holds: bool, process_wide: bool) {
+        let outcome = if holds {
+            Outcome::Confirmed
+        } else {
+            Outcome::Refused
+        };
+        self.set(protection, outcome, process_wide);
+    }
+
+    /// Records an option: confirmed when it reads back, whoever asked for it; else refused when
+    /// this call asked, and not requested when it did not.
+    #[cfg(any(target_os = "linux", target_os = "android", windows, test))]
+    pub(crate) fn option(
+        &mut self,
+        protection: Protection,
+        asked: bool,
+        holds: bool,
+        process_wide: bool,
+    ) {
+        let outcome = match (holds, asked) {
+            (true, _) => Outcome::Confirmed,
+            (false, true) => Outcome::Refused,
+            (false, false) => Outcome::NotRequested,
+        };
+        self.set(protection, outcome, process_wide);
+    }
+
+    /// The answer, whose fields are true exactly for the confirmed protections.
+    pub(crate) fn finish(self) -> Isolation {
+        let has = |protection: Protection| self.outcomes[protection.index()] == Outcome::Confirmed;
+        Isolation {
             no_core_dumps: has(Protection::NoCoreDumps),
             no_memory_reading: has(Protection::NoMemoryReading),
             no_new_sockets: has(Protection::NoNewSockets),
@@ -385,8 +458,15 @@ impl Isolation {
             sendmsg_refused: has(Protection::SendmsgRefused),
             dynamic_code_refused: has(Protection::DynamicCodeRefused),
             microsoft_signed_only: has(Protection::MicrosoftSignedOnly),
-            foreign_signals_refused: has(Protection::ForeignSignalsRefused),
+            signals_to_self_only: has(Protection::SignalsToSelfOnly),
+            signals_within_layer: has(Protection::SignalsWithinLayer),
             memory_locked: has(Protection::MemoryLocked),
+            no_new_programs: has(Protection::NoNewPrograms),
+            known_libraries_only: has(Protection::KnownLibrariesOnly),
+            desktop_restricted: has(Protection::DesktopRestricted),
+            low_integrity: has(Protection::LowIntegrity),
+            outcomes: self.outcomes,
+            process_wide: self.process_wide,
         }
     }
 }
@@ -405,12 +485,12 @@ pub enum Reach {
 pub struct Measure {
     /// Which protection.
     pub protection: Protection,
-    /// Whether it holds.
-    pub holds: bool,
-    /// How far it reaches.
+    /// What became of it in the call.
+    pub outcome: Outcome,
+    /// How far it reaches, when it is in effect.
     pub reach: Reach,
-    /// What confirmed it, or why this system doesn't offer it.
-    pub proof: &'static str,
+    /// What the call observed for this outcome, in words.
+    pub evidence: &'static str,
 }
 
 /// Writes `text` to standard output without leaving a copy in the standard library's buffer: it
@@ -564,27 +644,65 @@ mod tests {
         assert!(secret.as_bytes().iter().all(|&byte| byte == 0));
     }
 
-    /// Every protection has a measure, which agrees with the field it names and says what
-    /// confirmed it.
+    /// More than any system gives: the work area is refused, and the program goes on.
     #[test]
-    fn measures_cover_every_protection() {
-        let isolation = Isolation {
-            no_core_dumps: true,
-            ..Isolation::default()
-        };
+    fn a_work_area_beyond_the_system_is_refused() {
+        for bytes in [usize::MAX, usize::MAX / 2 + 4096] {
+            assert!(WorkArea::new(bytes).is_none(), "{bytes}");
+            assert_eq!(WorkArea::locked(bytes).err(), Some(SecretError::NoMemory));
+        }
+    }
+
+    /// Every protection has a measure whose words fit its outcome, and the answer survives the
+    /// bytes a worker sends.
+    #[test]
+    fn measures_say_what_was_observed_and_survive_the_handshake() {
+        let mut findings = Findings::new();
+        findings.check(Protection::NoCoreDumps, true, true);
+        findings.check(Protection::NoNewSockets, false, false);
+        findings.option(Protection::MemoryLocked, false, false, true);
+        findings.set(Protection::SpeculationLimited, Outcome::Unknown, false);
+        let isolation = findings.finish();
+        assert!(isolation.no_core_dumps && !isolation.no_new_sockets && !isolation.memory_locked);
         let measures = isolation.measures();
         assert_eq!(measures.len(), Protection::ALL.len());
         for measure in &measures {
-            assert_eq!(measure.holds, isolation.has(measure.protection));
-            assert!(!measure.proof.is_empty());
+            assert_eq!(measure.outcome, isolation.outcome(measure.protection));
+            assert!(!measure.evidence.is_empty());
         }
-        if cfg!(target_os = "linux") {
-            let socket = measures
+        let of = |protection: Protection| {
+            measures
                 .iter()
-                .find(|measure| measure.protection == Protection::NoNewSockets)
-                .unwrap();
-            assert_eq!(socket.reach, Reach::Thread);
+                .find(|measure| measure.protection == protection)
+                .unwrap()
+        };
+        // An option that was not asked for never claims that a call was accepted.
+        assert_eq!(of(Protection::MemoryLocked).outcome, Outcome::NotRequested);
+        assert_eq!(
+            of(Protection::MemoryLocked).evidence,
+            "the call did not ask for it"
+        );
+        assert_eq!(of(Protection::NoCoreDumps).reach, Reach::Process);
+        assert_eq!(of(Protection::NoNewSockets).reach, Reach::Thread);
+        assert_eq!(of(Protection::EmptyNetwork).outcome, Outcome::Unsupported);
+        assert_eq!(
+            Isolation::from_bytes(&isolation.to_bytes()),
+            Some(isolation)
+        );
+        assert_eq!(Isolation::from_bytes(&[0; 3]), None);
+        // A byte is taken only when it names an outcome and a reach, and comes back as it was.
+        for value in 0..=u8::MAX {
+            let mut bytes = isolation.to_bytes();
+            bytes[3] = value;
+            let read = Isolation::from_bytes(&bytes);
+            assert_eq!(read.is_some(), value & 7 <= 4 && value < 16, "{value}");
+            assert!(read.is_none_or(|read| read.to_bytes() == bytes), "{value}");
         }
+        // Only a confirmed protection passes the strict mode.
+        let missing = isolation
+            .require(&[Protection::NoCoreDumps, Protection::SpeculationLimited])
+            .unwrap_err();
+        assert_eq!(missing.missing, [Protection::SpeculationLimited]);
     }
 
     #[test]

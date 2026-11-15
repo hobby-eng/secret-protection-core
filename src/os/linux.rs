@@ -6,8 +6,8 @@
 #![allow(
     unsafe_code,
     reason = "memfd_secret, ftruncate, mmap, madvise, getrandom, munmap, sysconf, prctl, unshare, \
-              socket, open, close and the io_uring and Landlock calls are foreign functions, and \
-              a new mapping is written through a raw pointer"
+              socket, open, close, mlockall, pthread_atfork and the io_uring and Landlock calls \
+              are foreign functions, and a new mapping is written through a raw pointer"
 )]
 
 #[cfg(target_os = "linux")]
@@ -15,9 +15,11 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 #[cfg(target_os = "linux")]
 use std::ptr::NonNull;
 #[cfg(target_os = "linux")]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::atomic::{AtomicI32, Ordering};
 
-use crate::protect::{Isolation, Options};
+use crate::protect::{Findings, Isolation, Options};
+use crate::{Outcome, Protection};
 
 /// The number of `memfd_secret` on x86-64 and AArch64, the Linux architectures this crate is
 /// tested on, where it is called; on another one it is `None`, and a secret takes anonymous pages.
@@ -38,6 +40,9 @@ const MEMFD_SECRET: Option<libc::c_long> = None;
 #[cfg(target_os = "linux")]
 pub(super) fn secret_pages(bytes: usize) -> Option<NonNull<u8>> {
     let number = MEMFD_SECRET?;
+    // No `fork` while the descriptor is open: its child would keep it, and close-on-exec helps
+    // only a child that starts a program.
+    let _gate = fork_gate::Gate::take()?;
     // O_CLOEXEC from the start: a program that another thread starts before this function closes
     // the descriptor does not get it, and so cannot map the secret.
     // SAFETY: memfd_secret takes one flags argument and returns a new descriptor or -1.
@@ -80,6 +85,86 @@ pub(super) fn secret_pages(bytes: usize) -> Option<NonNull<u8>> {
     Some(start)
 }
 
+/// Keeps `fork` out while a descriptor of secret memory is open. A child made by `fork` at that
+/// moment would inherit the descriptor and could map the pages a secret is written to later.
+/// `fork` waits in its prepare handler; a child made by a raw `clone` call is not covered.
+#[cfg(target_os = "linux")]
+mod fork_gate {
+    use std::ptr;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Once, OnceLock};
+
+    static HELD: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "C" {
+        fn pthread_atfork(
+            prepare: Option<unsafe extern "C" fn()>,
+            parent: Option<unsafe extern "C" fn()>,
+            child: Option<unsafe extern "C" fn()>,
+        ) -> libc::c_int;
+    }
+
+    /// A spin lock: the handlers of `fork` may do only what a signal handler may.
+    unsafe extern "C" fn hold() {
+        while HELD
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            // SAFETY: sched_yield takes nothing and touches no memory.
+            unsafe { libc::sched_yield() };
+        }
+    }
+
+    unsafe extern "C" fn release() {
+        HELD.store(false, Ordering::Release);
+    }
+
+    /// Whether `fork` takes the gate: its handlers are registered once, for good.
+    fn registered() -> bool {
+        static REGISTERING: Once = Once::new();
+        static REGISTERED: OnceLock<bool> = OnceLock::new();
+        REGISTERING.call_once(|| {
+            // SAFETY: registers three functions that live as long as the program.
+            let done = unsafe { pthread_atfork(Some(hold), Some(release), Some(release)) } == 0;
+            let _ = REGISTERED.set(done);
+        });
+        REGISTERED.get().copied().unwrap_or(false)
+    }
+
+    /// The gate, held until dropped. Signals are blocked meanwhile: a handler that forked on
+    /// this thread would wait for the gate its own thread holds.
+    pub(super) struct Gate(libc::sigset_t);
+
+    impl Gate {
+        /// `None` when the handlers could not be registered: then no secret memory is taken.
+        pub(super) fn take() -> Option<Self> {
+            if !registered() {
+                return None;
+            }
+            // SAFETY: the two sets are filled by the calls before they are read; the handler
+            // only changes an atomic flag.
+            unsafe {
+                let mut all: libc::sigset_t = std::mem::zeroed();
+                let mut before: libc::sigset_t = std::mem::zeroed();
+                libc::sigfillset(&mut all);
+                libc::pthread_sigmask(libc::SIG_SETMASK, &all, &mut before);
+                hold();
+                Some(Self(before))
+            }
+        }
+    }
+
+    impl Drop for Gate {
+        fn drop(&mut self) {
+            // SAFETY: gives back the gate this value holds and the signal mask it replaced.
+            unsafe {
+                release();
+                libc::pthread_sigmask(libc::SIG_SETMASK, &self.0, ptr::null_mut());
+            }
+        }
+    }
+}
+
 /// Touches every page of new secret memory, so the lock limit is charged now. Newer kernels charge
 /// it at the first fault and send SIGBUS when over the limit, which would kill the process at its
 /// first write. A byte written by `getrandom` from inside the kernel only gets EFAULT. It is the raw
@@ -107,76 +192,110 @@ fn charge_pages(mapped: *mut libc::c_void, bytes: usize) -> bool {
 const REFUSED: i32 = libc::EACCES;
 
 pub(crate) fn enter(options: Options) -> Isolation {
+    use Protection as P;
     let whole_process = one_thread();
     #[cfg(target_os = "linux")]
     let empty_network = whole_process && enter_own_namespaces() && network_empty();
-    #[cfg(target_os = "android")]
-    let empty_network = false;
     let core_limit = super::unix::forbid_core_dumps();
     // SAFETY: PR_SET_DUMPABLE takes integers and touches no memory of this process. Once the
     // filter holds, it refuses this call, and the flag stays 0.
     unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) };
-    let speculation_limited = limit_speculation();
-    // Seccomp and Landlock require no_new_privs of an unprivileged process: no program it starts
-    // can gain privileges, as a set-user-ID program would.
+    let speculation = limit_speculation();
+    let memory = lock_memory(options.lock_all);
     let wanted = (u32::from(options.file_locks) * seccomp::FILE_LOCKS)
         | (u32::from(options.sendmsg) * seccomp::SENDMSG)
         | (u32::from(options.own_signals) * seccomp::SIGNALS);
-    let memory_locked = options.lock_all && lock_all_memory();
+    // Seccomp and Landlock require no_new_privs of an unprivileged process: no program it starts
+    // can gain privileges, as a set-user-ID program would.
     // SAFETY: as above.
     let held = if unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) } == 0 {
         restrict(whole_process, wanted)
     } else {
-        None
+        seccomp::held()
     };
-    let filtered = held.is_some();
     // SAFETY: PR_GET_DUMPABLE takes no pointer and returns the flag.
     let dumpable = unsafe { libc::prctl(libc::PR_GET_DUMPABLE, 0, 0, 0, 0) } != 0;
-    Isolation {
-        // A pipe in core_pattern, as systemd-coredump and apport use, ignores RLIMIT_CORE: there
-        // only a process that is not dumpable keeps a crash off the disk.
-        no_core_dumps: core_limit && !dumpable,
-        // A tracer attached before the call keeps reading, whatever the flag says.
-        no_memory_reading: !dumpable && !traced(),
-        no_new_sockets: sockets_refused(),
-        empty_network,
-        // Only the filter refuses every change of a file, by the calls and the flags of an open;
-        // Landlock alone leaves modes, owners, extended attributes and times.
-        no_file_changes: filtered && writing_refused(),
-        speculation_limited,
+    let self_only =
+        held.is_some_and(|rules| rules & seccomp::SIGNALS != 0) && seccomp::names_this_process();
+    let mut found = Findings::new();
+    // A pipe in core_pattern, as systemd-coredump and apport use, ignores RLIMIT_CORE: there
+    // only a process that is not dumpable keeps a crash off the disk.
+    found.check(P::NoCoreDumps, core_limit && !dumpable, true);
+    // A tracer attached before the call keeps reading, whatever the flag says.
+    let reading = match (dumpable, traced()) {
+        (false, Some(false)) => Outcome::Confirmed,
+        (false, None) => Outcome::Unknown,
+        _ => Outcome::Refused,
+    };
+    found.set(P::NoMemoryReading, reading, true);
+    found.check(P::NoNewSockets, sockets_refused(), whole_process);
+    #[cfg(target_os = "linux")]
+    found.check(P::EmptyNetwork, empty_network, true);
+    // Only the filter refuses every change of a file, by the calls and the flags of an open;
+    // Landlock alone leaves modes, owners, extended attributes and times.
+    found.check(
+        P::NoFileChanges,
+        held.is_some() && writing_refused(),
         whole_process,
-        file_locks_refused: file_locks_refused(),
-        sendmsg_refused: sendmsg_refused(),
-        foreign_signals_refused: held.is_some_and(|options| options & seccomp::SIGNALS != 0)
-            || signals_scoped(held.is_some()),
-        memory_locked,
-        ..Isolation::default()
-    }
+    );
+    found.set(P::SpeculationLimited, speculation, whole_process);
+    found.check(
+        P::NoNewPrograms,
+        held.is_some() && programs_refused(),
+        whole_process,
+    );
+    found.check(P::WholeProcess, whole_process, true);
+    found.option(
+        P::FileLocksRefused,
+        options.file_locks,
+        file_locks_refused(),
+        whole_process,
+    );
+    found.option(
+        P::SendmsgRefused,
+        options.sendmsg,
+        sendmsg_refused(),
+        whole_process,
+    );
+    found.option(
+        P::SignalsToSelfOnly,
+        options.own_signals,
+        self_only,
+        whole_process,
+    );
+    #[cfg(target_os = "linux")]
+    found.check(
+        P::SignalsWithinLayer,
+        layer_bits(held) & seccomp::SCOPE != 0,
+        whole_process,
+    );
+    found.set(P::MemoryLocked, memory, true);
+    found.finish()
 }
 
-/// Keeps every page of the process, now and later, out of swap. Pages are locked as they are
+/// The process that locked all its memory. A child made by `fork` inherits this number and not
+/// the lock, so it reads as not locked there.
+static LOCKED_IN: AtomicI32 = AtomicI32::new(0);
+
+/// Keeps every page of the process, now and later, out of swap when `asked`, and says whether
+/// the process holds such a lock, from this call or an earlier one. Pages are locked as they are
 /// first touched (`MCL_ONFAULT`), so a large reservation costs nothing until it is used.
-fn lock_all_memory() -> bool {
-    // SAFETY: mlockall takes flags and touches no memory of this process.
-    unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | MCL_ONFAULT) == 0 }
-}
-
-/// `MCL_ONFAULT` of linux/mman.h, which libc gives only for some targets.
-const MCL_ONFAULT: libc::c_int = 4;
-
-/// Whether this thread's Landlock layer blocks signals to other processes, which takes Landlock's
-/// ABI 6 (Linux 6.12). A thread holding the filter holds the layer too, since the layer goes first.
-#[cfg(target_os = "linux")]
-fn signals_scoped(filtered: bool) -> bool {
-    let layered = filtered || LAYERED_THREAD.get() || LAYERED_PROCESS.load(Ordering::Relaxed);
-    // SAFETY: with a null attribute and the version flag the call only returns a number.
-    let abi = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, 0_usize, 0_usize, 1_u32) };
-    layered && abi >= 6
-}
-
-#[cfg(target_os = "android")]
-fn signals_scoped(_filtered: bool) -> bool {
-    false
+fn lock_memory(asked: bool) -> Outcome {
+    // SAFETY: getpid takes nothing and touches no memory.
+    let own = unsafe { libc::getpid() };
+    let lock = || {
+        // SAFETY: mlockall takes flags and touches no memory of this process.
+        unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | libc::MCL_ONFAULT) == 0 }
+    };
+    if asked && lock() {
+        LOCKED_IN.store(own, Ordering::Relaxed);
+    }
+    // A refused call leaves an earlier lock as it was.
+    match (LOCKED_IN.load(Ordering::Relaxed) == own, asked) {
+        (true, _) => Outcome::Confirmed,
+        (false, true) => Outcome::Refused,
+        (false, false) => Outcome::NotRequested,
+    }
 }
 
 /// Whether a file lock is refused: a lock on /dev/null, opened for reading, which nothing else
@@ -205,39 +324,53 @@ fn sendmsg_refused() -> bool {
 
 #[cfg(target_os = "linux")]
 thread_local! {
-    /// Whether this thread holds the Landlock layer of an earlier call.
-    static LAYERED_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The bits of the Landlock layer this thread applied: [`seccomp::LAYER`], and
+    /// [`seccomp::SCOPE`] when it limits signals.
+    static LAYERED_THREAD: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
-/// Whether the Landlock layer was applied while the process had one thread, so that every thread
-/// holds it.
+/// Those bits for a layer applied while the process had one thread, which every thread holds.
 #[cfg(target_os = "linux")]
-static LAYERED_PROCESS: AtomicBool = AtomicBool::new(false);
+static LAYERED_PROCESS: AtomicU32 = AtomicU32::new(0);
+
+/// The Landlock bits the calling thread holds: from the mark of the filter that went in after
+/// the layer, which the threads it starts answer too, or from what the thread or the process
+/// recorded. Only a layer the kernel took is ever recorded.
+fn layer_bits(held: Option<u32>) -> u32 {
+    let marked = held.unwrap_or(0) & (seccomp::LAYER | seccomp::SCOPE);
+    #[cfg(target_os = "linux")]
+    return marked | LAYERED_THREAD.get() | LAYERED_PROCESS.load(Ordering::Relaxed);
+    #[cfg(target_os = "android")]
+    marked
+}
 
 /// Gives this thread the Landlock layer and the seccomp filter, if it doesn't have them yet, and
-/// returns the options of the filter it now holds (`None` if none).
+/// returns the bits of the filter it now holds (`None` if none).
 ///
 /// Only what the kernel accepted is recorded, so a refusal is retried next time and nothing is
 /// stacked twice. A filter installed by someone else (Android, containers) doesn't count.
 fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
     let held = seccomp::held();
-    if let Some(options) = held
-        && options & wanted == wanted
+    if let Some(rules) = held
+        && rules & wanted == wanted
     {
         return held;
     }
+    let layer = layer_bits(held);
     #[cfg(target_os = "linux")]
-    if !(LAYERED_THREAD.get() || LAYERED_PROCESS.load(Ordering::Relaxed))
-        && landlock_layer::restrict_self()
-    {
-        LAYERED_THREAD.set(true);
+    let layer = if layer & seccomp::LAYER == 0 {
+        let applied = landlock_layer::restrict_self();
+        LAYERED_THREAD.set(applied);
         if whole_process {
-            LAYERED_PROCESS.store(true, Ordering::Relaxed);
+            LAYERED_PROCESS.store(applied, Ordering::Relaxed);
         }
-    }
+        applied
+    } else {
+        layer
+    };
     #[cfg(target_os = "android")]
     let _ = whole_process;
-    seccomp::install(held.unwrap_or(0) | wanted).or(held)
+    seccomp::install(held.unwrap_or(0) | wanted | layer).or(held)
 }
 
 /// `prctl` options of linux/prctl.h for the processor's speculation, written out because libc
@@ -247,16 +380,39 @@ const SET_SPECULATION: libc::c_int = 53;
 /// Speculative store bypass (Spectre variant 4) and indirect branch speculation (variant 2, from
 /// other processes).
 const SPECULATIONS: [libc::c_ulong; 2] = [0, 1];
-/// The answers: not affected; disabled; disabled for good.
-const SPEC_NOT_AFFECTED: libc::c_int = 0;
+/// Bits of the kernel's answer: a program may change it; off; off for good.
+const SPEC_PRCTL: libc::c_int = 1 << 0;
 const SPEC_DISABLE: libc::c_int = 1 << 2;
 const SPEC_FORCE_DISABLE: libc::c_int = 1 << 3;
 
+/// What the kernel says of one kind of speculation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Speculation {
+    /// Off for good, kept off by the system for every program, or the processor is not affected.
+    Off,
+    /// On, or off in a way the program could undo.
+    On,
+    /// The kernel has no such control here: ENODEV, as AArch64 answers for indirect branches.
+    Unknown,
+}
+
+/// Reads an answer of PR_GET_SPECULATION_CTRL; `None` stands for a refusal of the call.
+fn speculation_state(answer: Option<libc::c_int>) -> Speculation {
+    match answer {
+        None => Speculation::Unknown,
+        // No bit: not affected. Off without the bit for a program's control: the system's doing.
+        Some(0) => Speculation::Off,
+        Some(state) if state & SPEC_FORCE_DISABLE != 0 => Speculation::Off,
+        Some(state) if state & SPEC_DISABLE != 0 && state & SPEC_PRCTL == 0 => Speculation::Off,
+        Some(_) => Speculation::On,
+    }
+}
+
 /// Turns off speculative store bypass and indirect branch speculation for good (Spectre v4 and v2).
-/// The kernel leaves both to each program because they cost speed. Returns whether both are off or
-/// not needed on this processor.
-fn limit_speculation() -> bool {
-    SPECULATIONS.iter().all(|&which| {
+/// The kernel leaves both to each program because they cost speed. Confirmed when both are off
+/// for good or not needed; unknown when the kernel gives no control of one of them.
+fn limit_speculation() -> Outcome {
+    let states = SPECULATIONS.map(|which| {
         // SAFETY: prctl takes integers and touches no memory of this process.
         unsafe {
             libc::prctl(
@@ -269,23 +425,37 @@ fn limit_speculation() -> bool {
         }
         // SAFETY: as above.
         let state = unsafe { libc::prctl(GET_SPECULATION, which, 0, 0, 0) };
-        let unknown_here =
-            state < 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ENODEV);
-        state == SPEC_NOT_AFFECTED
-            || state > 0 && state & (SPEC_DISABLE | SPEC_FORCE_DISABLE) != 0
-            || which == 1 && unknown_here
-    })
+        speculation_state((state >= 0).then_some(state))
+    });
+    if states.contains(&Speculation::On) {
+        Outcome::Refused
+    } else if states.contains(&Speculation::Unknown) {
+        Outcome::Unknown
+    } else {
+        Outcome::Confirmed
+    }
 }
 
-/// Whether a tracer, such as a debugger the process was started under, is attached to the calling
-/// thread, as its `TracerPid` line says; a status that cannot be read counts as traced.
-fn traced() -> bool {
-    std::fs::read_to_string("/proc/thread-self/status").map_or(true, |status| {
-        status
+/// Whether any thread of the process has a tracer, such as a debugger it was started under: a
+/// tracer attaches to single threads, and each of them shares the memory. `None` when the threads
+/// or their status cannot be read.
+fn traced() -> Option<bool> {
+    let mut any = false;
+    for task in std::fs::read_dir("/proc/self/task").ok()? {
+        let status = match std::fs::read_to_string(task.ok()?.path().join("status")) {
+            Ok(status) => status,
+            // A thread that ended since it was listed.
+            Err(error) if matches!(error.raw_os_error(), Some(libc::ENOENT | libc::ESRCH)) => {
+                continue;
+            }
+            Err(_) => return None,
+        };
+        let tracer = status
             .lines()
-            .find_map(|line| line.strip_prefix("TracerPid:"))
-            .is_none_or(|tracer| tracer.trim() != "0")
-    })
+            .find_map(|line| line.strip_prefix("TracerPid:"))?;
+        any |= tracer.trim() != "0";
+    }
+    Some(any)
 }
 
 /// Whether the process has one thread: only then may it enter a user namespace of its own, and
@@ -293,24 +463,36 @@ fn traced() -> bool {
 /// process. An Android app always has other threads.
 fn one_thread() -> bool {
     #[cfg(target_os = "linux")]
-    return std::fs::read_dir("/proc/self/task").is_ok_and(|threads| threads.count() == 1);
+    {
+        // A list that cannot be read whole is no proof of one thread.
+        let Ok(threads) = std::fs::read_dir("/proc/self/task") else {
+            return false;
+        };
+        let mut count = 0;
+        for thread in threads {
+            if thread.is_err() {
+                return false;
+            }
+            count += 1;
+        }
+        count == 1
+    }
     #[cfg(target_os = "android")]
     false
 }
 
 /// Moves the process into its own empty network namespace and its own IPC namespace, inside a new
-/// user namespace (needed without root). The kernel allows this only for a single-threaded process.
-/// Returns whether the network namespace exists now, from this call or an earlier one.
+/// user namespace (needed without root), all in one call: a system such as Ubuntu takes the
+/// capabilities of an unprivileged process once it is inside, so a second call would be refused.
+/// The kernel allows this only for a single-threaded process. Returns whether the namespaces
+/// exist now, from this call or an earlier one.
 #[cfg(target_os = "linux")]
 fn enter_own_namespaces() -> bool {
     static MADE: AtomicBool = AtomicBool::new(false);
     // SAFETY: unshare takes flags only and touches no memory of this process.
-    if unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET) } == 0 {
+    if unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET | libc::CLONE_NEWIPC) } == 0
+    {
         MADE.store(true, Ordering::Relaxed);
-        // The user namespace just made allows it; a refusal leaves the shared objects, which the
-        // filter refuses anyway where it is written.
-        // SAFETY: as above.
-        unsafe { libc::unshare(libc::CLONE_NEWIPC) };
     }
     MADE.load(Ordering::Relaxed)
 }
@@ -362,6 +544,15 @@ fn sockets_refused() -> bool {
     return refused && io_uring_refused();
     #[cfg(target_os = "android")]
     refused
+}
+
+/// Whether the filter refuses to start a program. The probe names no file, so nothing starts
+/// without the filter either: the kernel then answers that there is no such file.
+fn programs_refused() -> bool {
+    // SAFETY: execve reads the path, an empty NUL-terminated literal; Linux takes null lists of
+    // arguments and environment.
+    let started = unsafe { libc::execve(c"".as_ptr(), std::ptr::null(), std::ptr::null()) };
+    started == -1 && std::io::Error::last_os_error().raw_os_error() == Some(REFUSED)
 }
 
 #[cfg(target_os = "linux")]
@@ -529,14 +720,28 @@ mod seccomp {
     /// options. The four bytes read "SPC1".
     const MARK_OPTION: u32 = 0x5350_4331;
     /// The error numbers of that answer, beyond every one a kernel gives (MAX_ERRNO is 4095): this
-    /// base with the bits of the filter's options in its low four bits, the sign that a thread
-    /// holds this crate's filter, whoever installed it. A filter that refuses other calls gets
-    /// another base.
-    const MARK: u32 = 0xF00;
+    /// base with the filter's bits in its low eight bits, the sign that a thread holds this
+    /// crate's filter, whoever installed it. A filter that refuses other calls gets another base.
+    const MARK: u32 = 0xE00;
+    const MARK_BITS: u32 = 0xFF;
     /// The options of a filter, as bits of the mark.
     pub(super) const FILE_LOCKS: u32 = 1;
     pub(super) const SENDMSG: u32 = 2;
     pub(super) const SIGNALS: u32 = 4;
+    /// Bits that add no rule: the Landlock layer went in before this filter, and that layer
+    /// limits signals. The threads that inherit the filter read them from its mark.
+    pub(super) const LAYER: u32 = 8;
+    pub(super) const SCOPE: u32 = 16;
+
+    /// The process the signal rule names: the one that built the filter. A child made by `fork`
+    /// inherits the rule and this number, which is then not its own.
+    static SIGNAL_OWNER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+
+    /// Whether the signal rule this process's filters carry names this very process.
+    pub(super) fn names_this_process() -> bool {
+        // SAFETY: getpid takes nothing and touches no memory.
+        SIGNAL_OWNER.load(std::sync::atomic::Ordering::Relaxed) == unsafe { libc::getpid() }
+    }
     /// The lock commands of `fcntl`: F_SETLK, F_SETLKW, F_OFD_SETLK and F_OFD_SETLKW.
     const LOCK_COMMANDS: [u32; 4] = [6, 7, 37, 38];
 
@@ -621,7 +826,9 @@ mod seccomp {
         if options & SIGNALS != 0 {
             // The process's own number, as `kill` and `tgkill` take it.
             // SAFETY: getpid takes nothing and touches no memory.
-            let own = unsafe { libc::getpid() } as u32;
+            let own = unsafe { libc::getpid() };
+            SIGNAL_OWNER.store(own, std::sync::atomic::Ordering::Relaxed);
+            let own = own as u32;
             for number in calls::SIGNAL_TO_PROCESS {
                 program.extend(for_call(
                     number,
@@ -686,7 +893,7 @@ mod seccomp {
         program
     }
 
-    /// The options of this crate's filter that the calling thread holds, from its own call or from
+    /// The bits of this crate's filter that the calling thread holds, from its own call or from
     /// the thread that started it, or `None` for none: only this filter answers [`MARK_OPTION`]
     /// with [`MARK`]. Of two such filters, the newer answers.
     pub(super) fn held() -> Option<u32> {
@@ -695,11 +902,11 @@ mod seccomp {
         let result = unsafe { libc::prctl(MARK_OPTION as libc::c_int, 0, 0, 0, 0) };
         let error = std::io::Error::last_os_error().raw_os_error()?;
         let error = u32::try_from(error).ok()?;
-        (result == -1 && error & !0xF == MARK).then_some(error & 0xF)
+        (result == -1 && error & !MARK_BITS == MARK).then_some(error & MARK_BITS)
     }
 
-    /// Installs the filter with `options` for the calling thread and the threads it starts
-    /// afterwards, and returns the options of the filter it holds now.
+    /// Installs the filter with the bits `options` for the calling thread and the threads it
+    /// starts afterwards, and returns the bits of the filter it holds now.
     pub(super) fn install(options: u32) -> Option<u32> {
         let mut program = program(options);
         let filter = libc::sock_fprog {
@@ -730,6 +937,12 @@ mod seccomp {
     pub(super) const FILE_LOCKS: u32 = 1;
     pub(super) const SENDMSG: u32 = 2;
     pub(super) const SIGNALS: u32 = 4;
+    pub(super) const LAYER: u32 = 8;
+    pub(super) const SCOPE: u32 = 16;
+
+    pub(super) fn names_this_process() -> bool {
+        false
+    }
 
     pub(super) fn held() -> Option<u32> {
         None
@@ -741,53 +954,111 @@ mod seccomp {
 }
 
 /// The Landlock layer: no file may be changed anywhere, and on newer kernels no TCP bind or connect,
-/// no connection to UNIX sockets outside the layer and no signals to other processes. Reading stays
-/// allowed. Rights the running kernel doesn't know are skipped.
+/// no connection to UNIX sockets outside the layer and no signals to processes outside it. Reading
+/// stays allowed. Rights the running kernel doesn't know are skipped.
 #[cfg(target_os = "linux")]
 mod landlock_layer {
-    use landlock::{ABI, Access, AccessFs, AccessNet, Ruleset, RulesetAttr, RulesetStatus, Scope};
+    use landlock::{
+        ABI, Access, AccessFs, AccessNet, LandlockStatus, Ruleset, RulesetAttr, RulesetStatus,
+        Scope,
+    };
 
     /// The newest Landlock ABI whose rights the layer asks for: that of Linux 7.1.
     const ASKED: ABI = ABI::V9;
 
-    /// Applies the layer to the calling thread and the threads it starts afterwards, and returns
-    /// whether the kernel took it, whole or with the rights it knows. A kernel without Landlock,
-    /// or one that refuses the layer, leaves the thread as it was.
-    pub(super) fn restrict_self() -> bool {
-        Ruleset::default()
+    /// Applies the layer to the calling thread and the threads it starts afterwards. Returns
+    /// [`super::seccomp::LAYER`] when the kernel took it, with [`super::seccomp::SCOPE`] when it
+    /// has the signal scope (ABI 6, Linux 6.12), and 0 when it refused or has no Landlock.
+    pub(super) fn restrict_self() -> u32 {
+        let status = Ruleset::default()
             .handle_access(AccessFs::from_write(ASKED))
             .and_then(|ruleset| ruleset.handle_access(AccessNet::from_all(ASKED)))
             .and_then(|ruleset| ruleset.scope(Scope::AbstractUnixSocket | Scope::Signal))
             .and_then(Ruleset::create)
-            .and_then(|created| created.restrict_self())
-            .is_ok_and(|status| status.ruleset != RulesetStatus::NotEnforced)
+            .and_then(|created| created.restrict_self());
+        match status {
+            Ok(status) if status.ruleset != RulesetStatus::NotEnforced => {
+                let scoped = matches!(
+                    status.landlock,
+                    LandlockStatus::Available { effective_abi, .. } if effective_abi >= ABI::V6
+                );
+                super::seccomp::LAYER | (u32::from(scoped) * super::seccomp::SCOPE)
+            }
+            _ => 0,
+        }
     }
 }
 
-/// Whether a protection always holds for the whole process here, and what confirms it.
-pub(crate) fn measure(protection: crate::Protection) -> (bool, &'static str) {
-    use crate::Protection::*;
-    match protection {
-        NoCoreDumps => (
-            true,
-            "RLIMIT_CORE reads back 0 and the process is not dumpable",
-        ),
-        NoMemoryReading => (true, "not dumpable, and no tracer in TracerPid"),
-        NoNewSockets => (false, "a new socket is refused"),
-        EmptyNetwork => (true, "only a loopback interface, down, and no route"),
-        NoFileChanges => (
-            false,
-            "the filter answers its mark, and opening for writing is refused",
-        ),
-        SpeculationLimited => (false, "PR_GET_SPECULATION_CTRL reads back disabled"),
-        WholeProcess => (true, "the process had one thread when the filter went in"),
-        FileLocksRefused => (false, "a lock on /dev/null is refused"),
-        SendmsgRefused => (false, "sendmsg is refused"),
-        ForeignSignalsRefused => (
-            false,
-            "the filter answers its mark, or Landlock is 6.12 or later",
-        ),
-        MemoryLocked => (true, "mlockall accepted"),
-        DynamicCodeRefused | MicrosoftSignedOnly => (true, "Windows only"),
+/// What a call observed for `protection` when it reports `outcome`, in words.
+pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'static str> {
+    use {Outcome as O, Protection as P};
+    Some(match (protection, outcome) {
+        (P::NoCoreDumps, O::Confirmed) => {
+            "RLIMIT_CORE reads back 0, and the process is not dumpable"
+        }
+        (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE or the dumpable flag did not read back",
+        (P::NoMemoryReading, O::Confirmed) => "not dumpable, and no thread has a tracer",
+        (P::NoMemoryReading, O::Refused) => "the process is dumpable, or a thread has a tracer",
+        (P::NoMemoryReading, O::Unknown) => "the threads could not be read to look for a tracer",
+        (P::NoNewSockets, O::Confirmed) => "a new socket was refused",
+        (P::NoNewSockets, O::Refused) => "a new socket was not refused",
+        (P::NoNewPrograms, O::Confirmed) => "the filter answers its mark, and execve was refused",
+        (P::NoNewPrograms, O::Refused) => "the filter is missing, or execve was not refused",
+        (P::EmptyNetwork, O::Confirmed) => "namespaces of its own: only loopback, down, no route",
+        (P::EmptyNetwork, O::Refused) => "no network namespace of its own",
+        (P::NoFileChanges, O::Confirmed) => {
+            "the filter answers its mark, and opening for writing was refused"
+        }
+        (P::NoFileChanges, O::Refused) => {
+            "the filter is missing, or opening for writing was not refused"
+        }
+        (P::SpeculationLimited, O::Confirmed) => {
+            "both kinds read back off for good, or the processor is not affected"
+        }
+        (P::SpeculationLimited, O::Refused) => "a kind did not read back off for good",
+        (P::SpeculationLimited, O::Unknown) => "the kernel gives no control of a kind here",
+        (P::WholeProcess, O::Confirmed) => "the process had one thread at the call",
+        (P::WholeProcess, O::Refused) => "the process had other threads at the call",
+        (P::FileLocksRefused, O::Confirmed) => "a lock on /dev/null was refused",
+        (P::FileLocksRefused, O::Refused) => "a lock on /dev/null was not refused",
+        (P::SendmsgRefused, O::Confirmed) => "sendmsg was refused",
+        (P::SendmsgRefused, O::Refused) => "sendmsg was not refused",
+        (P::SignalsToSelfOnly, O::Confirmed) => {
+            "the filter answers its mark with the rule, which names this process"
+        }
+        (P::SignalsToSelfOnly, O::Refused) => {
+            "the filter lacks the rule, or the rule names another process"
+        }
+        (P::SignalsWithinLayer, O::Confirmed) => "the Landlock layer went in with its signal scope",
+        (P::SignalsWithinLayer, O::Refused) => {
+            "no Landlock layer, or one without the signal scope (before Linux 6.12)"
+        }
+        (P::MemoryLocked, O::Confirmed) => "mlockall was accepted in this process",
+        (P::MemoryLocked, O::Refused) => "mlockall was refused",
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every answer of PR_GET_SPECULATION_CTRL, by the kernel's spec_ctrl documentation.
+    #[test]
+    fn speculation_answers_are_read_as_the_kernel_defines_them() {
+        let (prctl, enable, disable, force, noexec) = (1, 2, 4, 8, 16);
+        for (answer, state) in [
+            (Some(0), Speculation::Off),
+            (Some(prctl | force), Speculation::Off),
+            (Some(prctl | disable | force), Speculation::Off),
+            (Some(disable), Speculation::Off),
+            (Some(prctl | enable), Speculation::On),
+            (Some(enable), Speculation::On),
+            (Some(prctl | disable), Speculation::On),
+            (Some(prctl | noexec), Speculation::On),
+            (None, Speculation::Unknown),
+        ] {
+            assert_eq!(speculation_state(answer), state, "{answer:?}");
+        }
     }
 }

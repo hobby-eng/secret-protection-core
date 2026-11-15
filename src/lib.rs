@@ -11,13 +11,13 @@ mod protect;
 mod stack;
 mod worker;
 
-pub use channels::{Channel, ChannelKind, open_channels};
-pub use input::{Keystroke, SecretLine};
+pub use channels::{Channel, ChannelKind, OpenChannels, open_channels};
+pub use input::{Keystroke, KeystrokeBytes, SecretLine};
 #[cfg(not(target_arch = "wasm32"))]
 pub use protect::write_secret;
 pub use protect::{
-    ClosedSecret, Isolation, Measure, Missing, Options, Protection, Reach, Secret, SecretError,
-    WorkArea,
+    ClosedSecret, Isolation, Measure, Missing, Options, Outcome, Protection, Reach, Secret,
+    SecretError, WorkArea,
 };
-pub use stack::{StackRun, run_on_protected_stack};
+pub use stack::{StackError, StackProperties, StackRun, run_on_protected_stack};
 pub use worker::{Worker, WorkerError, serve};

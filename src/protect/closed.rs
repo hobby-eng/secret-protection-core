@@ -10,7 +10,8 @@ use crate::os::{Access, Region};
 /// program (a Heartbleed-style bug) crashes instead of leaking. Each use costs two system calls.
 pub struct ClosedSecret {
     secret: Secret,
-    closed: bool,
+    /// What the pages allow now, as the system last confirmed.
+    access: Access,
 }
 
 impl ClosedSecret {
@@ -26,8 +27,13 @@ impl ClosedSecret {
     }
 
     fn closing(secret: Secret) -> Self {
-        let closed = secret.pages.region().allow(Access::Nothing);
-        Self { secret, closed }
+        // New pages allow reading and writing until the system agrees to close them.
+        let access = after(
+            Access::ReadWrite,
+            Access::Nothing,
+            secret.pages.region().allow(Access::Nothing),
+        );
+        Self { secret, access }
     }
 
     /// Appends `bytes`, as [`Secret::push`].
@@ -35,7 +41,7 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.closed,
+            &mut self.access,
         );
         self.secret.push(bytes)
     }
@@ -45,7 +51,7 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.closed,
+            &mut self.access,
         );
         self.secret.truncate(len);
     }
@@ -53,7 +59,7 @@ impl ClosedSecret {
     /// Opens the pages for reading, hands the bytes pushed so far to `use_bytes`, and closes them
     /// again.
     pub fn read<R>(&mut self, use_bytes: impl FnOnce(&[u8]) -> R) -> R {
-        let _open = Open::new(self.secret.pages.region(), Access::Read, &mut self.closed);
+        let _open = Open::new(self.secret.pages.region(), Access::Read, &mut self.access);
         use_bytes(self.secret.as_bytes())
     }
 
@@ -63,7 +69,7 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.closed,
+            &mut self.access,
         );
         change(self.secret.as_mut_bytes())
     }
@@ -86,7 +92,7 @@ impl ClosedSecret {
     /// Whether the pages refuse every access now, as the system confirmed when they were last
     /// closed.
     pub fn is_closed(&self) -> bool {
-        self.closed
+        self.access == Access::Nothing
     }
 
     /// As [`Secret::is_locked`].
@@ -107,11 +113,13 @@ impl ClosedSecret {
 
 impl Drop for ClosedSecret {
     fn drop(&mut self) {
-        // Open for the wipe in the drop of the secret that follows; a refusal ends the process
-        // rather than leaving the bytes unwiped.
-        if !self.secret.pages.region().allow(Access::ReadWrite) && self.closed {
-            std::process::abort();
-        }
+        // Open for the wipe in the drop of the secret that follows; pages that stay closed to
+        // writing end the process rather than keep the bytes unwiped.
+        open(
+            self.secret.pages.region(),
+            Access::ReadWrite,
+            &mut self.access,
+        );
     }
 }
 
@@ -121,26 +129,101 @@ impl fmt::Debug for ClosedSecret {
     }
 }
 
+/// What the pages allow after the system was asked to change `current` to `wanted`: `wanted` when
+/// it agreed, else what they allowed before.
+fn after(current: Access, wanted: Access, agreed: bool) -> Access {
+    if agreed { wanted } else { current }
+}
+
+/// Whether pages that allow `has` can serve a use that needs `needs`.
+fn serves(has: Access, needs: Access) -> bool {
+    match needs {
+        Access::Nothing => true,
+        Access::Read => has != Access::Nothing,
+        Access::ReadWrite => has == Access::ReadWrite,
+    }
+}
+
+/// Opens `region` for `needs` and records what it allows now. When the system refuses and what
+/// the pages allow does not serve the use, the process ends here: a reference to them would be
+/// undefined behaviour, and the access a fault.
+fn open(region: Region, needs: Access, access: &mut Access) {
+    *access = after(*access, needs, region.allow(needs));
+    if !serves(*access, needs) {
+        std::process::abort();
+    }
+}
+
 /// Pages opened for one use, closed again when it ends, by its return or by a panic.
 struct Open<'a> {
     region: Region,
-    closed: &'a mut bool,
+    access: &'a mut Access,
 }
 
 impl<'a> Open<'a> {
-    /// Opens `region` for `access`. Where the pages are closed and the system refuses to open them,
-    /// the process ends here: a reference to them would be undefined behaviour, and the access a
-    /// fault.
-    fn new(region: Region, access: Access, closed: &'a mut bool) -> Self {
-        if !region.allow(access) && *closed {
-            std::process::abort();
-        }
-        Self { region, closed }
+    fn new(region: Region, needs: Access, access: &'a mut Access) -> Self {
+        open(region, needs, access);
+        Self { region, access }
     }
 }
 
 impl Drop for Open<'_> {
     fn drop(&mut self) {
-        *self.closed = self.region.allow(Access::Nothing);
+        *self.access = after(
+            *self.access,
+            Access::Nothing,
+            self.region.allow(Access::Nothing),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What a use may rely on after every answer of the system, from every state of the pages.
+    #[test]
+    fn a_refused_change_keeps_what_the_pages_allowed() {
+        let all = [Access::Nothing, Access::Read, Access::ReadWrite];
+        for current in all {
+            for wanted in all {
+                assert_eq!(after(current, wanted, true), wanted);
+                assert_eq!(after(current, wanted, false), current);
+            }
+        }
+        // Pages left open for reading by a refused close do not serve a write.
+        assert!(serves(Access::Read, Access::Read));
+        assert!(!serves(Access::Read, Access::ReadWrite));
+        assert!(!serves(Access::Nothing, Access::Read));
+        assert!(
+            serves(Access::ReadWrite, Access::Read) && serves(Access::Nothing, Access::Nothing)
+        );
+    }
+
+    /// When the system refuses to close the pages after a read, the secret says it is open and
+    /// remembers that it is open for reading only; later uses work, and the next close counts.
+    #[cfg(unix)]
+    #[test]
+    fn a_refused_close_is_remembered() {
+        let mut secret = ClosedSecret::with_capacity(8);
+        secret.push(b"public").unwrap();
+        assert!(secret.is_closed());
+        let length = secret.read(|bytes| {
+            crate::os::refuse_changes(1);
+            bytes.len()
+        });
+        assert_eq!((length, secret.access), (6, Access::Read));
+        assert!(!secret.is_closed());
+        // A refused opening for reading does not matter: the pages already allow it.
+        crate::os::refuse_changes(1);
+        assert_eq!(secret.read(<[u8]>::to_vec), b"public");
+        assert!(secret.is_closed());
+        secret.write(|bytes| bytes[0] = b'P');
+        assert_eq!(secret.read(<[u8]>::to_vec), b"Public");
+        // A use that panics still closes the pages.
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            secret.write(|_| panic!("a use that fails"));
+        }));
+        assert!(panicked.is_err() && secret.is_closed());
     }
 }

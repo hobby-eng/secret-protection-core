@@ -50,9 +50,10 @@ static ALLOCATOR: Counting = Counting;
 
 fn main() {
     #[cfg(target_os = "linux")]
-    if std::env::var_os(linux::ROLE).is_some() {
-        linux::secrets_under_every_lock_limit();
-        return;
+    match std::env::var(linux::ROLE).as_deref() {
+        Ok("child") => return linux::secrets_under_every_lock_limit(),
+        Ok("forks") => return linux::secrets_made_during_forks(),
+        _ => {}
     }
     // WebAssembly has no pages of its own to give a secret: it is a heap buffer there.
     #[cfg(any(target_os = "linux", windows))]
@@ -65,6 +66,11 @@ fn main() {
         "a secret works under every lock limit and says whether it is locked",
         linux::a_secret_works_under_every_lock_limit,
     );
+    #[cfg(target_os = "linux")]
+    run(
+        "no forked child inherits a descriptor of secret memory",
+        linux::no_forked_child_inherits_secret_memory,
+    );
     #[cfg(not(target_arch = "wasm32"))]
     run(
         "the work area lies on pages of its own, locked where the limit allows",
@@ -76,7 +82,17 @@ fn main() {
     );
 }
 
+/// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
+/// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
+/// locked memory have to be left out under it.
 fn run(name: &str, check: fn()) {
+    let arguments: Vec<String> = std::env::args().collect();
+    let skipped = arguments
+        .windows(2)
+        .any(|pair| pair[0] == "--skip" && name.contains(pair[1].as_str()));
+    if skipped {
+        return println!("test {name} ... ignored");
+    }
     check();
     println!("test {name} ... ok");
 }
@@ -246,6 +262,106 @@ mod linux {
         assert_eq!(area.has("lo"), locked, "{:?}", area.flags);
     }
 
+    /// With no memory to lock, work that requires a locked stack does not run, and work that
+    /// requires nothing runs on a stack that says it is not locked.
+    fn a_stack_that_must_be_locked_is_refused() {
+        use secret_protection_core::{StackError, StackProperties, run_on_protected_stack};
+        let locked = StackProperties {
+            locked: true,
+            ..StackProperties::default()
+        };
+        let mut ran = false;
+        let refused = run_on_protected_stack(64 << 10, locked, || ran = true);
+        assert!(
+            matches!(refused, Err(StackError::NotProtected(has)) if !has.locked && has.out_of_dumps),
+            "{refused:?}"
+        );
+        assert!(!ran);
+        let run = run_on_protected_stack(64 << 10, StackProperties::default(), || 7).unwrap();
+        assert_eq!((run.value, run.properties.locked), (7, false));
+    }
+
+    /// In a child process, which forks: the test itself keeps to one thread.
+    pub(super) fn no_forked_child_inherits_secret_memory() {
+        let status = Command::new(std::env::current_exe().unwrap())
+            .env(ROLE, "forks")
+            .status()
+            .unwrap();
+        assert!(status.success(), "{status}");
+    }
+
+    /// The `forks` role: one thread makes and drops secrets, each of which holds a descriptor of
+    /// secret memory open for a moment, while this thread forks two thousand times. No child may
+    /// find such a descriptor among those it inherited: it could map the pages of a later secret.
+    pub(super) fn secrets_made_during_forks() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static DONE: AtomicBool = AtomicBool::new(false);
+        let sample = Secret::with_capacity(1);
+        let address = sample.as_bytes().as_ptr() as usize;
+        let secret_memory = mappings().iter().any(|mapping| {
+            mapping.range.contains(&address) && mapping.name.starts_with("/secretmem")
+        });
+        drop(sample);
+        if !secret_memory {
+            eprintln!("This kernel gives no secret memory: the race with fork is not checked.");
+            return;
+        }
+        let maker = std::thread::spawn(|| {
+            let mut made = 0_u64;
+            while !DONE.load(Ordering::Relaxed) {
+                drop(Secret::with_capacity(64));
+                made += 1;
+            }
+            made
+        });
+        let mut inherited = 0;
+        for _ in 0..2000 {
+            // SAFETY: the child makes only calls that a signal handler may make.
+            let child = unsafe { libc::fork() };
+            if child == 0 {
+                let found = holds_secret_memory();
+                // SAFETY: ends the child at once.
+                unsafe { libc::_exit(i32::from(found)) };
+            }
+            let mut status = 0;
+            // SAFETY: waits for the child just made and writes its status.
+            assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+            inherited += i32::from(status != 0);
+        }
+        DONE.store(true, Ordering::Relaxed);
+        let made = maker.join().unwrap();
+        assert!(made > 1000, "only {made} secrets were made meanwhile");
+        assert_eq!(
+            inherited, 0,
+            "children inherited a descriptor of secret memory"
+        );
+    }
+
+    /// Whether one of the descriptors 3 to 63 names secret memory, as the link in /proc/self/fd
+    /// says, without any allocation.
+    fn holds_secret_memory() -> bool {
+        (3..64_u8).any(|descriptor| {
+            let mut path = *b"/proc/self/fd/\0\0\0";
+            if descriptor < 10 {
+                path[14] = b'0' + descriptor;
+            } else {
+                path[14] = b'0' + descriptor / 10;
+                path[15] = b'0' + descriptor % 10;
+            }
+            let mut target = [0_u8; 64];
+            // SAFETY: readlink reads the NUL-terminated path and writes at most the buffer's
+            // length into it.
+            let length = unsafe {
+                libc::readlink(
+                    path.as_ptr().cast(),
+                    target.as_mut_ptr().cast(),
+                    target.len(),
+                )
+            };
+            usize::try_from(length).is_ok_and(|length| target[..length].starts_with(b"/secretmem"))
+        })
+    }
+
     /// In a child process: the limit stays its own, and so does a SIGBUS at a write to a page
     /// beyond the limit.
     pub(super) fn a_secret_works_under_every_lock_limit() {
@@ -289,11 +405,33 @@ mod linux {
             );
             if pages == 0 {
                 assert_eq!(WorkArea::locked(1).err(), Some(SecretError::NotLocked));
+                a_stack_that_must_be_locked_is_refused();
             }
             if pages == 4 {
                 super::quota_partly_used(page as usize);
             }
         }
+        a_stack_without_a_thread_is_an_error();
+    }
+
+    /// When the system gives no thread, the work does not run and the call says why. Needs a
+    /// process without CAP_SYS_RESOURCE, which the limit does not hold back.
+    fn a_stack_without_a_thread_is_an_error() {
+        use secret_protection_core::{StackError, StackProperties, run_on_protected_stack};
+        // One process or thread for this user, who has that many already.
+        let limit = libc::rlimit {
+            rlim_cur: 1,
+            rlim_max: 1,
+        };
+        // SAFETY: setrlimit reads the struct, which lives for the call.
+        assert_eq!(unsafe { libc::setrlimit(libc::RLIMIT_NPROC, &limit) }, 0);
+        let mut ran = false;
+        let refused = run_on_protected_stack(64 << 10, StackProperties::default(), || ran = true);
+        assert!(
+            matches!(&refused, Err(StackError::System(error)) if error.raw_os_error() == Some(libc::EAGAIN)),
+            "{refused:?}"
+        );
+        assert!(!ran);
     }
 }
 

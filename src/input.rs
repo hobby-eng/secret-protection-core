@@ -20,24 +20,25 @@ pub enum Keystroke {
 }
 
 impl Keystroke {
-    /// The bytes that carry it: a tag byte, then for a character its UTF-8 bytes. The array is
-    /// wiped when the caller has sent it.
-    pub fn to_bytes(self, out: &mut [u8; 5]) -> &[u8] {
-        match self {
+    /// The bytes that carry it to the worker: a tag byte, then for a character its UTF-8 bytes.
+    /// They come in a value that wipes itself when dropped.
+    pub fn to_bytes(self) -> KeystrokeBytes {
+        let mut bytes = [0; 5];
+        let length = match self {
             Self::Char(character) => {
-                out[0] = 1;
-                let length = character.encode_utf8(&mut out[1..]).len();
-                &out[..=length]
+                bytes[0] = 1;
+                1 + character.encode_utf8(&mut bytes[1..]).len()
             }
             Self::RemoveLast => {
-                out[0] = 2;
-                &out[..1]
+                bytes[0] = 2;
+                1
             }
             Self::Clear => {
-                out[0] = 3;
-                &out[..1]
+                bytes[0] = 3;
+                1
             }
-        }
+        };
+        KeystrokeBytes { bytes, length }
     }
 
     /// The keystroke that [`Keystroke::to_bytes`] made, or `None` for any other bytes.
@@ -53,6 +54,32 @@ impl Keystroke {
             [3] => Some(Self::Clear),
             _ => None,
         }
+    }
+}
+
+/// The bytes of one [`Keystroke`], wiped when dropped. Drop it as soon as it is sent; the
+/// `Keystroke` itself is a plain value that nothing wipes, so keep none around either.
+pub struct KeystrokeBytes {
+    bytes: [u8; 5],
+    length: usize,
+}
+
+impl KeystrokeBytes {
+    /// The bytes to send.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.length]
+    }
+}
+
+impl Drop for KeystrokeBytes {
+    fn drop(&mut self) {
+        self.bytes.zeroize();
+    }
+}
+
+impl std::fmt::Debug for KeystrokeBytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("KeystrokeBytes(hidden)")
     }
 }
 
@@ -156,9 +183,9 @@ mod tests {
     fn keystrokes_build_and_take_back_a_line() {
         let mut line = SecretLine::with_capacity(16);
         for character in "пароль1".chars() {
-            let mut out = [0; 5];
-            let bytes = Keystroke::Char(character).to_bytes(&mut out).to_vec();
-            line.apply(Keystroke::from_bytes(&bytes).unwrap()).unwrap();
+            let bytes = Keystroke::Char(character).to_bytes();
+            line.apply(Keystroke::from_bytes(bytes.as_bytes()).unwrap())
+                .unwrap();
         }
         assert_eq!((line.as_str(), line.characters()), ("пароль1", 7));
         line.apply(Keystroke::RemoveLast).unwrap();
@@ -179,6 +206,15 @@ mod tests {
         assert_eq!(
             format!("{:?}", Keystroke::Char('a')),
             "Keystroke::Char(hidden)"
+        );
+        // Each keystroke carries only its own bytes, whatever was sent before it.
+        assert_eq!(Keystroke::Char('€').to_bytes().as_bytes().len(), 4);
+        assert_eq!(Keystroke::Char('a').to_bytes().as_bytes(), [1, b'a']);
+        assert_eq!(Keystroke::RemoveLast.to_bytes().as_bytes(), [2]);
+        assert_eq!(Keystroke::Clear.to_bytes().as_bytes(), [3]);
+        assert_eq!(
+            format!("{:?}", Keystroke::Char('a').to_bytes()),
+            "KeystrokeBytes(hidden)"
         );
         assert_eq!(Keystroke::from_bytes(&[1, b'a', b'b']), None);
         assert_eq!(Keystroke::from_bytes(&[1]), None);

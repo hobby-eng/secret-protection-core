@@ -1,6 +1,5 @@
-//! [`Options`], the protections of [`super::Isolation`] that a program turns on itself, and the
-//! strict mode: [`Protection`], one confirmed protection, and [`Missing`], the protections a
-//! program required and did not get.
+//! [`Options`], the protections a program turns on itself; [`Protection`] and [`Outcome`], what
+//! [`super::Isolation`] says of each; and [`Missing`], the refusal of the strict mode.
 
 use std::fmt;
 
@@ -59,9 +58,18 @@ impl Options {
         self
     }
 
-    /// Linux and Android: signals go only to this process itself. Landlock already blocks signals
-    /// to other processes from Linux 6.12; this covers older kernels and Android. Children started
-    /// afterwards can't be signalled either, nor signal themselves with `kill`.
+    /// Windows: from now on only DLLs signed by Microsoft load (`ProcessSignaturePolicy`), so that
+    /// no other program's DLL gets in. The program's own DLLs loaded later, graphics drivers and
+    /// many input methods fail to load.
+    #[must_use]
+    pub const fn microsoft_signed_only(mut self) -> Self {
+        self.microsoft_signed = true;
+        self
+    }
+
+    /// Linux and Android: signals go only to this process itself, by a filter rule that names its
+    /// process number. It is for a process that forks no more: a child made by `fork` afterwards
+    /// inherits the rule with its parent's number, and reports the protection as missing.
     #[must_use]
     pub const fn signals_to_self_only(mut self) -> Self {
         self.own_signals = true;
@@ -99,15 +107,6 @@ impl Options {
             lock_all: bits & 32 != 0,
         }
     }
-
-    /// Windows: from now on only DLLs signed by Microsoft load (`ProcessSignaturePolicy`), so that
-    /// no other program's DLL gets in. The program's own DLLs loaded later, graphics drivers and
-    /// many input methods fail to load.
-    #[must_use]
-    pub const fn microsoft_signed_only(mut self) -> Self {
-        self.microsoft_signed = true;
-        self
-    }
 }
 
 /// One protection that [`Isolation`] reports, for a program to require it: each names the field
@@ -137,15 +136,28 @@ pub enum Protection {
     DynamicCodeRefused,
     /// [`Isolation::microsoft_signed_only`].
     MicrosoftSignedOnly,
-    /// [`Isolation::foreign_signals_refused`].
-    ForeignSignalsRefused,
+    /// [`Isolation::signals_to_self_only`].
+    SignalsToSelfOnly,
+    /// [`Isolation::signals_within_layer`].
+    SignalsWithinLayer,
     /// [`Isolation::memory_locked`].
     MemoryLocked,
+    /// [`Isolation::no_new_programs`].
+    NoNewPrograms,
+    /// [`Isolation::known_libraries_only`].
+    KnownLibrariesOnly,
+    /// [`Isolation::desktop_restricted`].
+    DesktopRestricted,
+    /// [`Isolation::low_integrity`].
+    LowIntegrity,
 }
 
 impl Protection {
+    /// How many protections there are.
+    pub(crate) const COUNT: usize = 18;
+
     /// Every protection, in the order of the fields of [`Isolation`].
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; Self::COUNT] = [
         Self::NoCoreDumps,
         Self::NoMemoryReading,
         Self::NoNewSockets,
@@ -157,9 +169,19 @@ impl Protection {
         Self::SendmsgRefused,
         Self::DynamicCodeRefused,
         Self::MicrosoftSignedOnly,
-        Self::ForeignSignalsRefused,
+        Self::SignalsToSelfOnly,
+        Self::SignalsWithinLayer,
         Self::MemoryLocked,
+        Self::NoNewPrograms,
+        Self::KnownLibrariesOnly,
+        Self::DesktopRestricted,
+        Self::LowIntegrity,
     ];
+
+    /// Its place in [`Protection::ALL`].
+    pub(crate) const fn index(self) -> usize {
+        self as usize
+    }
 
     fn name(self) -> &'static str {
         match self {
@@ -174,8 +196,13 @@ impl Protection {
             Self::SendmsgRefused => "sendmsg refused",
             Self::DynamicCodeRefused => "no new executable code",
             Self::MicrosoftSignedOnly => "only DLLs signed by Microsoft",
-            Self::ForeignSignalsRefused => "no signals to other processes",
+            Self::SignalsToSelfOnly => "signals only to the process itself",
+            Self::SignalsWithinLayer => "signals only inside the Landlock layer",
             Self::MemoryLocked => "the whole process out of swap",
+            Self::NoNewPrograms => "no other program started",
+            Self::KnownLibrariesOnly => "libraries only from known places",
+            Self::DesktopRestricted => "no writing to the clipboard or to other windows",
+            Self::LowIntegrity => "low integrity",
         }
     }
 }
@@ -183,6 +210,44 @@ impl Protection {
 impl fmt::Display for Protection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+/// What became of one protection in a call of [`Isolation::enter`]. Only [`Outcome::Confirmed`]
+/// counts as holding.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Outcome {
+    /// In effect, and the call observed it.
+    Confirmed,
+    /// Tried or checked, and not in effect.
+    Refused,
+    /// An option the call did not turn on, and that was not in effect before.
+    NotRequested,
+    /// Not offered on this system.
+    #[default]
+    Unsupported,
+    /// It may be in effect, but the call could not confirm it.
+    Unknown,
+}
+
+impl Outcome {
+    /// Every outcome, in the order of the numbers a worker sends.
+    const ALL: [Self; 5] = [
+        Self::Confirmed,
+        Self::Refused,
+        Self::NotRequested,
+        Self::Unsupported,
+        Self::Unknown,
+    ];
+
+    /// The number a worker sends for it.
+    pub(crate) const fn to_bits(self) -> u8 {
+        self as u8
+    }
+
+    /// The outcome of a number that [`Outcome::to_bits`] made.
+    pub(crate) fn from_bits(bits: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(bits)).copied()
     }
 }
 
@@ -209,3 +274,21 @@ impl fmt::Display for Missing {
 }
 
 impl std::error::Error for Missing {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protections_and_outcomes_keep_their_numbers() {
+        for (index, protection) in Protection::ALL.into_iter().enumerate() {
+            assert_eq!(protection.index(), index);
+        }
+        for outcome in Outcome::ALL {
+            assert_eq!(Outcome::from_bits(outcome.to_bits()), Some(outcome));
+        }
+        assert_eq!(Outcome::from_bits(5), None);
+        let options = Options::new().signals_to_self_only().refuse_sendmsg();
+        assert_eq!(Options::from_bits(options.to_bits()), options);
+    }
+}

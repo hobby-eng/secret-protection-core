@@ -40,7 +40,34 @@ fn main() {
         ))]
         Ok("foreign") => under_a_foreign_filter(),
         #[cfg(target_os = "linux")]
-        Ok("traced") => linux::traced_role(),
+        Ok("traced") => linux::traced_role(false),
+        #[cfg(target_os = "linux")]
+        Ok("traced-sibling") => linux::traced_role(true),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("forked") => linux::forked_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("unlayered") => linux::unlayered_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("unlisted") => linux::unlisted_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("speculating") => linux::speculation_role(true),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("unspeculated") => linux::speculation_role(false),
         #[cfg(target_os = "linux")]
         Ok("locked") => linux::locked_role(),
         #[cfg(all(
@@ -101,10 +128,50 @@ fn main() {
                 "locking all memory is reported as the kernel answered",
                 linux::locking_all_memory_is_reported,
             );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "a forked child does not take its parent's signal rule or memory lock for its own",
+                || linux::role_ends_well("forked"),
+            );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "a refused Landlock layer is not reported as a signal scope",
+                || linux::role_ends_well("unlayered"),
+            );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "threads that cannot be listed leave the reading of memory unknown",
+                || linux::role_ends_well("unlisted"),
+            );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "speculation the kernel does not limit or report is not called limited",
+                || {
+                    linux::role_ends_well("speculating");
+                    linux::role_ends_well("unspeculated");
+                },
+            );
+            #[cfg(target_os = "linux")]
+            run(
+                "a tracer of another thread makes the whole process readable",
+                || linux::a_traced_process_is_not_reported_unreadable("traced-sibling"),
+            );
             #[cfg(target_os = "linux")]
             run(
                 "a process with a tracer attached is not reported unreadable",
-                linux::a_traced_process_is_not_reported_unreadable,
+                || linux::a_traced_process_is_not_reported_unreadable("traced"),
             );
             #[cfg(not(target_arch = "wasm32"))]
             run(
@@ -115,7 +182,17 @@ fn main() {
     }
 }
 
+/// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
+/// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
+/// locked memory have to be left out under it.
 fn run(name: &str, check: fn()) {
+    let arguments: Vec<String> = std::env::args().collect();
+    let skipped = arguments
+        .windows(2)
+        .any(|pair| pair[0] == "--skip" && name.contains(pair[1].as_str()));
+    if skipped {
+        return println!("test {name} ... ignored");
+    }
     check();
     println!("test {name} ... ok");
 }
@@ -240,9 +317,10 @@ fn refused_filter_role() {
             isolation.no_core_dumps && isolation.no_memory_reading,
             "{isolation:?}"
         );
-        // Without the filter neither holds, though Landlock refuses opening a file for writing.
+        // Without the filter none of these holds, though Landlock refuses opening a file for
+        // writing.
         assert!(
-            !isolation.no_new_sockets && !isolation.no_file_changes,
+            !isolation.no_new_sockets && !isolation.no_file_changes && !isolation.no_new_programs,
             "{isolation:?}"
         );
         assert_eq!(seccomp_filters(), before);
@@ -343,6 +421,27 @@ fn expect_whole_process(isolation: Isolation) {
     assert!(
         isolation.no_memory_reading && !isolation.no_core_dumps && !isolation.no_file_changes,
         "{isolation:?}"
+    );
+    // What Windows applies besides, each read back; and no program starts any more.
+    #[cfg(windows)]
+    {
+        assert!(
+            isolation.no_new_programs
+                && isolation.known_libraries_only
+                && isolation.desktop_restricted
+                && isolation.low_integrity,
+            "{isolation:?}"
+        );
+        let started = Command::new(std::env::current_exe().unwrap())
+            .env(ROLE, "idle")
+            .spawn();
+        assert!(started.is_err(), "a program started after the isolation");
+    }
+    // The sandbox allows no new program, which no probe confirms yet.
+    #[cfg(target_os = "macos")]
+    assert_eq!(
+        isolation.outcome(secret_protection_core::Protection::NoNewPrograms),
+        secret_protection_core::Outcome::Unknown
     );
 }
 
@@ -608,15 +707,22 @@ mod linux {
                 let options = options.signals_to_self_only();
                 let three_more = before.map(|count| count + 3);
                 let own = Isolation::enter_with(options);
-                assert!(own.foreign_signals_refused, "{own:?}");
+                assert!(own.signals_to_self_only, "{own:?}");
+                // The Landlock scope is a claim of its own, by what the layer brought.
+                assert_eq!(own.signals_within_layer, landlock_abi() >= 6, "{own:?}");
                 assert_eq!(super::seccomp_filters(), three_more);
-                // SAFETY: kill with signal 0 only checks; getppid and getpid take nothing.
+                // SAFETY: kill with signal 0 only checks; getppid and getpid take nothing. A
+                // signal through a descriptor of a process is refused whatever the descriptor.
                 unsafe {
                     assert_eq!(
                         error_of(libc::kill(libc::getppid(), 0).into()),
                         Some(libc::EACCES)
                     );
                     assert_eq!(libc::kill(libc::getpid(), 0), 0);
+                    let own_process = libc::syscall(libc::SYS_pidfd_open, libc::getpid(), 0);
+                    assert!(own_process >= 0);
+                    let sent = libc::syscall(libc::SYS_pidfd_send_signal, own_process, 0, 0, 0);
+                    assert_eq!(error_of(sent), Some(libc::EACCES));
                 }
                 let file = File::open("/dev/null").unwrap();
                 // SAFETY: flock takes a descriptor and touches no memory.
@@ -815,8 +921,6 @@ mod linux {
         let limited = [0_u64, 1].iter().all(|&which| {
             // SAFETY: prctl takes integers and touches no memory of this process.
             let state = unsafe { libc::prctl(52, which, 0, 0, 0) };
-            let unknown =
-                state < 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ENODEV);
             if state > 0 && state & 8 != 0 {
                 // SAFETY: as above; PR_SPEC_ENABLE.
                 let enabled = unsafe { libc::prctl(53, which, 2_u64, 0, 0) };
@@ -826,16 +930,18 @@ mod linux {
                     "selector {which}"
                 );
             }
-            state == 0 || state > 0 && state & 0xC != 0 || which == 1 && unknown
+            // Not affected; off for good; or off and not for a program to change.
+            state == 0 || state > 0 && (state & 8 != 0 || state & 5 == 4)
         });
         assert_eq!(isolation.speculation_limited, limited, "{isolation:?}");
     }
 
     /// Started with a tracer attached, a process is not reported unreadable: the tracer keeps
-    /// reading. The test attaches to the child in the `traced` role, as a debugger would, without
-    /// stopping it, and lets it enter the isolation.
-    pub(super) fn a_traced_process_is_not_reported_unreadable() {
-        let mut process = super::child("traced");
+    /// reading. The test attaches to the first thread of the child, as a debugger would, without
+    /// stopping it, and lets the child enter the isolation: in the `traced` role from that thread,
+    /// in the `traced-sibling` role from another one, which shares the memory.
+    pub(super) fn a_traced_process_is_not_reported_unreadable(role: &str) {
+        let mut process = super::child(role);
         let pid = libc::pid_t::try_from(process.id()).unwrap();
         // SAFETY: seizing passes no memory; the child keeps running.
         let seized = unsafe { libc::ptrace(libc::PTRACE_SEIZE, pid, 0_i64, 0_i64) };
@@ -862,9 +968,18 @@ mod linux {
         );
     }
 
-    /// The `locked` role.
+    /// The `locked` role. A lock that took is still reported by a later call that does not ask
+    /// for it, and never by words about a call that was not made; a child made by `fork`, which
+    /// inherits no lock, does not report it.
     pub(super) fn locked_role() {
-        use secret_protection_core::Options;
+        use secret_protection_core::{Options, Outcome, Protection};
+        let of = |isolation: Isolation| {
+            isolation
+                .measures()
+                .into_iter()
+                .find(|measure| measure.protection == Protection::MemoryLocked)
+                .unwrap()
+        };
         let isolation = Isolation::enter_with(Options::new().lock_all_memory());
         let buffer = vec![1_u8; 1 << 20];
         assert_eq!(
@@ -877,25 +992,204 @@ mod linux {
             .find_map(|line| line.strip_prefix("VmLck:"))
             .and_then(|value| value.trim().trim_end_matches(" kB").trim().parse().ok())
             .unwrap();
+        let again = Isolation::enter();
         if isolation.memory_locked {
             assert!(locked_kib > 0, "{locked_kib}");
+            assert!(again.memory_locked, "{again:?}");
+            assert_eq!(of(again).evidence, "mlockall was accepted in this process");
+            // SAFETY: the process has one thread, so the child may go on as any process.
+            let child = unsafe { libc::fork() };
+            if child == 0 {
+                let inherited = Isolation::enter().memory_locked;
+                // SAFETY: ends the child at once, without the parent's exit handlers.
+                unsafe { libc::_exit(i32::from(inherited)) };
+            }
+            let mut status = 0;
+            // SAFETY: waits for the child just made and writes its status.
+            assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+            assert_eq!(status, 0, "the child reported its parent's lock");
+        } else {
+            assert_eq!(of(isolation).outcome, Outcome::Refused);
+            assert_eq!(of(isolation).evidence, "mlockall was refused");
+            assert_eq!(of(again).outcome, Outcome::NotRequested);
+            assert_eq!(of(again).evidence, "the call did not ask for it");
         }
     }
 
-    /// The `traced` role: once the test has attached, enters the isolation and says whether its
-    /// memory is reported unreadable.
-    pub(super) fn traced_role() {
-        let mut byte = [0];
-        io::stdin().read_exact(&mut byte).unwrap();
-        let isolation = Isolation::enter();
-        println!(
-            "{}",
-            if isolation.no_memory_reading {
-                "unreadable"
-            } else {
-                "readable"
-            }
+    /// Starts this program again in `role` and expects it to end well.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn role_ends_well(role: &str) {
+        let output = super::child(role).wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{role}: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    /// The `forked` role: the signal rule names the process that asked for it. A child made by
+    /// `fork` inherits the rule with its parent's number: it must not report the protection,
+    /// asked for again or not.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn forked_role() {
+        use secret_protection_core::{Options, Outcome, Protection};
+        let options = Options::new().signals_to_self_only();
+        let own = Isolation::enter_with(options);
+        assert!(own.signals_to_self_only, "{own:?}");
+        // SAFETY: the process has one thread, so the child may go on as any process.
+        let child = unsafe { libc::fork() };
+        if child == 0 {
+            let silent = Isolation::enter().outcome(Protection::SignalsToSelfOnly);
+            let asked = Isolation::enter_with(options).outcome(Protection::SignalsToSelfOnly);
+            let wrong = silent == Outcome::Confirmed || asked != Outcome::Refused;
+            // SAFETY: ends the child at once, without the parent's exit handlers.
+            unsafe { libc::_exit(i32::from(wrong)) };
+        }
+        let mut status = 0;
+        // SAFETY: waits for the child just made and writes its status.
+        assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+        assert_eq!(status, 0, "the child took its parent's rule for its own");
+    }
+
+    /// The `unlayered` role: the kernel knows Landlock, but refuses to apply the layer, as it
+    /// does beyond sixteen layers. The filter still goes in; the signal scope, which only the
+    /// layer brings, must read as refused, and writing files as refused by the filter.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn unlayered_role() {
+        use secret_protection_core::{Outcome, Protection};
+        install_a_filter_answering(libc::SYS_landlock_restrict_self, None, libc::EPERM);
+        let isolation = Isolation::enter();
+        assert!(
+            isolation.no_file_changes && isolation.no_new_sockets,
+            "{isolation:?}"
+        );
+        assert_eq!(
+            isolation.outcome(Protection::SignalsWithinLayer),
+            Outcome::Refused,
+            "{isolation:?}"
+        );
+        assert_eq!(Isolation::enter(), isolation);
+    }
+
+    /// The `unlisted` role: the kernel refuses to list directories, so the threads can be
+    /// neither counted nor looked at for a tracer. Nothing about them then counts as proven:
+    /// the reading of memory is unknown, the process is not taken for one thread, and a program
+    /// that requires the protection stops.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn unlisted_role() {
+        use secret_protection_core::{Options, Outcome, Protection};
+        install_a_filter_answering(libc::SYS_getdents64, None, libc::EACCES);
+        let isolation = Isolation::enter();
+        assert_eq!(
+            isolation.outcome(Protection::NoMemoryReading),
+            Outcome::Unknown,
+            "{isolation:?}"
+        );
+        assert!(!isolation.whole_process, "{isolation:?}");
+        let required = [Protection::NoCoreDumps, Protection::NoMemoryReading];
+        let missing = Isolation::enter_requiring(Options::new(), &required).unwrap_err();
+        assert_eq!(missing.missing, [Protection::NoMemoryReading]);
+    }
+
+    /// The speculation roles. In `speculating` the kernel refuses to turn speculation off; in
+    /// `unspeculated` it does not say how speculation stands, as AArch64 does for indirect
+    /// branches. A refusal reads as refused unless the processor needs no limit, what cannot be
+    /// read as unknown, and a program that requires the protection stops.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn speculation_role(readable: bool) {
+        use secret_protection_core::{Options, Outcome, Protection};
+        // PR_GET_SPECULATION_CTRL and PR_SET_SPECULATION_CTRL.
+        let (get, set) = (52, 53);
+        let limited = Protection::SpeculationLimited;
+        let expected = if readable {
+            install_a_filter_answering(libc::SYS_prctl, Some(set), libc::EPERM);
+            let isolation = Isolation::enter();
+            speculation_is_limited_as_reported(isolation);
+            if isolation.speculation_limited {
+                Outcome::Confirmed
+            } else {
+                Outcome::Refused
+            }
+        } else {
+            install_a_filter_answering(libc::SYS_prctl, Some(get), libc::ENODEV);
+            Outcome::Unknown
+        };
+        let isolation = Isolation::enter();
+        assert_eq!(isolation.outcome(limited), expected, "{isolation:?}");
+        assert_eq!(
+            Isolation::enter_requiring(Options::new(), &[limited]).is_ok(),
+            expected == Outcome::Confirmed
+        );
+    }
+
+    /// Installs a filter that answers `call` with `error`, whatever its first argument or only
+    /// for `first`, and allows every other call.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn install_a_filter_answering(call: libc::c_long, first: Option<u32>, error: i32) {
+        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
+        let allow = instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW);
+        // Load the call's number; any other call is allowed.
+        let mut program = vec![
+            instruction(0x20, 0, 0, 0),
+            instruction(0x15, 1, 0, call as u32),
+            allow,
+        ];
+        if let Some(first) = first {
+            // The low half of the first argument, which lies first on these machines.
+            program.extend([
+                instruction(0x20, 0, 0, 16),
+                instruction(0x15, 1, 0, first),
+                allow,
+            ]);
+        }
+        program.push(instruction(
+            0x06,
+            0,
+            0,
+            libc::SECCOMP_RET_ERRNO | error as u32,
+        ));
+        let filter = libc::sock_fprog {
+            len: program.len() as u16,
+            filter: program.as_mut_ptr(),
+        };
+        // SAFETY: prctl takes integers and, for the filter, a pointer to instructions that live
+        // for the call; the kernel copies them.
+        unsafe {
+            assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+            assert_eq!(
+                libc::prctl(
+                    libc::PR_SET_SECCOMP,
+                    libc::SECCOMP_MODE_FILTER,
+                    &raw const filter,
+                    0,
+                    0
+                ),
+                0
+            );
+        }
+    }
+
+    /// The `traced` roles: once the test has attached to the first thread, enters the isolation,
+    /// from that thread or from a `sibling`, and says whether its memory is reported unreadable.
+    pub(super) fn traced_role(sibling: bool) {
+        let report = || {
+            let mut byte = [0];
+            io::stdin().read_exact(&mut byte).unwrap();
+            let isolation = Isolation::enter();
+            println!(
+                "{}",
+                if isolation.no_memory_reading {
+                    "unreadable"
+                } else {
+                    "readable"
+                }
+            );
+        };
+        if sibling {
+            std::thread::spawn(report).join().unwrap();
+        } else {
+            report();
+        }
         super::idle();
     }
 
@@ -1003,7 +1297,8 @@ mod linux {
             isolation.no_core_dumps
                 && isolation.no_memory_reading
                 && isolation.no_new_sockets
-                && isolation.no_file_changes,
+                && isolation.no_file_changes
+                && isolation.no_new_programs,
             "{isolation:?}"
         );
         if isolation.empty_network {

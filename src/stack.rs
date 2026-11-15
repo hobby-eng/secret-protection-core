@@ -1,24 +1,77 @@
 //! [`run_on_protected_stack`]: secret work on a thread whose stack lives in protected pages.
 
-/// What [`run_on_protected_stack`] returns: the work's result, and whether its stack was locked.
+use std::fmt;
+use std::io;
+
+/// What protects the pages of a stack.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StackProperties {
+    /// Locked against swap.
+    pub locked: bool,
+    /// Left out of core dumps. Never on macOS and iOS, where no call does that for single pages:
+    /// there only [`crate::Isolation::no_core_dumps`] keeps a stack out of a dump.
+    pub out_of_dumps: bool,
+    /// Not given to a child process: it gets zeros, or no pages.
+    pub out_of_children: bool,
+}
+
+impl StackProperties {
+    /// Whether every property that `required` names is there.
+    #[cfg(unix)]
+    pub(crate) fn covers(self, required: Self) -> bool {
+        (self.locked || !required.locked)
+            && (self.out_of_dumps || !required.out_of_dumps)
+            && (self.out_of_children || !required.out_of_children)
+    }
+}
+
+/// Why work did not run on a protected stack. It did not start.
+#[derive(Debug)]
+pub enum StackError {
+    /// Windows and WebAssembly give a thread no stack of the program's choosing.
+    Unsupported,
+    /// The size asked for cannot be a stack.
+    Size,
+    /// The stack lacks a required property; these are the ones it has.
+    NotProtected(StackProperties),
+    /// The system gave no pages or no thread.
+    System(io::Error),
+}
+
+impl fmt::Display for StackError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsupported => f.write_str("this system offers no protected stack"),
+            Self::Size => f.write_str("the stack size asked for is too large"),
+            Self::NotProtected(has) => write!(f, "the stack is not protected as required: {has:?}"),
+            Self::System(error) => write!(f, "no protected stack: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for StackError {}
+
+/// What [`run_on_protected_stack`] returns: the work's result, and what protected its stack.
 #[derive(Debug)]
 pub struct StackRun<R> {
     /// What the work returned.
     pub value: R,
-    /// Whether the stack's pages were locked against swap (the lock limit allows it).
-    pub locked: bool,
+    /// What protected the stack while the work ran.
+    pub properties: StackProperties,
 }
 
-/// Runs `work` on a new thread whose stack (at least `stack_bytes`) lies in protected pages:
-/// locked where the limit allows, out of core dumps and child processes, between guard pages, and
-/// wiped after the thread ends, so the work's local variables go with it. A panic in `work` comes
-/// back to the caller. Registers, the caller's stack and heap copies are not covered. Fails with
-/// `Unsupported` on Windows and in WebAssembly.
+/// Runs `work` on a new thread whose stack (at least `stack_bytes`) lies in protected pages, wiped
+/// after the thread ends, so the work's local variables go with it. The work runs only when the
+/// stack has every property in `required`. A panic in `work` comes back to the caller. The work
+/// must not `fork`: the child would find its stack empty. Registers, the caller's stack and heap
+/// copies are not covered.
 pub fn run_on_protected_stack<R: Send>(
     stack_bytes: usize,
+    required: StackProperties,
     work: impl FnOnce() -> R + Send,
-) -> std::io::Result<StackRun<R>> {
-    crate::os::run_on_stack(stack_bytes, work).map(|(value, locked)| StackRun { value, locked })
+) -> Result<StackRun<R>, StackError> {
+    crate::os::run_on_stack(stack_bytes, required, work)
+        .map(|(value, properties)| StackRun { value, properties })
 }
 
 #[cfg(test)]
@@ -63,18 +116,36 @@ mod tests {
 
     #[test]
     fn work_runs_on_a_protected_stack_and_panics_come_back() {
-        let run = run_on_protected_stack(256 << 10, || {
+        let none = StackProperties::default();
+        let run = run_on_protected_stack(256 << 10, none, || {
             let secret = [0x5a_u8; 64];
             around(std::hint::black_box(&secret).as_ptr() as usize)
         })
         .unwrap();
         let (flags, below, above) = run.value;
+        assert!(run.properties.out_of_dumps && run.properties.out_of_children);
         assert!(flags.contains("dd") && flags.contains("wf"), "{flags}");
-        assert_eq!(flags.contains("lo"), run.locked, "{flags}");
+        assert_eq!(flags.contains("lo"), run.properties.locked, "{flags}");
         assert!(below.starts_with("---") && above.starts_with("---"));
         let panicked = std::panic::catch_unwind(|| {
-            let _ = run_on_protected_stack(64 << 10, || panic!("work that fails"));
+            let _ = run_on_protected_stack(64 << 10, none, || panic!("work that fails"));
         });
         assert!(panicked.is_err());
+    }
+
+    /// A size that cannot be rounded up to whole pages is refused, and the work does not run.
+    #[test]
+    fn a_size_beyond_every_stack_is_refused() {
+        let mut ran = false;
+        let refused = run_on_protected_stack(usize::MAX, StackProperties::default(), || ran = true);
+        assert!(matches!(refused, Err(StackError::Size)));
+        assert!(!ran);
+        let all = StackProperties {
+            locked: true,
+            out_of_dumps: true,
+            out_of_children: true,
+        };
+        assert!(all.covers(StackProperties::default()) && all.covers(all));
+        assert!(!StackProperties::default().covers(all));
     }
 }
