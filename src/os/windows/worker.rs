@@ -21,6 +21,9 @@ const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
 const PIPE_BUFFER: u32 = 64 << 10;
 /// How long a worker keeps trying its pipe while another process holds it.
 const PATIENCE: Duration = Duration::from_secs(1);
+/// The variables of this process that a worker gets beside its own: without them Windows starts
+/// no process in an AppContainer, whose own folder it then puts in the place of the last three.
+const SYSTEM_VARIABLES: [&str; 4] = ["SystemRoot", "LOCALAPPDATA", "TEMP", "TMP"];
 
 /// The parent's end of a worker: its pipe, as one handle to write to and one to read from, and
 /// the process.
@@ -32,9 +35,9 @@ pub(crate) struct WorkerProcess {
 
 impl WorkerProcess {
     /// Starts this program again in its own AppContainer: no capabilities, no console, no handle
-    /// inherited, and an environment with only the worker variable, set to `setting` and the
-    /// name of its pipe. The program file must be readable by app containers (Program Files
-    /// is), or Windows refuses to start it. A worker on the terminal is not offered here.
+    /// inherited, and an environment of the worker variable, set to `setting` and the name of
+    /// its pipe, and [`SYSTEM_VARIABLES`]. The program file must be readable by app containers
+    /// (Program Files is), or Windows refuses to start it. No worker on the terminal here.
     pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         use std::os::windows::ffi::OsStrExt;
         if terminal {
@@ -321,9 +324,10 @@ impl Container {
     }
 
     /// Starts the program at `path` in this AppContainer, without capabilities, without one
-    /// handle of this process's and without standard streams, the worker's variable alone in
-    /// its environment. Returns the process and its number.
+    /// handle of this process's and without standard streams, with the worker's variable and
+    /// [`SYSTEM_VARIABLES`] as its environment. Returns the process and its number.
     fn start(&self, path: &[u16], setting: &str) -> io::Result<(OwnedHandle, u32)> {
+        use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::System::Threading::{
             CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
             EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTUPINFOEXW,
@@ -332,10 +336,17 @@ impl Container {
         let mut startup = STARTUPINFOEXW::default();
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup.lpAttributeList = attributes.list;
-        let mut environment: Vec<u16> = format!("{}={setting}", crate::worker::WORKER)
-            .encode_utf16()
-            .chain([0, 0])
-            .collect();
+        let own = (crate::worker::WORKER, std::ffi::OsString::from(setting));
+        let kept = SYSTEM_VARIABLES.map(|name| Some((name, std::env::var_os(name)?)));
+        let mut variables: Vec<_> = kept.into_iter().flatten().chain([own]).collect();
+        // Windows wants the block sorted by name, whatever the case of the letters.
+        variables.sort_by_key(|(name, _)| name.to_ascii_uppercase());
+        let mut environment: Vec<u16> = Vec::new();
+        for (name, value) in &variables {
+            environment.extend(name.encode_utf16().chain([u16::from(b'=')]));
+            environment.extend(value.encode_wide().chain([0]));
+        }
+        environment.push(0);
         let mut command: Vec<u16> = [u16::from(b'"')]
             .into_iter()
             .chain(path[..path.len() - 1].iter().copied())

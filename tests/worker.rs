@@ -281,11 +281,7 @@ fn required() -> Vec<Protection> {
     if cfg!(any(target_os = "linux", windows)) {
         required.push(Protection::NoNewPrograms);
     }
-    // Linux on AArch64 gives a program no control of indirect branches: unknown there.
-    if cfg!(any(
-        all(target_os = "linux", target_arch = "x86_64"),
-        windows
-    )) {
+    if cfg!(windows) || speculation_can_be_limited() {
         required.push(Protection::SpeculationLimited);
     }
     if cfg!(windows) {
@@ -297,6 +293,25 @@ fn required() -> Vec<Protection> {
         ]);
     }
     required
+}
+
+/// Whether this kernel limits both kinds of speculation for a program that asks, or has no need
+/// to, by its own answer before anything is changed. Linux on AArch64 gives a program no control
+/// of indirect branches, and a virtual machine may be given none of either kind.
+fn speculation_can_be_limited() -> bool {
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        /// PR_GET_SPECULATION_CTRL, and the bits "the program may change it" and "off".
+        const GET: libc::c_int = 52;
+        const CHANGEABLE_OR_OFF: libc::c_int = 0b101;
+        [0, 1].into_iter().all(|kind: libc::c_ulong| {
+            // SAFETY: prctl takes integers and touches no memory of this process.
+            let state = unsafe { libc::prctl(GET, kind, 0, 0, 0) };
+            state == 0 || (state > 0 && state & CHANGEABLE_OR_OFF != 0)
+        })
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    false
 }
 
 fn a_worker_answers_isolated() {
@@ -319,10 +334,22 @@ fn a_worker_gets_nothing_but_its_pipes() {
     // SAFETY: dup takes an integer and returns a new descriptor, closed below.
     let leaked = unsafe { libc::dup(0) };
     let mut worker = Worker::start(Options::new(), &required()).unwrap();
-    assert_eq!(
-        worker.call(b"environment", 1000).unwrap().as_bytes(),
-        b"SECRET_PROTECTION_CORE_WORKER"
+    let environment = worker.call(b"environment", 1000).unwrap();
+    let names = environment.as_str().unwrap();
+    // Windows starts no process in an AppContainer without a few variables of its own, and
+    // points those of the user's folders at the container's.
+    let systems: &[&str] = if cfg!(windows) {
+        &["SystemRoot", "LOCALAPPDATA", "TEMP", "TMP"]
+    } else {
+        &[]
+    };
+    assert!(
+        names
+            .split(',')
+            .all(|name| name == "SECRET_PROTECTION_CORE_WORKER" || systems.contains(&name)),
+        "{names}"
     );
+    assert!(names.contains("SECRET_PROTECTION_CORE_WORKER"), "{names}");
     #[cfg(unix)]
     {
         assert_eq!(
