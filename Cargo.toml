@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.99"
 description = "Wipe-on-drop buffers, platform-specific memory protection and isolated worker processes for handling secrets"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/hobby-eng/secret-protection-core"
 # Not published to crates.io.
 publish = false
 
@@ -48,7 +49,11 @@ windows-sys = { version = "=0.61.2", features = [
 
 # The tests read the working set of the secret pages (QueryWorkingSetEx).
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "=0.61.2", features = ["Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Wdk_Foundation"] }
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
+  "Wdk_Foundation",
+] }
 
 # A `main` of their own: the isolation needs a child process of one thread, and the counting
 # allocator a process without other threads.

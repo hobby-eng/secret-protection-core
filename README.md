@@ -2,9 +2,12 @@
 
 [![CI](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml)
 [![RustSec audit](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml/badge.svg)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml)
+[![Build provenance: GitHub attestations](https://img.shields.io/badge/build%20provenance-GitHub%20attestations-2ea44f)](https://github.com/hobby-eng/secret-protection-core/attestations)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
 `secret-protection-core` is a Rust library for protecting passwords, API tokens and private keys from exposure in swap files and crash dumps, and from other processes trying to read them from memory. An application can keep a secret in a protected buffer or run sensitive work in a separate process and require specific OS protections before sending it any data.
+
+Only AI tools have reviewed the code for security. The project has not undergone an independent third-party security audit.
 
 The crate requires Rust 1.99 or later. Add it to `Cargo.toml` as a Git dependency pinned to a reviewed revision. See the [documentation index](docs/README.md).
 

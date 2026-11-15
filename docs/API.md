@@ -16,14 +16,23 @@ All application-facing types and functions are exported from the crate root, `se
 
 ## Add the dependency
 
-The crate is distributed through Git. This example pins a verified revision with the API described here. The crate requires Rust 1.99 or newer and uses the 2024 edition.
+The crate is distributed through Git. This example selects the signed release tag for version 0.1.0. The crate requires Rust 1.99 or newer and uses the 2024 edition.
 
 ```toml
 [dependencies]
-secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", rev = "e7b0d38fba46e45994cd8e7ecbdda185de9cee70" }
+secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", tag = "v0.1.0" }
 ```
 
 For a local checkout, use `secret-protection-core = { path = "../secret-protection-core" }` in the same table. Import types and functions with `use secret_protection_core::{...};`.
+
+To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.0](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.0)
+
+```sh
+gh attestation verify secret-protection-core-0.1.0.crate \
+  --repo hobby-eng/secret-protection-core \
+  --signer-workflow hobby-eng/secret-protection-core/.github/workflows/release.yml \
+  --source-ref refs/tags/v0.1.0
+```
 
 ## Choose a buffer
 
