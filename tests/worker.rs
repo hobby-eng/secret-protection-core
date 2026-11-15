@@ -843,7 +843,55 @@ fn a_worker_that_lingers_is_killed() {
         #[cfg(not(target_os = "linux"))]
         let can_force = cfg!(windows);
         assert_eq!(worker.end(), can_force);
+        #[cfg(target_os = "macos")]
+        {
+            let pid = _id.parse().unwrap();
+            assert_eq!(observed_child(pid), ChildState::Running);
+            drop(_gate);
+            while observed_child(pid) != ChildState::Collected {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
     });
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, PartialEq, Eq)]
+enum ChildState {
+    Running,
+    Exited,
+    Collected,
+}
+
+/// WNOWAIT leaves collection to the library's waiter. An exited child still waiting
+/// to be collected returns success here. ECHILD marks the end of our parent relationship.
+#[cfg(target_os = "macos")]
+fn observed_child(pid: libc::id_t) -> ChildState {
+    loop {
+        // SAFETY: zero represents a siginfo buffer without an event, including si_pid 0.
+        let mut status: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        // SAFETY: the PID belongs to the launched worker and the status buffer is writable.
+        let result = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid,
+                &raw mut status,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            )
+        };
+        if result == 0 {
+            if status.si_pid == 0 {
+                return ChildState::Running;
+            }
+            assert_eq!(status.si_pid as libc::id_t, pid);
+            return ChildState::Exited;
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::Interrupted {
+            assert_eq!(error.raw_os_error(), Some(libc::ECHILD), "{error}");
+            return ChildState::Collected;
+        }
+    }
 }
 
 #[cfg(unix)]
