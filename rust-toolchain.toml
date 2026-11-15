@@ -1,0 +1,12 @@
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+# The browser build and every system this crate has code for (desktop and mobile), for clippy.
+targets = [
+  "wasm32-unknown-unknown",
+  "x86_64-pc-windows-gnu",
+  "aarch64-apple-darwin",
+  "aarch64-apple-ios",
+  "aarch64-linux-android",
+]
+components = ["rustfmt", "clippy"]
