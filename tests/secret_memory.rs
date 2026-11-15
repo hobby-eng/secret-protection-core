@@ -137,7 +137,7 @@ mod linux {
     use std::ops::Range;
     use std::process::Command;
 
-    use secret_protection_core::Secret;
+    use secret_protection_core::{ClosedSecret, Secret, SecretError, WorkArea};
 
     /// The variable that starts this program as the child of the lock-limit test.
     pub(super) const ROLE: &str = "SECRET_PROTECTION_CORE_TEST_LOCK_LIMITS";
@@ -214,6 +214,23 @@ mod linux {
         );
     }
 
+    /// The pages of `secret` are kept out of swap: secret memory, or anonymous pages marked
+    /// locked (`lo`).
+    pub(super) fn is_out_of_swap(secret: &Secret) {
+        let address = secret.as_bytes().as_ptr() as usize;
+        let mappings = mappings();
+        let mapping = mappings
+            .iter()
+            .find(|mapping| mapping.range.contains(&address))
+            .unwrap();
+        assert!(
+            mapping.name.starts_with("/secretmem") || mapping.has("lo"),
+            "{} {:?}",
+            mapping.name,
+            mapping.flags
+        );
+    }
+
     /// The one new mapping of `bytes` bytes is out of core dumps and gives a child zeros, and it
     /// is locked exactly when the area says so.
     pub(super) fn work_area_is_marked(before: &[Mapping], bytes: usize, locked: bool) {
@@ -239,12 +256,8 @@ mod linux {
         assert!(status.success(), "{status}");
     }
 
-    /// The child's part: a secret of two pages is written and read back under each limit, down to
-    /// 0. The limit comes down a page at a time because secret memory is charged to the user's
-    /// count, which other programs add to, so that only one limit, unknown here, falls between the
-    /// two pages. They are locked exactly when the limit holds them, on anonymous pages if the
-    /// count leaves no room for secret memory; `mlock` lets a process with CAP_IPC_LOCK past any
-    /// limit, so this needs one without it.
+    /// Child process: a two-page secret is written and read under every lock limit down to 0, and must
+    /// be locked exactly when the limit allows. Needs a process without CAP_IPC_LOCK.
     pub(super) fn secrets_under_every_lock_limit() {
         // SAFETY: sysconf takes an integer and touches no memory of this process.
         let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
@@ -260,13 +273,57 @@ mod linux {
             let mut secret = Secret::with_capacity(public.len());
             secret.push(&public).unwrap();
             assert_eq!(secret.as_bytes(), public, "{pages} pages");
+            let holds = limit.rlim_cur >= public.len() as u64;
+            assert_eq!(secret.is_locked(), holds, "{pages} pages");
+            drop(secret);
+            // The strict constructors refuse what the limit does not hold, before any byte.
             assert_eq!(
-                secret.is_locked(),
-                limit.rlim_cur >= public.len() as u64,
+                Secret::locked(public.len()).err(),
+                (!holds).then_some(SecretError::NotLocked),
                 "{pages} pages"
             );
+            assert_eq!(
+                ClosedSecret::locked(public.len()).is_ok(),
+                holds,
+                "{pages} pages"
+            );
+            if pages == 0 {
+                assert_eq!(WorkArea::locked(1).err(), Some(SecretError::NotLocked));
+            }
+            if pages == 4 {
+                super::quota_partly_used(page as usize);
+            }
         }
     }
+}
+
+/// With three of four lockable pages already taken, every secret the strict constructor still gives
+/// must really be locked, and at least one request must be refused. Secret memory and `mlock` are
+/// counted separately, so which requests fail depends on the kernel.
+#[cfg(target_os = "linux")]
+fn quota_partly_used(page: usize) {
+    use secret_protection_core::{Secret, SecretError};
+    let Ok(held) = Secret::locked(3 * page) else {
+        eprintln!(
+            "Other programs hold this user's lock limit: the partly used quota is not checked."
+        );
+        return;
+    };
+    let (mut given, mut refused) = (Vec::new(), 0);
+    for pages in 1..=4 {
+        match Secret::locked(pages * page) {
+            Ok(secret) => {
+                linux::is_out_of_swap(&secret);
+                given.push(secret);
+            }
+            Err(error) => {
+                assert_eq!(error, SecretError::NotLocked);
+                refused += 1;
+            }
+        }
+    }
+    assert!(refused > 0);
+    drop((held, given));
 }
 
 #[cfg(windows)]

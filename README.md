@@ -1,11 +1,11 @@
 # secret-protection-core
 
 > [!WARNING]
-> **Draft, not ready for production.** The interface will still change: a policy that names each protection and a report of what took effect are being designed. Nobody outside the project has reviewed this crate.
+> **Draft, not ready for production.** The interface will still change. The macOS and Windows code has not yet run on those systems, and nobody outside the project has reviewed this crate.
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
-secret-protection-core keeps secrets in memory out of the places they leak to: swap, core dumps, child processes and other programs that read the memory of the process. It gives a program buffers for secrets in memory pages of their own, and a call that isolates the whole process against a secret leaving it. It has code for Linux, Android, macOS, iOS and Windows; in WebAssembly a secret is only wiped.
+secret-protection-core keeps secrets in memory out of the places they leak to: swap, core dumps, child processes and other programs that read the memory of the process. It gives a program buffers for secrets in memory pages of their own, a call that isolates the process against a secret leaving it, and a worker process that does the secret work apart from the rest of the program. It has code for Linux, Android, macOS, iOS and Windows; in WebAssembly a secret is only wiped.
 
 The [documentation index](docs/README.md) lists the guides; [How it works](docs/TECHNICAL.md) says what each system applies and what it does not cover.
 
@@ -13,6 +13,9 @@ The [documentation index](docs/README.md) lists the guides; [How it works](docs/
 
 - [What it is for](#what-it-is-for)
 - [What it does](#what-it-does)
+- [On by default, and what a program turns on](#on-by-default-and-what-a-program-turns-on)
+- [A worker process](#a-worker-process)
+- [Typing a secret](#typing-a-secret)
 - [Systems](#systems)
 - [What it does not do](#what-it-does-not-do)
 - [Use from Rust](#use-from-rust)
@@ -26,32 +29,76 @@ Similar crates cover parts of it: `secrets`, `secure-types` and `memsec` lock bu
 
 ## What it does
 
-| Task                                                   | Item               | What it applies                                                                               |
-| ------------------------------------------------------ | ------------------ | --------------------------------------------------------------------------------------------- |
-| Keep a secret in memory                                | `Secret`           | pages of its own, locked, out of core dumps and child processes, wiped on drop, never growing |
-| Give a computation memory for its work                 | `WorkArea`         | the same for large areas, such as the memory of a password hash, without Linux secret memory  |
-| Shut the process against a secret leaving it, for good | `Isolation::enter` | no core dumps, no reading of its memory by other programs, no new sockets, no file changes    |
-| Write a secret to the terminal                         | `write_secret`     | past the standard library's buffer, which keeps the last bytes written and is never wiped     |
+| Task                                                   | Item                      | What it applies                                                                               |
+| ------------------------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------- |
+| Keep a secret in memory                                | `Secret`                  | pages of its own, locked, out of core dumps and child processes, wiped on drop, never growing |
+| Keep it closed between uses                            | `ClosedSecret`            | the same, with pages that refuse every access but during a use                                |
+| Give a computation memory for its work                 | `WorkArea`                | the same for large areas, such as the memory of a password hash, without Linux secret memory  |
+| Shut the process against a secret leaving it, for good | `Isolation::enter`        | no core dumps, no reading of its memory by other programs, no new sockets, no file changes    |
+| Write a secret to the terminal                         | `write_secret`            | past the standard library's buffer, which keeps the last bytes written and is never wiped     |
+| Do the secret work in a process of its own             | `Worker`, `serve`         | the program started again, isolated as a whole before it gets anything                        |
+| Collect a password typed in a window                   | `SecretLine`, `Keystroke` | one keystroke at a time, in protected pages, so that the window never holds it                |
 
-Every buffer is wiped with writes the compiler keeps (`zeroize`) and shows nothing of its bytes in its `Debug` text. Each one says what holds: `is_locked`, `is_out_of_dumps` and `is_out_of_children` report what the system confirmed when the pages were made, and `Isolation::enter` reads back every protection it applied. A refusal of the system, such as a lock beyond the lock limit, is reported, never hidden.
+Every buffer is wiped with writes the compiler keeps (`zeroize`), lies between guard pages that refuse every access, and shows nothing of its bytes in its `Debug` text. Each one says what holds: `is_locked`, `is_out_of_dumps` and `is_out_of_children` report what the system confirmed when the pages were made, and `Isolation::enter` reads back every protection it applied. A refusal of the system, such as a lock beyond the lock limit, is reported, never hidden, and `Secret::locked` and `WorkArea::locked` refuse unlocked pages before a secret is put in them.
+
+## On by default, and what a program turns on
+
+Whatever does not keep a usual program from working is on, with no switch; what may stop one, or makes every use slower, is the program's choice and off by default.
+
+| Protection                                                                                                                 | On by default                                        | How a program turns it on                                   | Systems                             |
+| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------- |
+| Pages of its own, wiped on drop, guard pages, no bytes in `Debug`                                                          | yes, always                                          | `Secret`, `WorkArea`                                        | all                                 |
+| Locked, out of core dumps and child processes                                                                              | yes, where the system allows                         |                                                             | Linux, Android, macOS, iOS, Windows |
+| Refuse pages that are not locked, before the secret is put in                                                              | no                                                   | `Secret::locked`, `WorkArea::locked`                        | all                                 |
+| Pages closed between uses                                                                                                  | no: two system calls per use                         | `ClosedSecret`                                              | Linux, Android, macOS, iOS, Windows |
+| The isolation of the process: no dumps, no memory reading, the filter, Landlock, the sandbox, the job, side-channel limits | when the program calls it                            | `Isolation::enter`                                          | per system, as below                |
+| Refuse file locks                                                                                                          | no: SQLite and other databases need them             | `Isolation::enter_with(Options::new().refuse_file_locks())` | Linux, Android                      |
+| Refuse `sendmsg`                                                                                                           | no: Wayland and D-Bus need it                        | `Options::refuse_sendmsg`                                   | Linux, Android                      |
+| No new executable code                                                                                                     | no: a web view or a just-in-time compiler needs it   | `Options::refuse_dynamic_code`                              | Windows                             |
+| Only DLLs signed by Microsoft                                                                                              | no: the program's own DLLs and graphics drivers fail | `Options::microsoft_signed_only`                            | Windows                             |
+| Signals only to the process itself (Landlock does it from Linux 6.12)                                                      | no: children can't be signalled                      | `Options::signals_to_self_only`                             | Linux, Android                      |
+| The whole process out of swap                                                                                              | no: needs a lock limit that covers the process       | `Options::lock_all_memory`                                  | Linux, Android                      |
+| Secret work on a thread with a protected stack                                                                             | no                                                   | `run_on_protected_stack`                                    | Linux, Android, macOS, iOS          |
+| What is still open after isolation                                                                                         | when asked                                           | `open_channels`                                             | Linux, Android, macOS, iOS          |
+| Each protection's reach and proof                                                                                          | when asked                                           | `Isolation::measures`                                       | all                                 |
+| Stop when a required protection is missing                                                                                 | no                                                   | `Isolation::enter_requiring(options, &[Protection::…])`     | all                                 |
+| A separate worker process                                                                                                  | no: it changes how a program is built                | `Worker::start`, `serve`                                    | Linux, macOS, Windows               |
+
+```rust,no_run
+use secret_protection_core::{Isolation, Options, Protection};
+
+// A command line program that uses no database and no desktop bus, and that refuses to read a
+// secret without the filter and Landlock.
+let options = Options::new().refuse_file_locks().refuse_sendmsg();
+let required = [Protection::NoFileChanges, Protection::NoNewSockets, Protection::NoMemoryReading];
+let isolation = Isolation::enter_requiring(options, &required).expect("isolation");
+```
+
+## A worker process
+
+A program with a window, or one that wants the strongest isolation, does the secret work in a worker: `Worker::start` starts the program again, the worker isolates itself as a whole before it reads anything and reports what holds, and the parent sends it a request only when every protection it requires is there; otherwise the worker is ended first. The worker shares no memory with the parent, inherits no descriptor but its pipes, gets an empty environment and no terminal (`Worker::start_on_terminal` keeps the terminal, for a password read in the worker). On Windows it runs in an AppContainer without capabilities, which keeps it from the network. The program's `main` calls `serve` first; an answer should hold what the parent shows or saves, never the password or the key. Android and iOS start no worker; an Android app can declare an isolated service (`android:isolatedProcess`) in its manifest.
+
+## Typing a secret
+
+An ordinary text field keeps copies of what is typed in buffers of its toolkit or web view that no program can wipe. In the terminal, the worker reads the password itself, so that the parent never holds it. In a window, the field sends each key as a `Keystroke` to the worker the moment it is pressed, keeps only how many characters there are to draw dots, and the worker collects them in a `SecretLine`; pasting goes through the program's own code to the worker, never through the field. The keyboard input itself passes through the window system, which a library cannot change: under X11 every program of the user can read the keys.
 
 ## Systems
 
-| System                      | A secret's pages                                                         | The isolation of the process                                                              |
-| --------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Linux on x86-64 and AArch64 | secret memory (`memfd_secret`) where the kernel offers it, else as below | no core dumps, not dumpable, `no_new_privs`, a seccomp filter, Landlock, an empty network |
-| Linux, other architectures  | `mlock`, out of core dumps, zeros in a child process                     | as above, Landlock instead of the filter                                                  |
-| Android                     | as Linux, without secret memory                                          | the dump settings and the filter, on a native thread of its own                           |
-| macOS                       | `mlock`, not given to a child process                                    | no core dumps, no debugger attaching, a sandbox without network or file writes            |
-| iOS                         | as macOS                                                                 | no core dumps                                                                             |
-| Windows                     | `VirtualLock`, out of error reports                                      | error reports without the heap, access lists that keep other programs out, low integrity  |
-| WebAssembly                 | an ordinary heap buffer, wiped                                           | nothing, and it says so                                                                   |
+| System                      | A secret's pages                                                         | The isolation of the process                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Linux on x86-64 and AArch64 | secret memory (`memfd_secret`) where the kernel offers it, else as below | no core dumps, not dumpable, `no_new_privs`, Spectre limits, a seccomp filter, Landlock, empty network and IPC |
+| Linux, other architectures  | `mlock`, out of core dumps, zeros in a child process                     | as above, Landlock instead of the filter                                                                       |
+| Android                     | as Linux, without secret memory                                          | the dump settings, Spectre limits and the filter, on a native thread of its own                                |
+| macOS                       | `mlock`, not given to a child process                                    | no core dumps, no debugger attaching, a sandbox that refuses all but reading files and the terminal            |
+| iOS                         | as macOS                                                                 | no core dumps                                                                                                  |
+| Windows                     | `VirtualLock`, out of error reports                                      | no extension points or child processes, side-channel isolation, a restricted job, access lists, low integrity  |
+| WebAssembly                 | an ordinary heap buffer, wiped                                           | nothing, and it says so                                                                                        |
 
 [How it works](docs/TECHNICAL.md) has the details of each system and what each does not cover.
 
 ## What it does not do
 
-It promises no secret ever reaches the disk: copies the program makes, stacks and registers, an image of the whole memory when the machine hibernates and snapshots of a virtual machine are beyond a library. Root, an administrator and a debugger attached before the isolation are not kept out. `Isolation::enter` changes the whole process for good: it is for a program, or a worker process, whose only work is with the secret, not for a library to call on its own.
+A buffer is wiped when it is dropped, so a process that ends without running its drops (built with `panic = "abort"`, or ended by a signal) leaves its secrets to the locked pages and the dump settings alone. It promises no secret ever reaches the disk: copies the program makes, stacks and registers, an image of the whole memory when the machine hibernates and snapshots of a virtual machine are beyond a library. Root, an administrator and a debugger attached before the isolation are not kept out, and the answer says so for a debugger. On Windows the network stays open in the process that calls `Isolation::enter`: only an administrator, or a worker in an AppContainer, closes it. `Isolation::enter` changes the whole process for good: it is for a program, or a worker process, whose only work is with the secret, not for a library to call on its own.
 
 ## Use from Rust
 

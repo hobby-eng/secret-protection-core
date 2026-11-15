@@ -6,9 +6,10 @@
     reason = "sysctl, ptrace and sandbox_init are foreign functions"
 )]
 
-use crate::protect::Isolation;
+use crate::protect::{Isolation, Options};
 
-pub(crate) fn enter() -> Isolation {
+/// The options of [`Options`] are for Linux, Android and Windows: none applies here.
+pub(crate) fn enter(_options: Options) -> Isolation {
     let no_core_dumps = super::unix::forbid_core_dumps();
     #[cfg(target_os = "macos")]
     let (no_memory_reading, (no_new_sockets, no_file_changes)) =
@@ -40,11 +41,18 @@ mod macos {
         fn sandbox_free_error(error: *mut libc::c_char);
     }
 
-    /// The sandbox: no network and no file writes, but for the terminal. Descriptors opened before
-    /// it stay usable.
-    const PROFILE: &std::ffi::CStr = c"(version 1)(allow default)(deny network*)(deny file-write*)\
+    /// The sandbox refuses everything except reading files, the terminal and /dev/null, the process
+    /// itself, reading system settings and loading system libraries. That shuts the network, file
+    /// writes, the system's services (clipboard, opening URLs, preferences) and signals to others.
+    const PROFILE: &std::ffi::CStr = c"(version 1)(deny default)\
+        (allow file-read*)\
         (allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\") \
-        (regex #\"^/dev/ttys[0-9]+$\"))";
+        (regex #\"^/dev/ttys[0-9]+$\"))\
+        (allow file-ioctl (literal \"/dev/tty\") (regex #\"^/dev/ttys[0-9]+$\"))\
+        (allow signal (target self))\
+        (allow process-info* (target self))\
+        (allow sysctl-read)\
+        (allow file-map-executable (subpath \"/usr/lib\") (subpath \"/System\"))";
     /// P_TRACED of sys/proc.h, as `kern.proc.pid` reports it in `kp_proc.p_flag`.
     const TRACED: i32 = 0x0000_0800;
 
@@ -129,5 +137,20 @@ mod macos {
             // The discard port: nothing would answer even with a network.
             Ok(socket) => socket.connect((Ipv4Addr::LOCALHOST, 9)).is_err_and(refused),
         }
+    }
+}
+
+/// Whether a protection always holds for the whole process here, and what confirms it.
+pub(crate) fn measure(protection: crate::Protection) -> (bool, &'static str) {
+    use crate::Protection::*;
+    match protection {
+        NoCoreDumps => (true, "RLIMIT_CORE reads back 0"),
+        NoMemoryReading if cfg!(target_os = "macos") => {
+            (true, "PT_DENY_ATTACH accepted, with no debugger attached")
+        }
+        NoNewSockets if cfg!(target_os = "macos") => (true, "the sandbox refuses a UDP socket"),
+        NoFileChanges if cfg!(target_os = "macos") => (true, "the sandbox refuses a new file"),
+        WholeProcess => (true, "everything here holds for the process"),
+        _ => (true, "not offered on this system"),
     }
 }

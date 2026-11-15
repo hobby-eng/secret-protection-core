@@ -26,6 +26,9 @@ use secret_protection_core::Isolation;
 
 /// The variable that gives a child process its role.
 const ROLE: &str = "SECRET_PROTECTION_CORE_TEST_ROLE";
+/// The variable that gives a child process the IPC namespace of the test (Linux).
+#[cfg(target_os = "linux")]
+const PARENT_IPC: &str = "SECRET_PROTECTION_CORE_TEST_PARENT_IPC";
 
 fn main() {
     match std::env::var(ROLE).as_deref() {
@@ -36,6 +39,15 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("foreign") => under_a_foreign_filter(),
+        #[cfg(target_os = "linux")]
+        Ok("traced") => linux::traced_role(),
+        #[cfg(target_os = "linux")]
+        Ok("locked") => linux::locked_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("refused") => refused_filter_role(),
         #[cfg(not(target_arch = "wasm32"))]
         Ok("writer") => writer(),
         _ if cfg!(target_family = "wasm") => run(
@@ -60,6 +72,40 @@ fn main() {
                 "a filter installed by someone else does not keep this crate's out",
                 a_foreign_filter_does_not_keep_this_crates_out,
             );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "a filter the system refuses is reported missing and tried again",
+                a_refused_filter_is_reported_missing,
+            );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "options refuse file locks and sendmsg, with one more filter at most",
+                linux::options_add_one_filter_at_most,
+            );
+            #[cfg(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ))]
+            run(
+                "two threads that isolate themselves get one filter each",
+                linux::sibling_threads_get_one_filter_each,
+            );
+            #[cfg(target_os = "linux")]
+            run(
+                "locking all memory is reported as the kernel answered",
+                linux::locking_all_memory_is_reported,
+            );
+            #[cfg(target_os = "linux")]
+            run(
+                "a process with a tracer attached is not reported unreadable",
+                linux::a_traced_process_is_not_reported_unreadable,
+            );
             #[cfg(not(target_arch = "wasm32"))]
             run(
                 "a secret is written after the buffered public output",
@@ -76,7 +122,10 @@ fn run(name: &str, check: fn()) {
 
 /// Starts this program again in `role`, its standard streams piped.
 fn child(role: &str) -> Child {
-    Command::new(std::env::current_exe().unwrap())
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    #[cfg(target_os = "linux")]
+    command.env(PARENT_IPC, std::fs::read_link("/proc/self/ns/ipc").unwrap());
+    command
         .env(ROLE, role)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -159,6 +208,45 @@ fn under_a_foreign_filter() {
     assert_eq!(seccomp_filters(), before);
     assert_eq!(Isolation::enter(), isolation);
     assert_eq!(seccomp_filters(), before);
+}
+
+/// When the system refuses the filter, the report says so, and a further call tries again
+/// instead of taking the refusal for a filter in place.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+fn a_refused_filter_is_reported_missing() {
+    let output = child("refused").wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The `refused` role: a filter of someone else's refuses to install another one, as a stricter
+/// sandbox might; Landlock and the dump settings still apply.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+fn refused_filter_role() {
+    linux::install_a_filter_refusing_filters();
+    let before = seccomp_filters();
+    for _ in 0..3 {
+        let isolation = Isolation::enter();
+        assert!(
+            isolation.no_core_dumps && isolation.no_memory_reading,
+            "{isolation:?}"
+        );
+        // Without the filter neither holds, though Landlock refuses opening a file for writing.
+        assert!(
+            !isolation.no_new_sockets && !isolation.no_file_changes,
+            "{isolation:?}"
+        );
+        assert_eq!(seccomp_filters(), before);
+    }
 }
 
 /// Starts a thread that waits until the process ends.
@@ -249,9 +337,11 @@ fn expect_whole_process(isolation: Isolation) {
             && isolation.no_file_changes,
         "{isolation:?}"
     );
+    // Error reports keep stacks and registers, and low integrity still writes where a low label
+    // allows: both stay false on Windows.
     #[cfg(windows)]
     assert!(
-        isolation.no_core_dumps && isolation.no_memory_reading && isolation.no_file_changes,
+        isolation.no_memory_reading && !isolation.no_core_dumps && !isolation.no_file_changes,
         "{isolation:?}"
     );
 }
@@ -274,12 +364,12 @@ fn cannot_be_read_from_outside(pid: u32) {
 #[cfg(target_os = "linux")]
 mod linux {
     use std::fs::{self, File, OpenOptions};
-    use std::io;
+    use std::io::{self, BufRead, BufReader, Read, Write};
     use std::mem::size_of;
-    use std::net::TcpListener;
+    use std::net::{TcpListener, UdpSocket};
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     use std::os::linux::net::SocketAddrExt;
-    use std::os::unix::net::{SocketAddr, UnixListener};
+    use std::os::unix::net::{SocketAddr, UnixDatagram, UnixListener};
     use std::path::Path;
     use std::ptr;
 
@@ -330,6 +420,47 @@ mod linux {
         463, // setxattrat
         466, // removexattrat
         469, // file_setattr
+        libc::SYS_open_tree,
+        libc::SYS_move_mount,
+        libc::SYS_fsopen,
+        libc::SYS_fsconfig,
+        libc::SYS_fsmount,
+        libc::SYS_fspick,
+        libc::SYS_mount_setattr,
+        467, // open_tree_attr
+        libc::SYS_connect,
+        libc::SYS_bind,
+        libc::SYS_listen,
+        libc::SYS_accept,
+        libc::SYS_accept4,
+        libc::SYS_sendmmsg,
+        libc::SYS_msgget,
+        libc::SYS_msgsnd,
+        libc::SYS_msgrcv,
+        libc::SYS_msgctl,
+        libc::SYS_shmget,
+        libc::SYS_shmat,
+        libc::SYS_shmctl,
+        libc::SYS_shmdt,
+        libc::SYS_semget,
+        libc::SYS_semop,
+        libc::SYS_semtimedop,
+        libc::SYS_semctl,
+        libc::SYS_mq_open,
+        libc::SYS_mq_unlink,
+        libc::SYS_mq_timedsend,
+        libc::SYS_mq_timedreceive,
+        libc::SYS_mq_notify,
+        libc::SYS_mq_getsetattr,
+        libc::SYS_add_key,
+        libc::SYS_request_key,
+        libc::SYS_keyctl,
+        libc::SYS_process_vm_readv,
+        libc::SYS_execve,
+        libc::SYS_execveat,
+        libc::SYS_userfaultfd,
+        libc::SYS_bpf,
+        libc::SYS_perf_event_open,
     ];
     /// The older calls that x86-64 has and AArch64 does not.
     #[cfg(target_arch = "x86_64")]
@@ -371,6 +502,9 @@ mod linux {
         let name = format!("secret-protection-core-{}", std::process::id());
         let _abstract_listener = abstract_listener(&name);
         let unix_unconnected = unix_socket();
+        let udp = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let udp_receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let (connected, peer) = UnixDatagram::pair().unwrap();
         std::thread::scope(|scope| {
             scope.spawn(|| {
                 let isolation = Isolation::enter();
@@ -394,6 +528,15 @@ mod linux {
                 calls_are_refused(idle.id());
                 connecting_is_refused(&unconnected, listener.local_addr().unwrap().port());
                 abstract_connecting_is_refused(&unix_unconnected, &name);
+                sockets_opened_before_keep_only_their_connection(
+                    &udp,
+                    udp_receiver.local_addr().unwrap(),
+                    &connected,
+                    &peer,
+                );
+                the_dump_settings_cannot_be_undone();
+                signals_reach_no_other_process(idle.id());
+                speculation_is_limited_as_reported(isolation);
                 files_stay_as_they_are(&folder, &file);
                 what_a_secret_command_needs_still_works(&terminal, secret_memory);
             });
@@ -437,6 +580,111 @@ mod linux {
         }
     }
 
+    /// In a thread of its own: a first call without options refuses neither file locks nor
+    /// `sendmsg`; a call with them adds one filter that refuses both; further calls, with or
+    /// without them, add none and keep them.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn options_add_one_filter_at_most() {
+        use secret_protection_core::{Options, Protection};
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let before = super::seccomp_filters();
+                let plain = Isolation::enter();
+                assert!(
+                    !plain.file_locks_refused && !plain.sendmsg_refused,
+                    "{plain:?}"
+                );
+                let one_more = before.map(|count| count + 1);
+                assert_eq!(super::seccomp_filters(), one_more);
+                let options = Options::new().refuse_file_locks().refuse_sendmsg();
+                let required = [Protection::FileLocksRefused, Protection::SendmsgRefused];
+                let strict = Isolation::enter_requiring(options, &required).unwrap();
+                let two_more = before.map(|count| count + 2);
+                assert_eq!(super::seccomp_filters(), two_more);
+                assert_eq!(Isolation::enter_with(options), strict);
+                assert_eq!(Isolation::enter(), strict);
+                assert_eq!(super::seccomp_filters(), two_more);
+                // Signals only to the process itself, with one more filter.
+                let options = options.signals_to_self_only();
+                let three_more = before.map(|count| count + 3);
+                let own = Isolation::enter_with(options);
+                assert!(own.foreign_signals_refused, "{own:?}");
+                assert_eq!(super::seccomp_filters(), three_more);
+                // SAFETY: kill with signal 0 only checks; getppid and getpid take nothing.
+                unsafe {
+                    assert_eq!(
+                        error_of(libc::kill(libc::getppid(), 0).into()),
+                        Some(libc::EACCES)
+                    );
+                    assert_eq!(libc::kill(libc::getpid(), 0), 0);
+                }
+                let file = File::open("/dev/null").unwrap();
+                // SAFETY: flock takes a descriptor and touches no memory.
+                let locked = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+                assert_eq!(error_of(locked.into()), Some(libc::EACCES));
+                // The strict mode names what it lacks.
+                let missing =
+                    Isolation::enter_requiring(Options::new(), &[Protection::MicrosoftSignedOnly]);
+                assert_eq!(
+                    missing.map_err(|error| error.missing),
+                    Err(vec![Protection::MicrosoftSignedOnly])
+                );
+            });
+        });
+    }
+
+    /// Two threads started side by side, neither from the other, each install a filter of their
+    /// own, once.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn sibling_threads_get_one_filter_each() {
+        let before = super::seccomp_filters();
+        std::thread::scope(|scope| {
+            for _ in 0..2 {
+                scope.spawn(|| {
+                    for _ in 0..3 {
+                        assert!(Isolation::enter().no_file_changes);
+                    }
+                    assert_eq!(super::seccomp_filters(), before.map(|count| count + 1));
+                });
+            }
+        });
+        assert_eq!(super::seccomp_filters(), before);
+    }
+
+    /// Installs a filter that refuses to install another filter through prctl, with EPERM, and
+    /// allows every other call.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    pub(super) fn install_a_filter_refusing_filters() {
+        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
+        let mut program = [
+            instruction(0x20, 0, 0, 0), // load the call's number
+            instruction(0x15, 0, 3, libc::SYS_prctl as u32),
+            instruction(0x20, 0, 0, 16), // load the option
+            instruction(0x15, 0, 1, libc::PR_SET_SECCOMP as u32),
+            instruction(0x06, 0, 0, libc::SECCOMP_RET_ERRNO | libc::EPERM as u32),
+            instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW),
+        ];
+        let filter = libc::sock_fprog {
+            len: program.len() as u16,
+            filter: program.as_mut_ptr(),
+        };
+        // SAFETY: prctl takes integers and, for the filter, a pointer to instructions that live
+        // for the call; the kernel copies them.
+        unsafe {
+            assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+            assert_eq!(
+                libc::prctl(
+                    libc::PR_SET_SECCOMP,
+                    libc::SECCOMP_MODE_FILTER,
+                    &raw const filter,
+                    0,
+                    0
+                ),
+                0
+            );
+        }
+    }
+
     fn calls_are_refused(idle: u32) {
         for &number in REFUSED_CALLS.iter().chain(OLDER_CALLS) {
             // SAFETY: a descriptor of -1 and null pointers: without the filter, every call fails at
@@ -461,6 +709,8 @@ mod linux {
     /// before, which the filter cannot refuse.
     fn connecting_is_refused(socket: &OwnedFd, port: u16) {
         let abi = landlock_abi();
+        // The filter refuses connect itself, before Landlock.
+        let filtered = cfg!(any(target_arch = "x86_64", target_arch = "aarch64"));
         let address = libc::sockaddr_in {
             sin_family: libc::AF_INET as libc::sa_family_t,
             sin_port: port.to_be(),
@@ -477,7 +727,7 @@ mod linux {
                 size_of::<libc::sockaddr_in>() as libc::socklen_t,
             )
         };
-        let expected = (abi >= 4).then_some(libc::EACCES);
+        let expected = (filtered || abi >= 4).then_some(libc::EACCES);
         assert_eq!(error_of(result.into()), expected, "Landlock {abi}");
     }
 
@@ -503,8 +753,150 @@ mod linux {
                 libc::socklen_t::try_from(length).unwrap(),
             )
         };
+        // The filter refuses connect itself, before Landlock's EPERM.
+        let expected = if cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
+            Some(libc::EACCES)
+        } else {
+            (abi >= 6).then_some(libc::EPERM)
+        };
+        assert_eq!(error_of(result.into()), expected, "Landlock {abi}");
+    }
+
+    /// A datagram with an address of its own is refused through a socket opened before, while a
+    /// socket connected before still sends to its peer.
+    fn sockets_opened_before_keep_only_their_connection(
+        udp: &UdpSocket,
+        to: std::net::SocketAddr,
+        connected: &UnixDatagram,
+        peer: &UnixDatagram,
+    ) {
+        let refused = udp
+            .send_to(b"public", to)
+            .map_err(|error| error.raw_os_error());
+        assert_eq!(refused, Err(Some(libc::EACCES)));
+        connected.send(b"public").unwrap();
+        let mut received = [0; 6];
+        assert_eq!(peer.recv(&mut received).unwrap(), 6);
+    }
+
+    /// The dump flag and the tracer setting, which would let other programs of the user read the
+    /// memory again, are refused.
+    fn the_dump_settings_cannot_be_undone() {
+        for (option, value) in [
+            (libc::PR_SET_DUMPABLE, 1),
+            (libc::PR_SET_PTRACER, libc::PR_SET_PTRACER_ANY),
+        ] {
+            // SAFETY: prctl takes integers and touches no memory of this process.
+            let result = unsafe { libc::prctl(option, value, 0, 0, 0) };
+            assert_eq!(
+                error_of(result.into()),
+                Some(libc::EACCES),
+                "option {option}"
+            );
+        }
+        // SAFETY: as above.
+        assert_eq!(unsafe { libc::prctl(libc::PR_GET_DUMPABLE, 0, 0, 0, 0) }, 0);
+    }
+
+    /// From Linux 6.12 (Landlock's ABI 6), no signal reaches a process outside the layer, such as
+    /// the idle child started before.
+    fn signals_reach_no_other_process(idle: u32) {
+        let abi = landlock_abi();
+        let pid = libc::pid_t::try_from(idle).unwrap();
+        // SAFETY: kill takes integers; SIGCONT leaves a running process as it is.
+        let result = unsafe { libc::kill(pid, libc::SIGCONT) };
         let expected = (abi >= 6).then_some(libc::EPERM);
         assert_eq!(error_of(result.into()), expected, "Landlock {abi}");
+    }
+
+    /// `speculation_limited` says what the kernel reads back for both kinds of speculation, and a
+    /// disabled one cannot be enabled again.
+    fn speculation_is_limited_as_reported(isolation: Isolation) {
+        let limited = [0_u64, 1].iter().all(|&which| {
+            // SAFETY: prctl takes integers and touches no memory of this process.
+            let state = unsafe { libc::prctl(52, which, 0, 0, 0) };
+            let unknown =
+                state < 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ENODEV);
+            if state > 0 && state & 8 != 0 {
+                // SAFETY: as above; PR_SPEC_ENABLE.
+                let enabled = unsafe { libc::prctl(53, which, 2_u64, 0, 0) };
+                assert_eq!(
+                    error_of(enabled.into()),
+                    Some(libc::EPERM),
+                    "selector {which}"
+                );
+            }
+            state == 0 || state > 0 && state & 0xC != 0 || which == 1 && unknown
+        });
+        assert_eq!(isolation.speculation_limited, limited, "{isolation:?}");
+    }
+
+    /// Started with a tracer attached, a process is not reported unreadable: the tracer keeps
+    /// reading. The test attaches to the child in the `traced` role, as a debugger would, without
+    /// stopping it, and lets it enter the isolation.
+    pub(super) fn a_traced_process_is_not_reported_unreadable() {
+        let mut process = super::child("traced");
+        let pid = libc::pid_t::try_from(process.id()).unwrap();
+        // SAFETY: seizing passes no memory; the child keeps running.
+        let seized = unsafe { libc::ptrace(libc::PTRACE_SEIZE, pid, 0_i64, 0_i64) };
+        assert_eq!(seized, 0, "{}", io::Error::last_os_error());
+        process.stdin.as_mut().unwrap().write_all(b"x").unwrap();
+        let mut line = String::new();
+        BufReader::new(process.stdout.take().unwrap())
+            .read_line(&mut line)
+            .unwrap();
+        // A traced child would stop at a signal; SIGKILL ends it whatever its state.
+        process.kill().unwrap();
+        process.wait().unwrap();
+        assert_eq!(line, "readable\n");
+    }
+
+    /// In a child process, which may lock all its memory: the answer agrees with the kernel's
+    /// count of locked memory, and the process still allocates and works.
+    pub(super) fn locking_all_memory_is_reported() {
+        let output = super::child("locked").wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    /// The `locked` role.
+    pub(super) fn locked_role() {
+        use secret_protection_core::Options;
+        let isolation = Isolation::enter_with(Options::new().lock_all_memory());
+        let buffer = vec![1_u8; 1 << 20];
+        assert_eq!(
+            buffer.iter().map(|&byte| usize::from(byte)).sum::<usize>(),
+            1 << 20
+        );
+        let status = fs::read_to_string("/proc/self/status").unwrap();
+        let locked_kib: u64 = status
+            .lines()
+            .find_map(|line| line.strip_prefix("VmLck:"))
+            .and_then(|value| value.trim().trim_end_matches(" kB").trim().parse().ok())
+            .unwrap();
+        if isolation.memory_locked {
+            assert!(locked_kib > 0, "{locked_kib}");
+        }
+    }
+
+    /// The `traced` role: once the test has attached, enters the isolation and says whether its
+    /// memory is reported unreadable.
+    pub(super) fn traced_role() {
+        let mut byte = [0];
+        io::stdin().read_exact(&mut byte).unwrap();
+        let isolation = Isolation::enter();
+        println!(
+            "{}",
+            if isolation.no_memory_reading {
+                "unreadable"
+            } else {
+                "readable"
+            }
+        );
+        super::idle();
     }
 
     /// The Landlock ABI of the kernel; 0 or less without Landlock.
@@ -626,6 +1018,12 @@ mod linux {
                 .map(str::trim)
                 .collect();
             assert_eq!(interfaces, ["lo"]);
+            // System V objects and POSIX queues of its own.
+            let parent = std::env::var_os(super::PARENT_IPC).unwrap();
+            assert_ne!(
+                fs::read_link("/proc/self/ns/ipc").unwrap().as_os_str(),
+                parent
+            );
         } else {
             // SAFETY: unshare takes flags only.
             let allowed = unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET) } == 0;

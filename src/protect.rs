@@ -10,7 +10,13 @@ use zeroize::Zeroize;
 
 use crate::os::Pages;
 
-/// Why bytes were not put in a [`Secret`].
+mod closed;
+mod options;
+
+pub use closed::ClosedSecret;
+pub use options::{Missing, Options, Protection};
+
+/// Why bytes were not put in a [`Secret`], or a buffer was not made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SecretError {
     /// The bytes do not fit: the buffer holds `capacity` bytes and never grows. Nothing was written.
@@ -18,34 +24,31 @@ pub enum SecretError {
         /// The most bytes the buffer holds.
         capacity: usize,
     },
+    /// The system did not lock the pages in memory, so that they could reach swap; they were given
+    /// back before any byte was put in them. A lock limit, such as `RLIMIT_MEMLOCK`, is the usual
+    /// reason.
+    NotLocked,
+    /// The system gave no pages for a work area.
+    NoMemory,
 }
 
 impl fmt::Display for SecretError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Full { capacity } => write!(f, "a secret buffer of {capacity} bytes has no room"),
+            Self::NotLocked => f.write_str("the system did not lock the memory for the secret"),
+            Self::NoMemory => f.write_str("the system gave no memory for the work area"),
         }
     }
 }
 
 impl std::error::Error for SecretError {}
 
-/// A buffer for secret bytes in whole memory pages of its own, which no other data shares. Where
-/// the system allows it, the pages are locked in memory, so that they never reach swap, and kept
-/// out of core dumps; a child process gets none of the bytes; and on drop they are overwritten
-/// before they are unlocked and given back. Its capacity is fixed: it never grows, so it never
-/// leaves a copy behind.
-///
-/// Per system: on Linux on x86-64 and AArch64 the pages are secret memory (`memfd_secret`) where
-/// the kernel offers it, which no other process, root included, can read directly through
-/// `/proc/PID/mem`, `process_vm_readv` or `PTRACE_PEEKDATA`, and which stops hibernation while it
-/// exists; otherwise, on other Linux architectures and on Android, anonymous pages with `mlock`,
-/// `MADV_DONTDUMP` and `MADV_WIPEONFORK`. macOS and iOS lock the pages and leave them out of a
-/// child process; no call keeps these pages out of a core dump, which [`Isolation::enter`] refuses
-/// for the process as a whole. Windows locks them with `VirtualLock` and leaves them out of
-/// Windows Error Reporting dumps. In WebAssembly the buffer is an ordinary heap buffer, only
-/// wiped. A refusal, such as a lock beyond `RLIMIT_MEMLOCK`, never fails: [`Secret::is_locked`],
-/// [`Secret::is_out_of_dumps`] and [`Secret::is_out_of_children`] report what holds.
+/// A buffer for a secret in memory pages of its own: locked against swap, kept out of core dumps and
+/// child processes where the system allows, between guard pages, and wiped on drop. It never grows,
+/// so it leaves no copies. A failed lock doesn't fail the call: check [`Secret::is_locked`] or use
+/// [`Secret::locked`]. If the process aborts, drops don't run and only the lock and dump settings
+/// protect the bytes. What each system does: docs/TECHNICAL.md.
 pub struct Secret {
     pages: Pages,
     capacity: usize,
@@ -61,6 +64,18 @@ impl Secret {
             pages: Pages::new(bytes.max(1)),
             capacity: bytes,
             len: 0,
+        }
+    }
+
+    /// Like [`Secret::with_capacity`], but refuses with [`SecretError::NotLocked`] when the system
+    /// does not lock the pages, before any byte is put in them: for a program that takes no secret
+    /// into memory that could reach swap. On Linux secret memory counts as locked.
+    pub fn locked(bytes: usize) -> Result<Self, SecretError> {
+        let secret = Self::with_capacity(bytes);
+        if secret.is_locked() {
+            Ok(secret)
+        } else {
+            Err(SecretError::NotLocked)
         }
     }
 
@@ -161,6 +176,19 @@ impl WorkArea {
         Pages::work_area(bytes.max(1)).map(|pages| Self { pages })
     }
 
+    /// Like [`WorkArea::new`], but refuses with [`SecretError::NotLocked`] when the system does not
+    /// lock all the pages, and with [`SecretError::NoMemory`] when it gives none. A large area,
+    /// such as the memory of a password hash, often exceeds the lock limit; a program that requires
+    /// it locked then stops before it reads the secret, rather than computing with less memory.
+    pub fn locked(bytes: usize) -> Result<Self, SecretError> {
+        let area = Self::new(bytes).ok_or(SecretError::NoMemory)?;
+        if area.is_locked() {
+            Ok(area)
+        } else {
+            Err(SecretError::NotLocked)
+        }
+    }
+
     /// The bytes of the area.
     pub fn as_slice(&self) -> &[u8] {
         self.pages.as_slice()
@@ -206,11 +234,13 @@ impl fmt::Debug for WorkArea {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Isolation {
     /// On Unix a crash writes no core dump: RLIMIT_CORE is 0, and on Linux and Android the process
-    /// is not dumpable, which a pipe in `core_pattern` respects too; on Windows, error reports,
-    /// which still hold the threads' stacks and registers, leave out the heap.
+    /// is not dumpable, which a pipe in `core_pattern` respects too. False on Windows, whose error
+    /// reports, which [`Isolation::enter`] keeps from the heap, still hold the threads' stacks and
+    /// registers.
     pub no_core_dumps: bool,
     /// Other programs of the same user cannot open the process to read or change its memory, nor
-    /// on Windows its threads to read or change their registers.
+    /// on Windows its threads to read or change their registers; and no debugger was attached
+    /// before, which would keep reading.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it.
@@ -220,98 +250,171 @@ pub struct Isolation {
     pub empty_network: bool,
     /// Files cannot be opened for writing, created, renamed or removed, apart from the exceptions
     /// [`Isolation::enter`] names for each system; what else is refused depends on the system too.
+    /// False on Windows, whose low integrity level still writes where a low label allows it, and
+    /// on Linux where no seccomp filter is written, whose Landlock layer leaves modes, owners,
+    /// extended attributes and times.
     pub no_file_changes: bool,
+    /// The processor's speculation that leaks across programs is limited for the calling thread
+    /// and what it starts, against Spectre variants 4 and 2: speculative store bypass and indirect
+    /// branch speculation are disabled for good, the system disables them for every program, or
+    /// the processor is not affected (Linux and Android); on Windows, side-channel isolation.
+    pub speculation_limited: bool,
     /// The protections above cover every thread of the process, not only the calling one.
     pub whole_process: bool,
+    /// File locks are refused (Linux and Android, with [`Options::refuse_file_locks`]).
+    pub file_locks_refused: bool,
+    /// `sendmsg` is refused (Linux and Android, with [`Options::refuse_sendmsg`]).
+    pub sendmsg_refused: bool,
+    /// No new executable code can run (Windows, with [`Options::refuse_dynamic_code`]).
+    pub dynamic_code_refused: bool,
+    /// Only DLLs signed by Microsoft load (Windows, with [`Options::microsoft_signed_only`]).
+    pub microsoft_signed_only: bool,
+    /// No signal reaches another process: Landlock from Linux 6.12, or
+    /// [`Options::signals_to_self_only`] (Linux and Android).
+    pub foreign_signals_refused: bool,
+    /// Every page of the process stays out of swap ([`Options::lock_all_memory`], Linux and
+    /// Android).
+    pub memory_locked: bool,
 }
 
 impl Isolation {
-    /// Applies what this system offers against a secret leaving the process, for good, and returns
-    /// what reads back as holding; call it before a secret is read. A refusal is reported, never
-    /// an error. Descriptors and handles opened before the call stay usable, a socket or a file
-    /// open for writing among them, so the computer is still to be trusted and offline.
-    ///
-    /// Linux: RLIMIT_CORE 0 and not dumpable, which also keeps other programs of the user from
-    /// `ptrace` and `/proc/PID/mem`; `no_new_privs`; on x86-64 and little-endian AArch64 a seccomp
-    /// filter that refuses with EACCES new sockets, io_uring, `ptrace`, `process_vm_writev`,
-    /// `pidfd_getfd`, every call that changes the file system (opening for writing, creating,
-    /// renaming, removing, linking, truncating by path, `fallocate`, modes, owners, extended
-    /// attributes, times, `mount`) and every `ioctl` but the terminal's, and that answers ENOSYS to
-    /// `openat2` and to every call newer than Linux 7.0, so that a C library falls back to a call
-    /// the filter reads and a later kernel's call cannot get past it; and Landlock where the kernel
-    /// has it, which refuses writing, creating, removing and renaming files, truncating them from
-    /// Linux 6.2, TCP bind and connect from Linux 6.7, device `ioctl`s from Linux 6.10, a
-    /// connection to an abstract UNIX socket made outside it from Linux 6.12 and to a UNIX socket
-    /// by its path from Linux 7.1. They hold for the calling thread and the threads it starts
-    /// afterwards, such as its worker threads; a further call in any of them adds neither, while a
-    /// filter that someone else installed, such as a container's, does not stand in for this one.
-    /// Called while the process has one thread, they hold for the whole process, which also enters
-    /// a network namespace of its own where the system allows it: no ID map is written, so
-    /// `getuid()` and `getgid()` read 65534 for the rest of the process, which holds every
-    /// capability inside its new user namespace and none over the system's files. On other
-    /// architectures, big-endian AArch64 included, only Landlock applies, which refuses no new
-    /// socket and leaves open modes, owners, extended attributes, times and the `ioctl`s on files
-    /// that are not devices, such as fs-verity, encryption policies and btrfs subvolumes. Not
-    /// covered: root and `CAP_SYS_PTRACE`; and a `/proc/PID/mem` descriptor opened or a tracer
-    /// attached before the call, such as a debugger the process was started under.
-    ///
-    /// Android: the same dump settings and filter, without Landlock, the namespace or any io_uring
-    /// call: the app seccomp policy ends the process at such calls. The filter holds for the
-    /// calling thread only (`whole_process` is false), which must be a native thread of its own:
-    /// made with `pthread_create`, never attached to the virtual machine, never running Java,
-    /// reporting progress through shared memory rather than JNI, and ending with the operation. A
-    /// Java or Kotlin pool thread would go back to its pool restricted for good, its binder calls
-    /// would fail, and the runtime's concurrent compaction makes a thread call `ioctl`
-    /// (`UFFDIO_COPY`) from its SIGBUS handler, which the filter refuses. The only barrier of the
-    /// whole app against the network is an app without the `INTERNET` permission. Not covered: on
-    /// a crash, Android's crash handler makes the process dumpable again for `crash_dump`, whose
-    /// tombstone holds the registers and memory near them.
-    ///
-    /// macOS, for the whole process: RLIMIT_CORE 0; `ptrace(PT_DENY_ATTACH)`, unless a debugger
-    /// already traces the process, which the call would end (`no_memory_reading` is then false;
-    /// otherwise the call's answer stands for a read-back); and a sandbox without network or file
-    /// writes, but for the terminal and /dev/null. Not covered: root.
-    ///
-    /// iOS: RLIMIT_CORE 0 only; an app can neither deny a debugger nor narrow its sandbox, which
-    /// already keeps its writes inside its own container.
-    ///
-    /// Windows, for the whole process: error reports leave out the heap; the access list of the
-    /// process is replaced by one entry for its owner (OWNER RIGHTS), which grants only waiting
-    /// for it, reading its basic information and ending it, so that a program of the same user
-    /// can neither open it to read its memory nor restore the list; the access list of every
-    /// thread is replaced by one entry for its owner that grants only waiting for it and reading
-    /// its basic information and its list, and the token's default list becomes that entry, so
-    /// that the threads started afterwards, worker threads among them, get it too: a
-    /// program of the same user can open none of them to read or change its registers, suspend
-    /// it or change its list; and the process token is lowered to low integrity, which refuses
-    /// writes to the user's files and registry, of a child process too (low-integrity folders and
-    /// volumes without access control, such as FAT and exFAT USB sticks and SD cards, stay
-    /// writable). Sockets are not restricted: that needs administrator rights. Side effect: every
-    /// object that the process, or a process it starts, creates afterwards without an access list
-    /// of its own (threads, pipes, events and others) gets the default list, so that opening it
-    /// by name or ID, from the process itself too, grants little more than waiting for it; but
-    /// programs of the same user can also suspend and resume a process it starts, since on a
-    /// process the entry's THREAD_QUERY_LIMITED_INFORMATION bit means PROCESS_SUSPEND_RESUME. The
-    /// process cannot, for instance, run a child with piped standard streams (the standard
-    /// library's `Command::output`), as in an isolated thread on Linux, and a thread started
-    /// afterwards cannot suspend itself or change its own context through `GetCurrentThread()`,
-    /// as some runtimes need. Not covered: administrators (`SeDebugPrivilege`); the threads'
-    /// stacks and registers, which an error report still holds; and handles opened before the
-    /// call, such as the parent's from `CreateProcess`, which a program of the same user can
-    /// duplicate from the parent.
-    ///
-    /// WebAssembly and other systems: nothing; every field is false.
+    /// Closes the process against a secret leaving it, for good, and returns what actually took effect.
+    /// Call it before reading a secret. Refusals show up as `false`, never as errors, and descriptors
+    /// opened earlier stay usable. Protections that can break programs are in
+    /// [`Isolation::enter_with`]; [`Isolation::enter_requiring`] stops if a required one is missing.
+    /// What each system applies is listed in docs/TECHNICAL.md.
     pub fn enter() -> Self {
-        crate::os::enter()
+        crate::os::enter(Options::new())
+    }
+
+    /// As [`Isolation::enter`], with the protections that `options` turns on as well.
+    pub fn enter_with(options: Options) -> Self {
+        crate::os::enter(options)
+    }
+
+    /// The strict mode: as [`Isolation::enter_with`], but refuses with [`Missing`] when a
+    /// protection in `required` does not read back, so that a program stops before it reads a
+    /// secret. What was applied stays applied either way.
+    pub fn enter_requiring(options: Options, required: &[Protection]) -> Result<Self, Missing> {
+        Self::enter_with(options).require(required)
+    }
+
+    /// `Ok` with this answer when every protection in `required` holds, else [`Missing`].
+    pub fn require(self, required: &[Protection]) -> Result<Self, Missing> {
+        let missing: Vec<Protection> = Protection::ALL
+            .into_iter()
+            .filter(|protection| required.contains(protection) && !self.has(*protection))
+            .collect();
+        if missing.is_empty() {
+            Ok(self)
+        } else {
+            Err(Missing {
+                missing,
+                isolation: self,
+            })
+        }
+    }
+
+    /// Whether `protection` holds, as its field says.
+    pub fn has(&self, protection: Protection) -> bool {
+        match protection {
+            Protection::NoCoreDumps => self.no_core_dumps,
+            Protection::NoMemoryReading => self.no_memory_reading,
+            Protection::NoNewSockets => self.no_new_sockets,
+            Protection::EmptyNetwork => self.empty_network,
+            Protection::NoFileChanges => self.no_file_changes,
+            Protection::SpeculationLimited => self.speculation_limited,
+            Protection::WholeProcess => self.whole_process,
+            Protection::FileLocksRefused => self.file_locks_refused,
+            Protection::SendmsgRefused => self.sendmsg_refused,
+            Protection::DynamicCodeRefused => self.dynamic_code_refused,
+            Protection::MicrosoftSignedOnly => self.microsoft_signed_only,
+            Protection::ForeignSignalsRefused => self.foreign_signals_refused,
+            Protection::MemoryLocked => self.memory_locked,
+        }
+    }
+
+    /// Every protection with whether it holds, how far it reaches and what confirmed it, for a
+    /// program that shows the details.
+    pub fn measures(&self) -> Vec<Measure> {
+        Protection::ALL
+            .into_iter()
+            .map(|protection| {
+                let (process_wide, proof) = crate::os::measure(protection);
+                Measure {
+                    protection,
+                    holds: self.has(protection),
+                    reach: if process_wide || self.whole_process {
+                        Reach::Process
+                    } else {
+                        Reach::Thread
+                    },
+                    proof,
+                }
+            })
+            .collect()
+    }
+
+    /// One bit for each protection that holds, in the order of [`Protection::ALL`]: how a worker
+    /// tells its parent.
+    pub(crate) fn to_bits(self) -> u32 {
+        Protection::ALL
+            .into_iter()
+            .enumerate()
+            .filter(|(_, protection)| self.has(*protection))
+            .fold(0, |bits, (index, _)| bits | 1 << index)
+    }
+
+    /// The answer that [`Isolation::to_bits`] made.
+    pub(crate) fn from_bits(bits: u32) -> Self {
+        let has = |protection: Protection| {
+            Protection::ALL
+                .iter()
+                .position(|&each| each == protection)
+                .is_some_and(|index| bits & 1 << index != 0)
+        };
+        Self {
+            no_core_dumps: has(Protection::NoCoreDumps),
+            no_memory_reading: has(Protection::NoMemoryReading),
+            no_new_sockets: has(Protection::NoNewSockets),
+            empty_network: has(Protection::EmptyNetwork),
+            no_file_changes: has(Protection::NoFileChanges),
+            speculation_limited: has(Protection::SpeculationLimited),
+            whole_process: has(Protection::WholeProcess),
+            file_locks_refused: has(Protection::FileLocksRefused),
+            sendmsg_refused: has(Protection::SendmsgRefused),
+            dynamic_code_refused: has(Protection::DynamicCodeRefused),
+            microsoft_signed_only: has(Protection::MicrosoftSignedOnly),
+            foreign_signals_refused: has(Protection::ForeignSignalsRefused),
+            memory_locked: has(Protection::MemoryLocked),
+        }
     }
 }
 
-/// Writes `text` to standard output past the standard library's buffer, which is never wiped and
-/// keeps the last bytes written to it: it flushes that buffer first, so that the public output
-/// written before comes first, then writes the caller's bytes without a copy of its own (on a
-/// Windows console, a UTF-16 copy in a [`Secret`]), again after an interruption and for what a
-/// partial write left. For terminal programs: Android and iOS apps show a secret in their own
-/// views.
+/// How far a protection reaches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reach {
+    /// The calling thread and the threads it starts afterwards.
+    Thread,
+    /// Every thread of the process.
+    Process,
+}
+
+/// One protection in detail, as [`Isolation::measures`] gives it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Measure {
+    /// Which protection.
+    pub protection: Protection,
+    /// Whether it holds.
+    pub holds: bool,
+    /// How far it reaches.
+    pub reach: Reach,
+    /// What confirmed it, or why this system doesn't offer it.
+    pub proof: &'static str,
+}
+
+/// Writes `text` to standard output without leaving a copy in the standard library's buffer: it
+/// flushes that buffer first, then writes the bytes directly.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn write_secret(text: &str) -> io::Result<()> {
     io::stdout().flush()?;
@@ -382,12 +485,106 @@ mod tests {
         assert_eq!(area.is_out_of_dumps(), secret.is_out_of_dumps());
     }
 
+    /// The range and the permissions of the mapping that holds `address`, as /proc/self/maps lists
+    /// them.
+    #[cfg(target_os = "linux")]
+    fn mapping(address: usize) -> (std::ops::Range<usize>, String) {
+        let maps = std::fs::read_to_string("/proc/self/maps").unwrap();
+        maps.lines()
+            .find_map(|line| {
+                let (range, rest) = line.split_once(' ')?;
+                let (start, end) = range.split_once('-')?;
+                let bound = |hex| usize::from_str_radix(hex, 16).unwrap();
+                let range = bound(start)..bound(end);
+                range
+                    .contains(&address)
+                    .then(|| (range, rest[..4].to_owned()))
+            })
+            .unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn permissions(address: usize) -> String {
+        mapping(address).1
+    }
+
+    /// A page that refuses every access lies on each side of a secret's pages and of a work area.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn guard_pages_lie_on_both_sides() {
+        let secret = Secret::with_capacity(5000);
+        let area = WorkArea::new(10_000).unwrap();
+        for start in [
+            secret.as_bytes().as_ptr() as usize,
+            area.as_slice().as_ptr() as usize,
+        ] {
+            let (range, open) = mapping(start);
+            assert_eq!((range.start, &open[..2]), (start, "rw"));
+            assert!(permissions(range.start - 1).starts_with("---"));
+            assert!(permissions(range.end).starts_with("---"));
+        }
+    }
+
+    /// A closed secret's pages refuse every access but during a use, and close again after a use
+    /// that panicked.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_closed_secret_opens_only_for_a_use() {
+        let mut secret = ClosedSecret::with_capacity(32);
+        secret.push(b"public test").unwrap();
+        assert!(secret.is_closed());
+        let (address, open) = secret.read(|bytes| {
+            let address = bytes.as_ptr() as usize;
+            (address, permissions(address))
+        });
+        assert!(open.starts_with("r-"), "{open}");
+        assert!(permissions(address).starts_with("---"));
+        assert_eq!(secret.read(<[u8]>::to_vec), b"public test");
+        secret.write(|bytes| bytes[0] = b'P');
+        secret.truncate(6);
+        assert_eq!(secret.read(<[u8]>::to_vec), b"Public");
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            secret.read(|_| panic!("a use that fails"));
+        }));
+        assert!(panicked.is_err());
+        assert!(secret.is_closed() && permissions(address).starts_with("---"));
+        assert_eq!(
+            secret.push(&[0; 27]),
+            Err(SecretError::Full { capacity: 32 })
+        );
+        assert_eq!((secret.len(), secret.capacity()), (6, 32));
+        assert_eq!(format!("{secret:?}"), "ClosedSecret(hidden)");
+    }
+
     /// Two pages of the largest size in use, 64 KiB: Linux touches every page before handing it
     /// out, and that must leave no trace.
     #[test]
     fn a_zeroed_secret_holds_only_zeros_on_every_page() {
         let secret = Secret::zeroed(128 << 10);
         assert!(secret.as_bytes().iter().all(|&byte| byte == 0));
+    }
+
+    /// Every protection has a measure, which agrees with the field it names and says what
+    /// confirmed it.
+    #[test]
+    fn measures_cover_every_protection() {
+        let isolation = Isolation {
+            no_core_dumps: true,
+            ..Isolation::default()
+        };
+        let measures = isolation.measures();
+        assert_eq!(measures.len(), Protection::ALL.len());
+        for measure in &measures {
+            assert_eq!(measure.holds, isolation.has(measure.protection));
+            assert!(!measure.proof.is_empty());
+        }
+        if cfg!(target_os = "linux") {
+            let socket = measures
+                .iter()
+                .find(|measure| measure.protection == Protection::NoNewSockets)
+                .unwrap();
+            assert_eq!(socket.reach, Reach::Thread);
+        }
     }
 
     #[test]

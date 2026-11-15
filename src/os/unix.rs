@@ -1,18 +1,20 @@
-//! Secret pages on Unix: a private anonymous mapping, locked with `mlock`; on Linux and Android kept
-//! out of core dumps and given to a child process as zeros, on Apple systems not given to a child
-//! at all. On Linux on x86-64 and AArch64, secret memory comes first where the kernel offers it.
-//! The work area of a computation is such a mapping too. Every Unix system also shares the core-dump
-//! limit of [`crate::protect::Isolation::enter`] and the secret writer.
+//! Unix pages for secrets: anonymous mappings with `mlock`, between guard pages, kept out of core
+//! dumps and child processes where the system allows. Also the core-dump limit, starting a worker
+//! and the secret writer.
 #![allow(
     unsafe_code,
-    reason = "mmap, mlock, getrlimit, setrlimit, madvise, minherit, munmap and write are foreign \
-              functions"
+    reason = "mmap, mprotect, mlock, getrlimit, setrlimit, madvise, minherit, munmap, sysconf and \
+              write are foreign functions"
 )]
 
+use std::fs::File;
 use std::io;
+use std::mem::ManuallyDrop;
+use std::os::fd::FromRawFd;
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::ptr::{self, NonNull};
 
-use super::Pages;
+use super::{Access, Pages, Region};
 
 impl Pages {
     /// `bytes` bytes, at least one, in pages of their own.
@@ -42,19 +44,20 @@ impl Pages {
     }
 
     fn anonymous(bytes: usize, lock: bool) -> Option<Self> {
-        // SAFETY: a new private anonymous mapping, at an address the kernel chooses, takes no
-        // memory that anything else owns.
-        let mapped = unsafe {
-            libc::mmap(
-                ptr::null_mut(),
+        let start = reserve(bytes)?;
+        // SAFETY: opens for reading and writing the pages between the guards of the reservation
+        // just made, which nothing else refers to; they are zero.
+        if unsafe {
+            libc::mprotect(
+                start.as_ptr().cast(),
                 bytes,
                 libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_PRIVATE | libc::MAP_ANON,
-                -1,
-                0,
             )
-        };
-        let start = NonNull::new(mapped.cast::<u8>()).filter(|_| mapped != libc::MAP_FAILED)?;
+        } != 0
+        {
+            release(start, bytes);
+            return None;
+        }
         // SAFETY: mlock only changes how the kernel keeps the pages of the mapping just made; a
         // refusal, such as beyond RLIMIT_MEMLOCK, leaves them as they are.
         let locked = lock && unsafe { libc::mlock(start.as_ptr().cast(), bytes) } == 0;
@@ -79,10 +82,65 @@ impl Pages {
 
 impl Drop for Pages {
     fn drop(&mut self) {
-        // SAFETY: the mapping belongs to this value alone and nothing borrows it any more;
-        // unmapping it also unlocks it.
-        unsafe { libc::munmap(self.start.as_ptr().cast(), self.bytes) };
+        // Unmapping the pages also unlocks them.
+        release(self.start, self.bytes);
     }
+}
+
+impl Region {
+    /// Lets the pages be reached as `access` says, and returns whether the system agreed.
+    pub(crate) fn allow(self, access: Access) -> bool {
+        let protection = match access {
+            Access::Nothing => libc::PROT_NONE,
+            Access::Read => libc::PROT_READ,
+            Access::ReadWrite => libc::PROT_READ | libc::PROT_WRITE,
+        };
+        // SAFETY: changes the protection of pages a `Pages` of this crate owns; the caller makes
+        // no reference to them while they refuse it.
+        unsafe { libc::mprotect(self.start.as_ptr().cast(), self.bytes, protection) == 0 }
+    }
+}
+
+/// The size of a memory page.
+fn page_size() -> usize {
+    // SAFETY: sysconf takes an integer and touches no memory of this process.
+    let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    usize::try_from(page).unwrap_or(4096)
+}
+
+/// Reserves pages for `bytes` bytes between two guard pages, every page refusing every access, and
+/// returns where the bytes go: past the first guard. A run past either end of the pages then
+/// faults instead of reaching other memory; one within the last page, past `bytes`, does not.
+pub(super) fn reserve(bytes: usize) -> Option<NonNull<u8>> {
+    let page = page_size();
+    let total = bytes
+        .checked_next_multiple_of(page)?
+        .checked_add(2 * page)?;
+    // SAFETY: a new private anonymous mapping that refuses every access, at an address the kernel
+    // chooses, takes no memory that anything else owns.
+    let mapped = unsafe {
+        libc::mmap(
+            ptr::null_mut(),
+            total,
+            libc::PROT_NONE,
+            libc::MAP_PRIVATE | libc::MAP_ANON,
+            -1,
+            0,
+        )
+    };
+    if mapped == libc::MAP_FAILED {
+        return None;
+    }
+    NonNull::new(mapped.cast::<u8>().wrapping_add(page))
+}
+
+/// Gives back the pages that [`reserve`] reserved for `bytes` bytes at `start`, guards included,
+/// whatever was mapped between them.
+pub(super) fn release(start: NonNull<u8>, bytes: usize) {
+    let page = page_size();
+    let total = bytes.next_multiple_of(page) + 2 * page;
+    // SAFETY: the reservation belongs to the caller alone and nothing borrows it any more.
+    unsafe { libc::munmap(start.as_ptr().wrapping_sub(page).cast(), total) };
 }
 
 /// Whether RLIMIT_MEMLOCK lets this process lock `bytes` bytes, counted alone.
@@ -102,7 +160,13 @@ fn lock_limit_holds(bytes: usize) -> bool {
 /// exclusion holds and whether a child process gets zeros.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn advise(start: NonNull<u8>, bytes: usize) -> (bool, bool) {
+    // Never merged with a page of the same content elsewhere, should a parent have asked the
+    // kernel to merge every page of the process (PR_SET_MEMORY_MERGE, which a child inherits):
+    // the time a write takes would tell a merged page. A kernel without KSM refuses, which leaves
+    // nothing to merge.
     // SAFETY: madvise marks the pages of a mapping this process owns and changes no content.
+    unsafe { libc::madvise(start.as_ptr().cast(), bytes, libc::MADV_UNMERGEABLE) };
+    // SAFETY: as above.
     let wiped = unsafe { libc::madvise(start.as_ptr().cast(), bytes, libc::MADV_WIPEONFORK) } == 0;
     // SAFETY: as above.
     let out_of_dumps =
@@ -124,6 +188,223 @@ fn advise(start: NonNull<u8>, bytes: usize) -> (bool, bool) {
 #[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
 fn advise(_start: NonNull<u8>, _bytes: usize) -> (bool, bool) {
     (false, false)
+}
+
+/// The parent's end of a worker: the worker's standard input and output, and the process.
+pub(crate) struct WorkerProcess {
+    pub(crate) to: Option<ChildStdin>,
+    pub(crate) from: ChildStdout,
+    child: Child,
+}
+
+impl WorkerProcess {
+    /// Starts this program again with an empty environment but the worker's variable, its standard
+    /// input and output piped; without `terminal`, its standard error goes nowhere and it starts a
+    /// session of its own, so that it has no controlling terminal. Android and iOS start no worker.
+    pub(crate) fn start(options: u32, terminal: bool) -> io::Result<Self> {
+        if cfg!(any(target_os = "android", target_os = "ios")) {
+            return Err(io::ErrorKind::Unsupported.into());
+        }
+        let mut command = Command::new(std::env::current_exe()?);
+        command
+            .env_clear()
+            .env(crate::worker::WORKER, options.to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped());
+        if terminal {
+            command.stderr(Stdio::inherit());
+        } else {
+            command.stderr(Stdio::null());
+            // SAFETY: runs in the child between fork and exec, where only async-signal-safe calls
+            // are allowed; setsid is one and touches no memory.
+            unsafe {
+                std::os::unix::process::CommandExt::pre_exec(&mut command, || {
+                    if libc::setsid() < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        }
+        let mut child = command.spawn()?;
+        let (Some(to), Some(from)) = (child.stdin.take(), child.stdout.take()) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(io::ErrorKind::BrokenPipe.into());
+        };
+        Ok(Self {
+            to: Some(to),
+            from,
+            child,
+        })
+    }
+
+    /// Closes the worker's input, which ends it, and waits for it.
+    pub(crate) fn finish(&mut self) {
+        self.to = None;
+        let _ = self.child.wait();
+    }
+}
+
+/// Closes every descriptor of the worker but its standard streams: whatever the program opened
+/// without close-on-exec reached it. Linux closes them in one call (`close_range`, Linux 5.9);
+/// otherwise each one listed in /proc/self/fd or /dev/fd.
+pub(crate) fn close_inherited() {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    // SAFETY: close_range takes integers and closes descriptors that nothing in this new process
+    // refers to yet, the worker calling it first.
+    if unsafe { libc::syscall(libc::SYS_close_range, 3_u32, u32::MAX, 0_u32) } == 0 {
+        return;
+    }
+    let listed = if cfg!(target_vendor = "apple") {
+        "/dev/fd"
+    } else {
+        "/proc/self/fd"
+    };
+    let Ok(entries) = std::fs::read_dir(listed) else {
+        return;
+    };
+    let descriptors: Vec<i32> = entries
+        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
+        .filter(|&descriptor| descriptor > 2)
+        .collect();
+    for descriptor in descriptors {
+        // SAFETY: closes a descriptor the worker inherited, which nothing in it refers to; the
+        // listing's own descriptor is closed already, and closing it again does nothing.
+        unsafe { libc::close(descriptor) };
+    }
+}
+
+/// The open descriptors, from /proc/self/fd (or /dev/fd on Apple systems), each judged by
+/// `fstat` and its open flags. The listing's own descriptor is closed by the time they are judged,
+/// so it drops out.
+pub(crate) fn open_channels() -> Option<Vec<crate::Channel>> {
+    use crate::ChannelKind;
+    let listed = if cfg!(target_vendor = "apple") {
+        "/dev/fd"
+    } else {
+        "/proc/self/fd"
+    };
+    let mut numbers: Vec<i32> = std::fs::read_dir(listed)
+        .ok()?
+        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
+        .collect();
+    numbers.sort_unstable();
+    let channels = numbers.into_iter().filter_map(|descriptor| {
+        // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
+        let mut status: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: as above; fstat touches nothing else.
+        if unsafe { libc::fstat(descriptor, &mut status) } != 0 {
+            return None;
+        }
+        // SAFETY: fcntl with F_GETFL takes an integer and returns the flags.
+        let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+        let writable =
+            flags >= 0 && matches!(flags & libc::O_ACCMODE, libc::O_WRONLY | libc::O_RDWR);
+        let kind = match status.st_mode & libc::S_IFMT {
+            libc::S_IFSOCK => ChannelKind::Socket,
+            libc::S_IFIFO => ChannelKind::Pipe,
+            // SAFETY: isatty takes an integer.
+            libc::S_IFCHR if unsafe { libc::isatty(descriptor) } == 1 => ChannelKind::Terminal,
+            libc::S_IFDIR => ChannelKind::Other,
+            _ if writable => ChannelKind::WritableFile,
+            _ => ChannelKind::Other,
+        };
+        Some(crate::Channel { descriptor, kind })
+    });
+    Some(channels.collect())
+}
+
+#[cfg(not(target_vendor = "apple"))]
+use libc::pthread_attr_setstack;
+
+// libc declares it for every Unix but Apple's, whose C library has it too.
+#[cfg(target_vendor = "apple")]
+unsafe extern "C" {
+    fn pthread_attr_setstack(
+        attributes: *mut libc::pthread_attr_t,
+        stack: *mut libc::c_void,
+        size: libc::size_t,
+    ) -> libc::c_int;
+}
+
+/// Runs `work` on a new thread whose stack is a work area of at least `bytes` (guard pages, out of
+/// dumps and children, locked where the limit allows), wiped after the thread ends. glibc also puts
+/// the thread's own data and static TLS at the top of a stack it is given.
+pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
+    bytes: usize,
+    work: F,
+) -> io::Result<(R, bool)> {
+    use zeroize::Zeroize;
+
+    struct Job<F, R> {
+        work: Option<F>,
+        result: Option<std::thread::Result<R>>,
+    }
+
+    extern "C" fn start<F: FnOnce() -> R, R>(job: *mut libc::c_void) -> *mut libc::c_void {
+        // SAFETY: `job` is the `Job` that `run_on_stack` keeps alive until the join returns, and
+        // only this thread touches it meanwhile.
+        let job = unsafe { &mut *job.cast::<Job<F, R>>() };
+        if let Some(work) = job.work.take() {
+            job.result = Some(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
+        }
+        ptr::null_mut()
+    }
+
+    let size = bytes
+        .next_multiple_of(page_size())
+        .max(libc::PTHREAD_STACK_MIN);
+    let mut stack = Pages::work_area(size).ok_or(io::ErrorKind::OutOfMemory)?;
+    let mut job = Job {
+        work: Some(work),
+        result: None,
+    };
+    // SAFETY: the attribute is initialized before use and destroyed once; the stack pages belong
+    // to `stack`, which outlives the thread because the thread is joined before it is dropped.
+    let made = unsafe {
+        let mut attributes: libc::pthread_attr_t = std::mem::zeroed();
+        let mut thread: libc::pthread_t = std::mem::zeroed();
+        let mut made = libc::pthread_attr_init(&mut attributes);
+        if made == 0 {
+            made = pthread_attr_setstack(&mut attributes, stack.start.as_ptr().cast(), size);
+            if made == 0 {
+                made = libc::pthread_create(
+                    &mut thread,
+                    &attributes,
+                    start::<F, R>,
+                    (&raw mut job).cast(),
+                );
+                if made == 0 {
+                    libc::pthread_join(thread, ptr::null_mut());
+                }
+            }
+            libc::pthread_attr_destroy(&mut attributes);
+        }
+        made
+    };
+    stack.as_mut_slice().zeroize();
+    if made != 0 {
+        return Err(io::Error::from_raw_os_error(made));
+    }
+    match job.result {
+        Some(Ok(value)) => Ok((value, stack.is_locked())),
+        Some(Err(panic)) => std::panic::resume_unwind(panic),
+        None => Err(io::Error::other("the thread did not run the work")),
+    }
+}
+
+/// The worker's standard input and output, unbuffered, so that no copy of a secret stays in a
+/// buffer of the standard library; they stay open when dropped.
+pub(crate) fn worker_streams() -> (ManuallyDrop<File>, ManuallyDrop<File>) {
+    // SAFETY: descriptors 0 and 1 are the pipes the parent made, open for the whole process;
+    // `ManuallyDrop` never closes them.
+    unsafe {
+        (
+            ManuallyDrop::new(File::from_raw_fd(libc::STDIN_FILENO)),
+            ManuallyDrop::new(File::from_raw_fd(libc::STDOUT_FILENO)),
+        )
+    }
 }
 
 /// Sets both limits of RLIMIT_CORE to 0, so that a crash writes no core file and the limit cannot
