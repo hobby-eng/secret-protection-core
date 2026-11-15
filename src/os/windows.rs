@@ -396,9 +396,22 @@ fn without_network(token: HANDLE) -> bool {
         } != 0;
         read.then_some(value)
     };
-    // TOKEN_GROUPS starts with its count, a DWORD: a buffer of one DWORD holds an empty list
-    // whole, and a longer one does not fit.
-    read_word(TokenIsAppContainer) == Some(1) && read_word(TokenCapabilities) == Some(0)
+    // TOKEN_GROUPS starts with its count, a DWORD, in words aligned for the pointers that
+    // follow it. A list too long for the buffer is not read, and is not empty either.
+    let mut groups = [0_u64; 16];
+    let mut length = 0;
+    // SAFETY: the call writes at most the buffer's length into it, and the length it needed.
+    let read = unsafe {
+        GetTokenInformation(
+            token,
+            TokenCapabilities,
+            groups.as_mut_ptr().cast(),
+            size_of::<[u64; 16]>() as u32,
+            &mut length,
+        )
+    } != 0;
+    let none = read && groups.first().is_some_and(|word| word & 0xFFFF_FFFF == 0);
+    read_word(TokenIsAppContainer) == Some(1) && none
 }
 
 /// `DisableExtensionPoints` of PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY: no AppInit DLLs,
