@@ -1,0 +1,1189 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-008",
+  "auditNumber": 8,
+  "date": "2026-11-15",
+  "title": "Windows named-pipe worker and follow-up at 4c3de34",
+  "snapshot": {
+    "commit": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+    "commitComplete": true,
+    "tree": "6a50c52d7a2b9d90a9a2b89bd8cf09128117c48f",
+    "previousCode": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+    "parent": "bd7506328244970891fc230a4abca03824a1bd94",
+    "registerCommit": "f855148fadb9e0aa80b0ff7bc88fb923f0cc9ac0",
+    "workingTree": "The initial input check matched the frozen Git object. All recorded commands finished by 2026-11-15T06:58:21.339671+00:00. The working checkout later changed. Differing inputs with final-publication modification times in UTC: src/os.rs 2026-11-15T07:02:54.607949+00:00, src/os/linux.rs 2026-11-15T07:01:55.046949+00:00, src/os/linux/seccomp.rs 2026-11-15T07:01:23.860650+00:00, src/os/unix.rs 2026-11-15T07:02:54.241065+00:00, src/os/windows.rs 2026-11-15T07:02:54.144366+00:00, src/os/windows/worker.rs 2026-11-15T07:02:54.241307+00:00, src/worker.rs 2026-11-15T07:02:54.240748+00:00. These later edits are outside the audit.",
+    "sourceFingerprint": "eb2dddf1621b34e37e944f0525aca8fdee6f0652fc3654cadf8c785148ee79fc",
+    "coverageInputsFingerprint": "8b161caa23d15172eb9155752a5d8a66a21a013f941a2efa9764ed10a1d47a50"
+  },
+  "reviewer": {
+    "name": "Codex coordinator and two scoped independent reviewers",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "scope": {
+    "delta": [
+      "CHANGELOG.md",
+      "Cargo.toml",
+      "README.md",
+      "docs/COVERAGE.md",
+      "docs/TECHNICAL.md",
+      "src/os.rs",
+      "src/os/unix.rs",
+      "src/os/windows/worker.rs",
+      "src/worker.rs"
+    ],
+    "method": "Reviewed the full diff from f3c2401, traced startup through the child connection, PID gate, isolation report and teardown, challenged scope of the docs and reconciled every earlier numbered finding. The two preceding reports were already in use and were left intact.",
+    "procedures": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    },
+    "manifest": {
+      ".gitignore": "b824220c6110f2b8ccb25db135e6f98ae6b54ef7ed3fd32c08ed8d5dbdf7ec10",
+      "AGENTS.md": "86b438c5e9884f8871c4f011f72944250a8c2fb71a0f419d311890475c88fef7",
+      "CHANGELOG.md": "af7d1d49ebbbc95198f38c8b9e785ddad9e492c59d9272133462966eafdf91e0",
+      "Cargo.lock": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388",
+      "Cargo.toml": "5c0d509c27f272517b3e192c133c17522096d2cc5c7367ce1073ca595a593f19",
+      "LICENSE-APACHE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "LICENSE-MIT": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+      "README.md": "c49ae499a3804b30751374bc8a6fb5891ff964a0c2a26078010ca4e3f4f06ffe",
+      "THIRD_PARTY_NOTICES.md": "26c040a8445d7b95c5239539080c8f51a3e9f75f795f4d4ff14bafd76f6691b9",
+      "clippy.toml": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+      "docs/COVERAGE.md": "daad9cc3b8efadbb99ab30cf77dd022e8c48c7b611f275856b71f46e8c1b8067",
+      "docs/README.md": "b25826fcf35df5cfdfa36f526e84db6af933722f79d268f866907cad6e9198f0",
+      "docs/TECHNICAL.md": "616f520729686c864a9072fc23ac0cda51602eb3d501591dd6ee9df1f7eb2684",
+      "docs/audits/AUD-001-2026-11-15.json": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
+      "docs/audits/AUD-001-2026-11-15.md": "962f3c601035f8052fe0f89d95639934183f6e2ff88df02af46e3eb5ed7450f3",
+      "docs/audits/AUD-001-harnesses/README.md": "9c749018ba366f7570dae4714205d59a4ff1396516c121da84d6f647b2807b12",
+      "docs/audits/AUD-001-harnesses/report_state.rs": "d2a796e7a69f2025fa16a9e977bafdd34a30030b8c819b2b38e051e4b360e2b7",
+      "docs/audits/AUD-002-2026-11-15.json": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+      "docs/audits/AUD-002-2026-11-15.md": "90105eb75934be43b957430954d8adbb7bf1ce2d3316fe6a0cc47793d7a482f8",
+      "docs/audits/AUD-002-harnesses/.gitignore": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+      "docs/audits/AUD-002-harnesses/Cargo.lock": "e3a8e301aca1efa46e49b7ec555911287029bf1d539556499ad7762461229894",
+      "docs/audits/AUD-002-harnesses/Cargo.toml": "7f39ecea7c7879e5ca7106fe718cd711514e38dcd0394f4f0b46f21e64bac965",
+      "docs/audits/AUD-002-harnesses/README.md": "edfb199555744fb5b2ed92d7b9d750dc7a67987f325e776093838925efb821f6",
+      "docs/audits/AUD-002-harnesses/src/linux.rs": "3a127c006c20f71ccd85cf24d27f84b413650c871918bf3937f2448ecf287697",
+      "docs/audits/AUD-002-harnesses/src/main.rs": "5bd62ffea1aaf8357c047cbb158a567123af193457c453b64f5bb396af15fa87",
+      "docs/audits/AUD-003-2026-11-15.json": "bfafe93c07c0a6866f5e5f9ead52a616b23b68f0c11128bbeca8436fa4cd5329",
+      "docs/audits/AUD-003-2026-11-15.md": "560620653344f8f6e6b87282263f94d34f97c0f9128bf0fed387ecf771f53b49",
+      "docs/audits/AUD-004-2026-11-15.json": "9af1f50a2e3ca506aa3e9144c0f1b0628f7fccf30e409ec4d3171c9661a6ef90",
+      "docs/audits/AUD-004-2026-11-15.md": "27cecc528238b1bc5f4ad79901906aac8a43c8794ac1a3b88b0284a81af5e63a",
+      "docs/audits/AUD-005-2026-11-15.json": "a87abef95a64aa737238e447190d1f387528239bd150ffb0e43090238b5260d8",
+      "docs/audits/AUD-005-2026-11-15.md": "3e95856d276ec7217f84c9cc7b2429e33dbcf740d149f08df9ef86b60baa0f8d",
+      "docs/audits/AUD-005-harnesses/.gitignore": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+      "docs/audits/AUD-005-harnesses/Cargo.lock": "f4786e6b2fcf71788adc1da1db3ce332c74f1d3aabc0618c31a4198973ec1c46",
+      "docs/audits/AUD-005-harnesses/Cargo.toml": "d8d6f2c63939093e85d6758d7ccd5a5ab737f3d5f0b3f4b043cf0929df9fcd1d",
+      "docs/audits/AUD-005-harnesses/README.md": "8558c4e3ed39748a42b19b489ef83fac03011863c0537e19f62ecfd1521954a0",
+      "docs/audits/AUD-005-harnesses/src/main.rs": "c5ef8445dbb6d221351370a25ea6508e3e48f74c775305a3f154ba9b187f5cc4",
+      "docs/audits/README.md": "3781e00d71689d9abaeff993d338e82c6e2aae256e48599c4719d84a59ba3782",
+      "dprint.json": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+      "rust-toolchain.toml": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+      "src/channels.rs": "5c59253f2ce8c5a318a380c6d6582b5e43698318a58b27aadca748877c9ede73",
+      "src/input.rs": "bfd5f6ba13848128d7f0ea0b3821fff91afcb814415d0df5b4186cba83912241",
+      "src/lib.rs": "c104fdb9914cb770cdfd444aef06d748462507dc1ede697e76cf364e47e9483d",
+      "src/os.rs": "4afe7369cdfce331a46642caa5193836a1558635f452128e749ebaad205d4484",
+      "src/os/apple.rs": "e9079395c12108b73a4746be8235bc53e0932e03f33b1b3deab77098058d4b82",
+      "src/os/linux.rs": "5bc1e6fc6b9e16e5ea576027d0663a07e2f33e6c7a523171016362e17bcaf211",
+      "src/os/linux/seccomp.rs": "116c25c650c7e4175f8bbd600b18d5545f76bd6412f140b996041e648fe3d327",
+      "src/os/unix.rs": "a6661ba2d45d6f7de30f5c5c94df9772529378b9b8d3288d6e9ebca1cf6647e6",
+      "src/os/windows.rs": "ebab874596ea725b7224d30b30619fe58e6a5889fb5fa90e2134d4a778c63ec8",
+      "src/os/windows/worker.rs": "181a95f60102fca5d86ef2f6a604570917083f18837bdd5d5e88f059ed6b9f35",
+      "src/protect.rs": "c19f5c98ff8d72298f300bf8d98a9f3e4c7cbce6c6121d79abac9ce94bf2b29d",
+      "src/protect/closed.rs": "bb63ae154bb12e419a016bc9297978a850208542fbeb1981215fcee06cb7a1cb",
+      "src/protect/options.rs": "931adeb8f10158b84a074b071113a2e9f084c1020200523b87693f4c51a41da2",
+      "src/stack.rs": "9b77b3802c0d4a2b5056a231b38e516ab76c626dcb8b4692c29ed46963f06c81",
+      "src/worker.rs": "c00b38c669900a1375ceffceac3239692a4494d48451008d0c56d694eab8ec96",
+      "tests/isolation/linux.rs": "1a47c679a0e30b90d1be7bc02f981c301ce20802a95159c4d4009006538e585c",
+      "tests/isolation/linux/roles.rs": "ab7311b4986bdda9b9b916a54ee02809d7f816af59883b48863f82d4a5313f39",
+      "tests/isolation/main.rs": "cdf8b1e50fd132725bddbb9828c322e0318bc6c05bed741982f99816f2900f9a",
+      "tests/isolation/windows.rs": "0b3e83cc0960f078d370b842dd15687d139c92136ef0b55e3d4bbe5c239f7913",
+      "tests/secret_memory.rs": "f5bcee330c7d2ffd035d5232d8aa0684a1cc4937903b253ecd6b0ba22e6f32e0",
+      "tests/worker.rs": "5d5d80292cc69e70d4267a8ecbac89d321a97ceaaa55bcd0c91a51e7a4a05368"
+    },
+    "previousReports": {
+      "AUD-006": "0d660409c4cd0a8a60a00c8119f369292b9f348e3e6cd2e42a0104c9d3412a68",
+      "AUD-007": "7aa2ab92eb654eba0971ba3e4be1274e2a1aa147fbcfa553184c8ba902307f07"
+    }
+  },
+  "checks": {
+    "commands": [
+      {
+        "name": "asan",
+        "command": "cargo +nightly test --offline --locked --target x86_64-unknown-linux-gnu -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip 'locking all memory' --skip 'a secret works under every lock limit' --skip 'the work area lies on pages of its own'",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "RUSTFLAGS": "-Zsanitizer=address"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:55:59.234752+00:00",
+        "endUTC": "2026-11-15T06:56:32.847164+00:00",
+        "result": "54 stock checks passed with four lock-sensitive exclusions. No ASan/LSan error diagnostic in the log. The test binaries disable leak detection.",
+        "logSha256": "9496fa3267b4d9fd0a46e758b5d5050226330c60889776640d4b2dc0212cde99"
+      },
+      {
+        "name": "clippy-aarch64-apple-darwin",
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-apple-darwin -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:24.351307+00:00",
+        "endUTC": "2026-11-15T06:56:26.336347+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "7ab8192d7b35a53221bccca4f617de1ee236bca9a854fa94bebf38818913b3f0"
+      },
+      {
+        "name": "clippy-aarch64-apple-ios",
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-apple-ios -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:26.336894+00:00",
+        "endUTC": "2026-11-15T06:56:28.159478+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "2e385f5d9bef0c117701b46e6e871300c685c1d82986f00d31e67845fd18464c"
+      },
+      {
+        "name": "clippy-aarch64-linux-android",
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-linux-android -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:22.978371+00:00",
+        "endUTC": "2026-11-15T06:56:24.350776+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "74ee52f5827c5b2973b2896875bbdfcf6c5fa867b2bf7773fb7f4b9eeac32170"
+      },
+      {
+        "name": "clippy-wasm32-unknown-unknown",
+        "command": "cargo clippy --all-targets --locked --offline --target wasm32-unknown-unknown -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:32.926950+00:00",
+        "endUTC": "2026-11-15T06:56:33.584641+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "bf1ff535e8446efcdd68116469b05ca2dc02b9c6f85d5de3b6309eff9def5c88"
+      },
+      {
+        "name": "clippy-x86_64-pc-windows-gnu",
+        "command": "cargo clippy --all-targets --locked --offline --target x86_64-pc-windows-gnu -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:28.159999+00:00",
+        "endUTC": "2026-11-15T06:56:32.926465+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "ba9228350e014225d396f1a4f11d41f3172a6bf5966fa780af39f7a425216eeb"
+      },
+      {
+        "name": "clippy-x86_64-unknown-linux-gnu",
+        "command": "cargo clippy --all-targets --locked --offline --target x86_64-unknown-linux-gnu -- -D warnings",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:15.809041+00:00",
+        "endUTC": "2026-11-15T06:56:22.977737+00:00",
+        "result": "All-targets Clippy passed for the named target with warnings denied.",
+        "logSha256": "2417eb1008a1d236c35a1f1814b58612d2ce01e18374046c59e75c6255254711"
+      },
+      {
+        "name": "coverage",
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo llvm-cov clean --workspace\ncargo test --locked --offline -- --skip \"nothing of its parent'\"'\"'s\"\ncargo llvm-cov report --summary-only'",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:32.847638+00:00",
+        "endUTC": "2026-11-15T06:56:54.584926+00:00",
+        "result": "57 checks in the measurement. One worker environment check excluded. 1,765 of 1,984 lines, 88.96% on Linux.",
+        "logSha256": "f4041c16c862db60b1544d4963935ed3dbd31ad1691f60e3adf08b606d195024"
+      },
+      {
+        "name": "format",
+        "command": "cargo fmt --check",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:15.600206+00:00",
+        "endUTC": "2026-11-15T06:56:15.808411+00:00",
+        "result": "Passed.",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "input-manifest",
+        "command": "git diff --exit-code 4c3de34 -- src tests Cargo.toml Cargo.lock rust-toolchain.toml",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:55:54.529958+00:00",
+        "endUTC": "2026-11-15T06:55:54.532678+00:00",
+        "result": "No diff in the source/tests and Cargo inputs at the start of the run.",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "miri",
+        "command": "cargo +nightly miri test --locked --offline --lib os::tests::unwritten_bytes_are_wiped_without_being_read -- --exact",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:39.886203+00:00",
+        "endUTC": "2026-11-15T06:56:49.973552+00:00",
+        "result": "One targeted uninitialized-wipe helper passed.",
+        "logSha256": "7a72224a493ca977c6fd7c53982e81afe3a18a56fc15d18b6a9b67233dc3ced5"
+      },
+      {
+        "name": "native",
+        "command": "cargo test --locked --offline",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:55:54.532947+00:00",
+        "endUTC": "2026-11-15T06:56:15.599605+00:00",
+        "result": "58 passed, comprising 21 unit, 17 isolation, seven memory and 13 worker cases. Zero doctests.",
+        "logSha256": "8f1044279a260e3dd285a5d81abd492f6bfaa99bd3ffbd6b7ddf4ebc481fd9ec"
+      },
+      {
+        "name": "nightly",
+        "command": "rustc +nightly -vV",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:50.043751+00:00",
+        "endUTC": "2026-11-15T06:56:50.068692+00:00",
+        "result": "1.102.0-nightly (5f4effd57).",
+        "logSha256": "072391379b408a5c6c30ef78ad74e86d15c0eebf2c02c1e70ba1992bdae7752b"
+      },
+      {
+        "name": "release-asm",
+        "command": "cargo rustc --release --locked --offline --lib -- --emit=asm",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:54.585358+00:00",
+        "endUTC": "2026-11-15T06:57:01.241594+00:00",
+        "result": "Optimized x86-64 assembly emitted.",
+        "logSha256": "ab5cf4e07d16fb8344977b35bf1dcaa9ae1ebaec3f908fb948bfb542b7393df3"
+      },
+      {
+        "name": "rustc",
+        "command": "rustc -vV",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:49.974123+00:00",
+        "endUTC": "2026-11-15T06:56:50.043225+00:00",
+        "result": "1.99.1, LLVM 23.1.1.",
+        "logSha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+      },
+      {
+        "name": "rustsec",
+        "command": "cargo audit --no-fetch --db <cargo-home>/advisory-db --no-yanked",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:33.585048+00:00",
+        "endUTC": "2026-11-15T06:56:33.851400+00:00",
+        "result": "Local RustSec 4ef2df8e806a65e2f1ecc14f56f51249062b23d6. Scanned 15 dependencies. No matching advisory. Yanked lookup excluded.",
+        "logSha256": "8a42a4df92253530832e6226b39229ca643b97d0fa9cfc6e26230ae6719309ae"
+      },
+      {
+        "name": "signature",
+        "command": "git -c gpg.ssh.allowedSignersFile=<workspace-public-signers> verify-commit 4c3de34eed462c7a85f875467a7bfcdb421e082b",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:56:33.851781+00:00",
+        "endUTC": "2026-11-15T06:56:33.872524+00:00",
+        "result": "Signature verified with the workspace public key.",
+        "logSha256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202"
+      },
+      {
+        "name": "windows-test-link",
+        "command": "cargo test --no-run --target x86_64-pc-windows-gnu --locked --offline",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-checks",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true"
+        },
+        "exit": 101,
+        "startUTC": "2026-11-15T06:56:33.872969+00:00",
+        "endUTC": "2026-11-15T06:56:39.885813+00:00",
+        "result": "Initial default GNU cross-link attempt could not find x86_64-w64-mingw32-dlltool. No executable was obtained with that command.",
+        "logSha256": "f77e79b8da4b85b1cd4dfd148637284d1f27b4c21975427c7cbef0fe7cc8afca"
+      },
+      {
+        "name": "windows-zig-link",
+        "command": "cargo zigbuild --tests --target x86_64-pc-windows-gnu --locked --offline",
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-zig-link",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS": "-C dlltool=/usr/bin/llvm-dlltool-21",
+          "ZIG_GLOBAL_CACHE_DIR": "<audit-output>/zigcache",
+          "XDG_CACHE_HOME": "<audit-output>/toolcache",
+          "PATH": "workspace Zig 0.17.1 added before the ordinary PATH"
+        },
+        "exit": 0,
+        "startUTC": "2026-11-15T06:57:46.584409+00:00",
+        "endUTC": "2026-11-15T06:58:21.339671+00:00",
+        "result": "A separate build with workspace Zig 0.17.1 and llvm-dlltool-21 linked four x86-64 Windows PE test executables. No Windows test process was run.",
+        "logSha256": "73a835ed8bffa67211df2d6caae68db59e4e511ce390593b7e395eb8158bd6ff"
+      }
+    ],
+    "coverageLedger": [
+      {
+        "id": "CHECK-SEC-001",
+        "title": "Threat model and secret ownership",
+        "result": "reviewed",
+        "evidence": "Client/parent handle ownership and who may open the channel."
+      },
+      {
+        "id": "CHECK-SEC-002",
+        "title": "Secret Vault, CSP, sandbox, and transport",
+        "result": "reviewed",
+        "evidence": "AppContainer and worker admission chain."
+      },
+      {
+        "id": "CHECK-SEC-003",
+        "title": "Network egress and secret guards",
+        "result": "reviewed",
+        "evidence": "Network exclusion unchanged; local endpoints and remote-client rejection reviewed."
+      },
+      {
+        "id": "CHECK-SEC-004",
+        "title": "Randomness, encryption, and authentication",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-SEC-005",
+        "title": "Secret lifecycle and exceptional paths",
+        "result": "reviewed",
+        "evidence": "New private endpoint lifetime, clean/error return and teardown."
+      },
+      {
+        "id": "CHECK-SEC-006",
+        "title": "Browser injection, persistence, and sensitive APIs",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-SEC-007",
+        "title": "Read-only guarantees and availability bounds",
+        "result": "reviewed",
+        "evidence": "Peer mismatch and startup timing, bounded teardown distinct from initial blocking."
+      },
+      {
+        "id": "CHECK-FUN-001",
+        "title": "BIP39, entropy, and seed interpretation",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-002",
+        "title": "HD derivation and every coin/profile",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-003",
+        "title": "BIP85, BIP38, messages, and Silent Payments",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-004",
+        "title": "Scripts, descriptors, Miniscript, and multisig",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-005",
+        "title": "Transactions, PSBT version context, and commitments",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-006",
+        "title": "Recovery and backup formats",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-FUN-007",
+        "title": "Discovery, providers, proofs, and accounting",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-API-001",
+        "title": "Actual dependency call contracts",
+        "result": "reviewed",
+        "evidence": "Win32 DACL, handle ownership, process creation and named-pipe contracts."
+      },
+      {
+        "id": "CHECK-API-002",
+        "title": "Async state, cancellation, and revisions",
+        "result": "reviewed",
+        "evidence": "Concurrent starts, PID attribution, worker report order."
+      },
+      {
+        "id": "CHECK-API-003",
+        "title": "Public export schema and monetary fidelity",
+        "result": "reviewed",
+        "evidence": "Prior strict outcomes reconciled against the source delta."
+      },
+      {
+        "id": "CHECK-API-004",
+        "title": "Encoding and import/export interoperability",
+        "result": "reviewed",
+        "evidence": "New settings parser, endpoint name grammar, frame protocol."
+      },
+      {
+        "id": "CHECK-BLD-001",
+        "title": "Manifest, flags, and feature composition",
+        "result": "reviewed",
+        "evidence": "Windows cryptography feature and six-target Clippy."
+      },
+      {
+        "id": "CHECK-BLD-002",
+        "title": "Matrix depth and runtime sampling",
+        "result": "reviewed",
+        "evidence": "58 Linux checks, ASan, Miri, coverage and four cross-linked Windows executables."
+      },
+      {
+        "id": "CHECK-BLD-003",
+        "title": "Lockfiles, source provenance, and licenses",
+        "result": "reviewed",
+        "evidence": "Locked offline Cargo and local RustSec database."
+      },
+      {
+        "id": "CHECK-BLD-004",
+        "title": "Canonical WASM and Docker bytes",
+        "result": "reviewed",
+        "evidence": "WASM Clippy only on this snapshot. No new browser/packaged release."
+      },
+      {
+        "id": "CHECK-BLD-005",
+        "title": "Artifacts, CI, and release workflows",
+        "result": "reviewed",
+        "evidence": "No tracked native Windows CI evidence in the frozen commit."
+      },
+      {
+        "id": "CHECK-UI-001",
+        "title": "Real files and representative viewports",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-UI-002",
+        "title": "Navigation, inputs, and state preservation",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-UI-003",
+        "title": "Secret visibility, help, QR, and accessibility",
+        "result": "not-applicable",
+        "evidence": "No wallet protocol, cryptographic format, browser application or GUI for this check in this OS protection crate."
+      },
+      {
+        "id": "CHECK-ARC-001",
+        "title": "Ownership, imports, and composition seams",
+        "result": "reviewed",
+        "evidence": "Platform worker stream interfaces, creation, admission and ownership."
+      },
+      {
+        "id": "CHECK-ARC-002",
+        "title": "Dead code, duplication, and false positives",
+        "result": "reviewed",
+        "evidence": "Compared prior findings in shared worker and unchanged Linux/Windows mitigation code."
+      },
+      {
+        "id": "CHECK-ARC-003",
+        "title": "Comments, tests, and production-path fidelity",
+        "result": "reviewed",
+        "evidence": "Inspected parser regression and Linux-only/conditional checks in worker integration tests."
+      },
+      {
+        "id": "CHECK-DOC-001",
+        "title": "User-facing capability and safety descriptions",
+        "result": "reviewed",
+        "evidence": "Compared the exclusive-open guarantee to DACL and PID checks."
+      },
+      {
+        "id": "CHECK-DOC-002",
+        "title": "Commands, metadata, links, and legal materials",
+        "result": "reviewed",
+        "evidence": "Cargo manifest, CLI results, coverage docs and published OS contracts."
+      },
+      {
+        "id": "CHECK-DOC-003",
+        "title": "Audit records and evidence consistency",
+        "result": "reviewed",
+        "evidence": "Snapshot fingerprints, prior statuses, paired reports and local logs."
+      }
+    ],
+    "windowsTestArtifacts": {
+      "isolation-6d2b8851b1d8e666.exe": "d5f56d8bc4aa13b91cff807e0e7abd34ec5662862eeeec23cfc09fbc6d2d9602",
+      "secret_memory-e5469945c18c9b38.exe": "9ead43f75c59e9d0083a9ceea6cd1ea2411250fd864f1af07d2eeca8a783f70e",
+      "secret_protection_core-4aabe33ef482d3ac.exe": "c26d5269a9209b23a4f7bb3bbb423e606fee2e640f6f1f7de105c9c4efc9e6b2",
+      "worker-98dd55f31f8eb310.exe": "b3407fa8801e6cbdf0ea98bf1389ab7a5c4ee3c95be1cb6a1b77adbdfad3328c"
+    },
+    "importListingSha256": "d98df8d5498f66f5412f38b48d6d47e51a960c5c902e9b971e755ca0a0899d90"
+  },
+  "findings": [
+    {
+      "id": "AUD-008-SEC001",
+      "kind": "finding",
+      "category": "SEC",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The pipe access list admits ordinary processes of the same user",
+      "evidence": [
+        "src/os/windows/worker.rs:124",
+        "src/os/windows/worker.rs:52",
+        "src/os/windows/worker.rs:203",
+        "docs/TECHNICAL.md:166"
+      ],
+      "expected": "The documented pre-connection access boundary must match the effective ACL.",
+      "observed": "Two independent allow entries grant the client access mask to the user SID and the package SID. For a normal desktop token the user entry can supply the requested access. The extra package entry does not require membership in that package for such a token. The low mandatory label also permits a low-integrity writer subject to the DACL.",
+      "impact": "A different permitted local client that reaches the single instance first can abort startup. The subsequent PID comparison rejects the wrong peer before the parent admits any secret request. There is no demonstrated secret transfer.",
+      "recommendedFix": "Describe the actual DACL and retain the PID gate. If exclusive pre-connection access is required, establish it through the supported broker/package security model. Decide whether an unexpected first client should be recoverable.",
+      "requiredVerification": "On native Windows validate the intended token, a regular same-user token, and the parent admission decision. A rejected peer must never receive application data.",
+      "reproduction": "Frozen-source control-flow comparison with the platform or input contract. Native Windows was not run.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights",
+        "https://learn.microsoft.com/en-us/windows/win32/secauthz/dacls-and-aces",
+        "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer"
+      ]
+    },
+    {
+      "id": "AUD-008-FUN001",
+      "kind": "finding",
+      "category": "FUN",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The client endpoint has no owner that closes it when serve returns",
+      "evidence": [
+        "src/os/windows/worker.rs:457",
+        "src/os/windows/worker.rs:471",
+        "src/worker.rs:225"
+      ],
+      "expected": "A newly opened private endpoint must have one valid owner per raw handle and close on all service exit paths.",
+      "observed": "The worker uses CreateFileW once and constructs two File owners from that same raw handle. Wrapping both in ManuallyDrop suppresses both destructors. The handle acquired by this invocation is not a borrowed standard stream.",
+      "impact": "When service ends or unwinds and the process stays alive, the endpoint remains open, consuming a handle and potentially delaying an EOF indication. Immediate process exit releases it.",
+      "recommendedFix": "Use one RAII File with borrowed reader/writer access, or keep two separately owned handles obtained by duplicating the first.",
+      "requiredVerification": "Verify handle lifetime and peer EOF on normal return, I/O error and unwind while the worker process stays alive.",
+      "reproduction": "Frozen-source control-flow comparison with the platform or input contract. Native Windows was not run.",
+      "references": [
+        "https://doc.rust-lang.org/std/os/windows/io/trait.FromRawHandle.html#safety"
+      ]
+    },
+    {
+      "id": "AUD-008-API001",
+      "kind": "finding",
+      "category": "API",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Malformed worker settings can still activate worker mode",
+      "evidence": [
+        "src/worker.rs:203",
+        "src/worker.rs:214",
+        "src/worker.rs:225",
+        "src/os/windows/worker.rs:450"
+      ],
+      "expected": "Malformed configuration should not start irreversible worker bootstrap. The parser comment promises rejection of other text.",
+      "observed": "The terminal field is true only for 1 and maps every other string, including malformed or empty values, to false. The common parser does not enforce the platform-specific channel shape. Windows checks its name only after Isolation::enter_with. The previous version already used a permissive flag comparison, and the new format and regression retain that behavior.",
+      "impact": "A malformed environment value can select worker mode and run cleanup/isolation before the configuration error is recognized. The normal library-generated setting has the expected shape. This is distinct from descriptor ownership during an otherwise valid bootstrap.",
+      "recommendedFix": "Validate the exact supported flag and platform-specific transport shape before cleanup. Retain explicitly documented compatibility for settings the parent actually emits.",
+      "requiredVerification": "Add parser tests for missing, invalid and platform-inapplicable fields, and verify the public entry takes no irreversible action on an invalid setting.",
+      "reproduction": "Frozen-source control-flow comparison with the platform or input contract. Native Windows was not run.",
+      "references": []
+    }
+  ],
+  "observations": [],
+  "remediation": [
+    {
+      "id": "AUD-001-SEC001",
+      "title": "Linux secret-memory allocation and concurrent fork share an inheritance window",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-001-SEC002",
+      "title": "Unix worker acknowledges isolation after incomplete descriptor cleanup",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC003",
+      "title": "Linux tracer evidence for one thread is reported process-wide",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC004",
+      "title": "Windows worker pipe ends are briefly inheritable by unrelated launches",
+      "status": "fixed",
+      "fixCommit": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "verificationCommit": null,
+      "evidence": "Both new endpoint handles are non-inheritable and CreateProcessW sets bInheritHandles to FALSE. The original temporary inheritance window is absent. Peer PID is checked before the report and first application request. The full native acceptance run is outstanding. New transport issues have separate IDs.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-001-SEC005",
+      "title": "macOS accepts local probe denials without a confirmed sandbox profile",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC006",
+      "title": "Signal-domain isolation can satisfy a stricter self-only claim",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC007",
+      "title": "Unsupported speculation control is accepted as confirmed mitigation",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC008",
+      "title": "Protected stack properties cannot be required before secret work",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC009",
+      "title": "Stack wiping assumes every post-pthread byte is an initialized Rust u8",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC010",
+      "title": "ClosedSecret forgets the previous access mode after a refused reseal",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-SEC011",
+      "title": "Windows dynamic-code status ignores permitted exemptions",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN001",
+      "title": "Dropping a worker can wait forever after rejecting a large reply",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN002",
+      "title": "Fork-based work inside a protected stack may lose its active stack",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-001-API001",
+      "title": "MemoryLocked loses a successful process lock on re-entry",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Linux lock-marker machinery is unchanged. A successful mlockall without an allocated fork-wiped marker can disappear from a later default report.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-API002",
+      "title": "open_channels can return an apparently complete partial inventory",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-API003",
+      "title": "Detailed protection reports describe possible proofs as if observed",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN003",
+      "title": "Oversized protected stack requests overflow during rounding",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN004",
+      "title": "Hard-coded MCL_ONFAULT is incorrect on some Linux architectures",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN005",
+      "title": "Windows work areas skip a potentially available page lock",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-FUN006",
+      "title": "Windows cleanup is attempted on a potentially uninitialized attribute list",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-DOC001",
+      "title": "Keystroke serialization leaves wiping to a caller that is promised a wipe",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-001-DOC002",
+      "title": "Usage guidance overstates disk guarantees and lists shipped restrictions as planned",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-SEC001",
+      "title": "Worker keeps inherited channels when both descriptor-closing methods fail",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "title": "Sequential namespace calls leave IPC shared while network isolation succeeds",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "title": "Several advertised Windows protections discard their read-back results",
+      "status": "fixed",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "title": "Dropping a worker after an oversized answer can deadlock both processes",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-API001",
+      "title": "Overflowing protected-stack size panics instead of returning an error",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "title": "Technical notes still describe shipped options as future work",
+      "status": "verified",
+      "fixCommit": "6aa7e56fb39dc21c09ac939020423ec13896b2eb",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false
+    },
+    {
+      "id": "AUD-003-SEC001",
+      "title": "A selective host policy can satisfy strict socket checks",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-SEC002",
+      "title": "A tracer can be invisible to the procfs PID namespace",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-SEC003",
+      "title": "Signal-filter ownership is recorded before installation succeeds",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Process-wide SIGNAL_OWNER and a per-thread seccomp installation are byte-identical to AUD-006. One thread can still change the reported ownership of another thread’s inherited rules.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-FUN001",
+      "title": "Worker teardown can wait indefinitely after termination is requested",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-API001",
+      "title": "A previously refused Landlock layer is not retried on identical entry",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-DOC001",
+      "title": "The technical notes describe an obsolete seccomp marker",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-003-BLD001",
+      "title": "A fatal child sanitizer diagnostic can coexist with a green test run",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-004-SEC001",
+      "title": "Default DLL search policy is presented as a universal allow-list",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The public no_planted_libraries claim about every bare name and the default DLL lookup mechanism are unchanged. The name-based default is still overridable on individual loads.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-004-API001",
+      "title": "Concurrent macOS isolation calls can erase confirmation of the sandbox",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-004-API002",
+      "title": "The child-process policy ignores its secure-process exception",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-004-DOC001",
+      "title": "ClosedSecret availability of page sealing is overstated",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-005-DOC001",
+      "title": "Existing Windows job need not confirm the documented one-process limit",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits.",
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": true
+    },
+    {
+      "id": "AUD-006-FUN001",
+      "title": "Worker::end runs the teardown sequence twice",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. Worker::end still computes finish() and Drop calls finish() again."
+    },
+    {
+      "id": "AUD-006-SEC001",
+      "title": "Safe Unix worker bootstrap can close descriptors still owned by application code",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. Unix serve still performs broad descriptor cleanup once the environment selects worker mode."
+    },
+    {
+      "id": "AUD-006-FUN002",
+      "title": "The allocation gate ignores failure to block signals",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. pthread_sigmask still has an unchecked error before acquisition of the fork gate."
+    },
+    {
+      "id": "AUD-006-DOC001",
+      "title": "The terminal worker API claims it disables echo",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. The terminal API still says it turns echo off and the Unix launcher only inherits stderr."
+    },
+    {
+      "id": "AUD-006-DOC002",
+      "title": "The Linux file-change outcome differs from the documented external-denial case",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. NoFileChanges still returns Refused without the filter and the guide describes Unknown."
+    },
+    {
+      "id": "AUD-006-BLD001",
+      "title": "A failed grandchild creation or wait can pass the same-PID regression",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "assessedAt": "4c3de34eed462c7a85f875467a7bfcdb421e082b",
+      "priorAudit": "AUD-006",
+      "activeInIndex": false,
+      "evidence": "Compared the affected public operation and its evidence against the patch. The cited mechanism remains. The same-PID regression still consumes status without checking the inner fork and wait results."
+    }
+  ],
+  "limitations": [
+    "Native execution used Linux x86-64. The Windows test executables were cross-linked and inspected for the relevant imports. None ran under Windows. macOS, iOS, Android and a browser were not executed. AUD-006’s V8 smoke test belongs to the previous snapshot.",
+    "Microsoft documents the LOCAL pipe namespace for AppContainer/UWP and packaged deployments. This implementation fixes a global pipe prefix and accepts only that prefix. The reviewed topology uses an unpackaged Win32 server and a manually launched AppContainer. Its interoperability must be measured on each supported packaging profile. Neither a DACL nor a successful link establishes it; no universal launch failure was observed.",
+    "The parent checks the OS-reported client PID against the PID returned by CreateProcessW while retaining the process handle. Remote clients are rejected, the name uses 16 random bytes and only one pipe instance is allowed. These checks do not prove that no same-user process may attempt to connect.",
+    "The two supported-OS reviewers used static code review and the coordinator checked Microsoft and Rust primary documentation. No channel capture, unauthorized secret transfer or vulnerability reproduction was attempted. Previous mutation results were not replayed."
+  ],
+  "nativeAcceptance": [
+    "On a supported native Windows host, run the stock worker test executable from a directory readable and executable by the worker AppContainer. Use public sample data. Record OS build, packaging mode and diagnostic stage for a failure.",
+    "Verify a full public request/response and clean child exit, rejection before admission for a mismatched client, and channel closure when serve returns while the process remains alive. Include concurrent ordinary process launches and the actual deployment namespace.",
+    "The native pipeline owns these checks. On Linux, the worker tests exercise the Unix transport and the parser. No security conclusion about native ACL checks follows from that suite."
+  ],
+  "references": {
+    "acl": "https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights",
+    "entries": "https://learn.microsoft.com/en-us/windows/win32/secauthz/dacls-and-aces",
+    "lowbox": "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer",
+    "pid": "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid",
+    "process": "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information",
+    "connect": "https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe",
+    "local": "https://learn.microsoft.com/en-us/windows/uwp/communication/interprocess-communication#pipes",
+    "apps": "https://learn.microsoft.com/en-us/windows/apps/develop/communication/interprocess-communication#pipes",
+    "own": "https://doc.rust-lang.org/std/os/windows/io/trait.FromRawHandle.html#safety"
+  }
+}

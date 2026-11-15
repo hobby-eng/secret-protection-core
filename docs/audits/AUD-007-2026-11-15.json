@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-007",
+  "auditNumber": 7,
+  "date": "2026-11-15",
+  "title": "Independent verification of secret-protection-core remediation",
+  "reviewer": {
+    "name": "Kimi Code",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+    "commitComplete": true,
+    "workingTree": "Clean at capture and during the full test. Later unrelated changes in Cargo.toml, src/os.rs, src/os/unix.rs, src/os/windows/worker.rs and src/worker.rs were preserved and excluded.",
+    "sourceFingerprint": "0f9f4e3496af0cdaa926cc044911865e64b6fe8738e5f9231cf64aba395a54c4"
+  },
+  "scope": {
+    "included": [
+      "Complete 6aa7e56..f3c2401 source and test diff",
+      "All previous findings and current public contracts",
+      "First-use fork gating and bounded fallback",
+      "Filter and signal ownership",
+      "PID-namespace reporting and memory-lock marking",
+      "Worker launch, admission and bounded teardown",
+      "Windows and Apple static platform review",
+      "Documentation"
+    ],
+    "excluded": [
+      "Windows, macOS, Android, iOS and WebAssembly runtime",
+      "Release artifacts and CI",
+      "Later uncommitted Windows-worker changes",
+      "Repeated sanitizer, Miri, assembly, coverage, mutation and advisory campaigns"
+    ],
+    "environment": "Linux 7.0.0-43-generic x86-64; rustc and Cargo 1.99.1",
+    "tree": "ae2d7bc2dd286b29db4cb99f3c7c003b4b4a3d91",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked --offline",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "20 unit, 17 isolation, 7 secret-memory and 13 worker checks; 0 doc-tests",
+      "evidence": "local AUD-007-evidence/full-test.log; start timestamp not captured"
+    },
+    {
+      "command": "cargo run --quiet --locked --offline --manifest-path docs/audits/AUD-005-harnesses/Cargo.toml",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "child outcome=Refused, kill(self)=-1, kill(parent)=0; the child no longer claims the parent's rule",
+      "evidence": "local AUD-007-evidence/signal-owner.log; start timestamp not captured"
+    },
+    {
+      "command": "cargo fmt --check after unrelated source changes",
+      "outcome": "not-applicable-to-baseline",
+      "exitCode": 1,
+      "result": "Failure belongs to the later uncommitted Windows-worker change, not f3c2401",
+      "evidence": "local AUD-007-evidence/post-snapshot-format.log"
+    },
+    {
+      "command": "six-target clippy",
+      "outcome": "not-run",
+      "result": "The source changed before the matrix started; no cross-snapshot result claimed"
+    }
+  ],
+  "findings": [],
+  "observations": [],
+  "confirmations": [
+    {
+      "id": "AUD-001-SEC004",
+      "severity": "high",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "The two child pipe ends are made inheritable around CreateProcessW. LAUNCHING covers only this crate; a concurrent broad-inheritance launcher can receive them. Windows runtime was not available and later uncommitted changes were excluded."
+    },
+    {
+      "id": "AUD-003-SEC003",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "The independent fork/upgrade harness now returns Refused for the child and exits 0."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-001-SEC004",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Static source review; Windows runtime pending"
+    },
+    {
+      "id": "AUD-002-SEC001",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Worker admission and inherited-descriptor tests passed"
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Namespace isolation tests passed"
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "status": "fixed",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": null,
+      "evidence": "Windows policy read-backs exist; native runtime pending"
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Large-answer and teardown tests passed"
+    },
+    {
+      "id": "AUD-002-API001",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Checked stack-size regression passed"
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "status": "verified",
+      "fixCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "verificationCommit": "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f",
+      "evidence": "Previous future-work and test-count text corrected"
+    }
+  ],
+  "limitations": [
+    "Only Linux runtime was executed; Windows, macOS, Android, iOS and WebAssembly remain unexecuted.",
+    "The six-target clippy matrix was not run independently because the source changed before it started; its post-snapshot formatting failure is not attributed to f3c2401.",
+    "No sanitizer, Miri, assembly, coverage, mutation or advisory campaign was repeated.",
+    "Later uncommitted Windows-worker changes require separate review and were not used to close AUD-001-SEC004.",
+    "This is not a security certification or release acceptance."
+  ]
+}
