@@ -8,6 +8,7 @@
               foreign functions"
 )]
 
+mod threads;
 mod worker;
 
 use std::collections::BTreeMap;
@@ -19,8 +20,8 @@ use std::slice;
 use std::sync::Once;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, ERROR_SUCCESS, GetLastError, HANDLE,
-    INVALID_HANDLE_VALUE, LocalFree, S_OK,
+    CloseHandle, ERROR_INVALID_PARAMETER, ERROR_SUCCESS, GetLastError, HANDLE, LocalFree, S_OK,
+    WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, ConvertStringSidToSidW, GetSecurityInfo,
@@ -38,9 +39,6 @@ use windows_sys::Win32::System::Console::{
     GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE, WriteConsoleW,
 };
 use windows_sys::Win32::System::Diagnostics::Debug::CheckRemoteDebuggerPresent;
-use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
-};
 use windows_sys::Win32::System::ErrorReporting::{
     WER_FAULT_REPORTING_FLAG_NOHEAP, WerRegisterExcludedMemoryBlock, WerSetFlags,
     WerUnregisterExcludedMemoryBlock,
@@ -68,6 +66,7 @@ use windows_sys::Win32::System::Threading::{
     OpenProcessToken, OpenThread, PROCESS_MITIGATION_POLICY, ProcessChildProcessPolicy,
     ProcessDynamicCodePolicy, ProcessExtensionPointDisablePolicy, ProcessImageLoadPolicy,
     ProcessSideChannelIsolationPolicy, ProcessSignaturePolicy, SetProcessMitigationPolicy,
+    WaitForSingleObject,
 };
 use windows_sys::core::{PCWSTR, w};
 
@@ -677,46 +676,33 @@ fn restrict_default(token: HANDLE) -> bool {
 /// First pass hardens thread ACLs and pins handles. The second pass checks current
 /// effective tokens after the primary token has been lowered.
 fn inspect_threads(set_acl: bool, pinned: &mut BTreeMap<u32, OwnedHandle>) -> (bool, Outcome) {
-    // SAFETY: takes a snapshot of the threads of the system, closed below.
-    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
-    if snapshot == INVALID_HANDLE_VALUE {
+    let Some(ids) = threads::current_ids() else {
         return (false, Outcome::Unknown);
-    }
-    // SAFETY: returns the number of this process.
-    let process = unsafe { GetCurrentProcessId() };
-    let mut entry = THREADENTRY32 {
-        dwSize: size_of::<THREADENTRY32>() as u32,
-        ..THREADENTRY32::default()
     };
-    // SAFETY: fills `entry`, whose size it names, from the snapshot.
-    let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
-    // The list holds the calling thread at least.
-    let mut all = more;
+    // SAFETY: returns this process's ID.
+    let process = unsafe { GetCurrentProcessId() };
+    let mut all = true;
     let mut integrity = Outcome::Confirmed;
-    let mut saw_thread = false;
-    while more {
-        if entry.th32OwnerProcessID == process {
-            let (restricted, level) = inspect_thread(entry.th32ThreadID, process, set_acl, pinned);
-            all &= restricted;
-            if let Some(level) = level {
-                saw_thread = true;
-                if level == Outcome::Refused || integrity == Outcome::Confirmed {
-                    integrity = level;
-                }
-            }
+    for id in ids {
+        let (restricted, level) = inspect_thread(id, process, set_acl, pinned);
+        all &= restricted;
+        if let Some(level) = level
+            && (level == Outcome::Refused || integrity == Outcome::Confirmed)
+        {
+            integrity = level;
         }
-        // SAFETY: as above.
-        more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
     }
-    // SAFETY: reads this thread's last error, which Thread32Next set: the end of the list, or a
-    // failure that may have left threads out.
-    let complete = unsafe { GetLastError() } == ERROR_NO_MORE_FILES && saw_thread;
-    if !complete && integrity == Outcome::Confirmed {
-        integrity = Outcome::Unknown;
+    if !set_acl && integrity == Outcome::Confirmed {
+        // A pinned thread missing from the second walk must have exited. A failed wait
+        // cannot establish that the snapshot covered every previously known live thread.
+        let exited = pinned.values().all(|thread| {
+            // SAFETY: the retained handle is live, and a zero timeout never blocks.
+            unsafe { WaitForSingleObject(thread.as_raw_handle().cast(), 0) == WAIT_OBJECT_0 }
+        });
+        if !exited {
+            integrity = Outcome::Unknown;
+        }
     }
-    all &= complete;
-    // SAFETY: closes the snapshot taken above, once.
-    unsafe { CloseHandle(snapshot) };
     (all, integrity)
 }
 
@@ -752,7 +738,7 @@ fn inspect_thread(
         } else {
             // A newly created thread can reuse a numeric ID. Only use the earlier rights
             // when Windows confirms both handles identify the very same thread object.
-            let original = pinned.get(&id).filter(|handle| {
+            let original = pinned.remove(&id).filter(|handle| {
                 // SAFETY: both handles remain live for this identity comparison.
                 unsafe {
                     windows_sys::Win32::Foundation::CompareObjectHandles(
@@ -761,7 +747,11 @@ fn inspect_thread(
                     ) != 0
                 }
             });
-            thread_integrity(original.map_or(thread, |handle| handle.as_raw_handle().cast()))
+            thread_integrity(
+                original
+                    .as_ref()
+                    .map_or(thread, |handle| handle.as_raw_handle().cast()),
+            )
         })
     } else if owner == 0 {
         Some(Outcome::Unknown)
