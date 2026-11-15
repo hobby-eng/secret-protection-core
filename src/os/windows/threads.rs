@@ -73,14 +73,66 @@ pub(super) fn current_ids() -> io::Result<Vec<u32>> {
         let bytes = unsafe { slice::from_raw_parts(words.as_ptr().cast::<u8>(), used as usize) };
         // SAFETY: these are the caller's process and thread IDs.
         let (process, caller) = unsafe { (GetCurrentProcessId(), GetCurrentThreadId()) };
-        return own_threads(bytes, process, caller)
-            .ok_or_else(|| io::ErrorKind::InvalidData.into());
+        return own_threads(bytes, process, caller).ok_or_else(|| {
+            #[cfg(test)]
+            return io::Error::new(
+                io::ErrorKind::InvalidData,
+                inventory_failure(bytes, process),
+            );
+            #[cfg(not(test))]
+            io::Error::from(io::ErrorKind::InvalidData)
+        });
     }
     Err(io::ErrorKind::FileTooLarge.into())
 }
 
 fn field<const N: usize>(record: &[u8], offset: usize) -> Option<[u8; N]> {
     record.get(offset..)?.first_chunk::<N>().copied()
+}
+
+/// Describe why a rejected process list cannot attest this process, without exposing
+/// names, handles, or identifiers of other processes.
+#[cfg(test)]
+fn inventory_failure(mut bytes: &[u8], process: u32) -> String {
+    type P = SYSTEM_PROCESS_INFORMATION;
+    type T = SYSTEM_THREAD_INFORMATION;
+    let mut records = 0;
+    let length = bytes.len();
+    while let Some(header) = bytes.get(..size_of::<P>()) {
+        let Some(pid) = field(header, offset_of!(P, UniqueProcessId)).map(usize::from_ne_bytes)
+        else {
+            break;
+        };
+        let Some(next) = field(header, offset_of!(P, NextEntryOffset)).map(u32::from_ne_bytes)
+        else {
+            break;
+        };
+        records += 1;
+        if pid == process as usize {
+            let count = field(header, offset_of!(P, NumberOfThreads)).map(u32::from_ne_bytes);
+            let thread = bytes.get(size_of::<P>()..);
+            let first_owner = thread
+                .and_then(|t| {
+                    field(
+                        t,
+                        offset_of!(T, ClientId) + offset_of!(CLIENT_ID, UniqueProcess),
+                    )
+                })
+                .map(usize::from_ne_bytes);
+            return format!(
+                "incomplete own-process thread list: count={count:?}, own first entry={}, record bytes={next}, total bytes={length}",
+                first_owner == Some(pid)
+            );
+        }
+        if next == 0 || (next as usize) < size_of::<P>() {
+            break;
+        }
+        let Some(rest) = bytes.get(next as usize..) else {
+            break;
+        };
+        bytes = rest;
+    }
+    format!("own process missing from kernel inventory ({records} process records, {length} bytes)")
 }
 
 fn own_threads(mut remaining: &[u8], process: u32, caller: u32) -> Option<Vec<u32>> {
