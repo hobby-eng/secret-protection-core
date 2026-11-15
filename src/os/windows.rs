@@ -676,7 +676,7 @@ fn restrict_default(token: HANDLE) -> bool {
 /// First pass hardens thread ACLs and pins handles. The second pass checks current
 /// effective tokens after the primary token has been lowered.
 fn inspect_threads(set_acl: bool, pinned: &mut BTreeMap<u32, OwnedHandle>) -> (bool, Outcome) {
-    let Some(ids) = threads::current_ids() else {
+    let Ok(ids) = threads::current_ids() else {
         return (false, Outcome::Unknown);
     };
     // SAFETY: returns this process's ID.
