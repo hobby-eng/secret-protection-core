@@ -300,7 +300,7 @@ mod tests {
     }
 
     /// A refusal of the strict mode names each protection that does not hold, each by a name of
-    /// its own, and every outcome on every system is explained the same way for both readings.
+    /// its own, and no outcome is explained by an empty text or by the text of another.
     #[test]
     fn a_refusal_names_what_is_missing_and_why() {
         let names: Vec<String> = Protection::ALL.iter().map(ToString::to_string).collect();
@@ -315,11 +315,11 @@ mod tests {
             text,
             "required protections do not hold: no core dumps, low integrity"
         );
-        // A protection this system offers says why it holds and why not, in other words.
+        // What this system says of a protection that holds and of one refused differs; some, such
+        // as a whole process on Windows, it never refuses.
         for protection in Protection::ALL {
             let held = crate::os::evidence(protection, Outcome::Confirmed);
             let refused = crate::os::evidence(protection, Outcome::Refused);
-            assert_eq!(held.is_some(), refused.is_some(), "{protection}");
             assert!(held.is_none() || held != refused, "{protection}");
             for outcome in Outcome::ALL {
                 let said = crate::os::evidence(protection, outcome);

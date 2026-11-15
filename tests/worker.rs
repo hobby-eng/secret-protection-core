@@ -571,7 +571,25 @@ fn a_worker_closes_what_its_parent_names_and_nothing_else() {
     // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
     let left = unsafe { libc::dup(0) };
     assert!(left > 2);
-    for (named, clean) in [(left.to_string(), 1), ("900".to_owned(), 0)] {
+    // Every descriptor a program started now inherits, `left` among them: a test runner may leave
+    // this process some of its own.
+    let open = secret_protection_core::open_channels().unwrap();
+    let inherited: Vec<i32> = open
+        .channels
+        .iter()
+        .map(|channel| channel.descriptor)
+        .filter(|&descriptor| {
+            // SAFETY: fcntl with F_GETFD takes integers and only reads.
+            let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
+            descriptor > 2 && flags >= 0 && flags & libc::FD_CLOEXEC == 0
+        })
+        .collect();
+    assert!(inherited.contains(&left), "{inherited:?}");
+    let names = |except: i32| {
+        let kept = inherited.iter().filter(|&&descriptor| descriptor != except);
+        kept.map(ToString::to_string).collect::<Vec<_>>().join(".")
+    };
+    for (named, clean) in [(names(-1), 1), (names(left), 0)] {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .env_clear()
             .env("SECRET_PROTECTION_CORE_WORKER", format!("0,0,{named}"))

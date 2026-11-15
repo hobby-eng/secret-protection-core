@@ -1,10 +1,10 @@
 # Test coverage
 
-On 2026-11-15 UTC the tests covered **97.41%** of the source lines that LLVM reports for the Linux x86-64 build (2,218 of 2,277). The run passed 29 unit tests and 47 checks of the three test programs `isolation`, `secret_memory` and `worker`, the worker's own side included; none was skipped.
+On 2026-11-15 UTC the tests covered **97.41%** of the source lines that LLVM reports for the Linux x86-64 build (2,217 of 2,276). The run passed 29 unit tests and 47 checks of the three test programs `isolation`, `secret_memory` and `worker`, the worker's own side included; none was skipped.
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `6f0968d08a46ef2fe5c38ffcceff8f9b3c9e2f88`; the SHA-256 fingerprint of its inputs is `eabe6a927c2976d7cd8bbf1f637994903d64dc104e8a53be8095087f6c02b803`.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `c0c472af2327cc55a561881201db9830613bd3fc`; the SHA-256 fingerprint of its inputs is `db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808`.
 
 The tests start child processes that isolate themselves and can then write no file, so a profile written when a process ends would be lost. The counters are therefore synced to the profile file as they change (`%c` in its name, with LLVM's `-runtime-counter-relocation`), and such a child is counted.
 
@@ -48,6 +48,6 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/os/unix/forks.rs`    |            17 |             17 |  100.00% |
 | `src/protect.rs`          |           404 |            405 |   99.75% |
 | `src/protect/closed.rs`   |           131 |            132 |   99.24% |
-| `src/protect/options.rs`  |           140 |            140 |  100.00% |
+| `src/protect/options.rs`  |           139 |            139 |  100.00% |
 | `src/stack.rs`            |            98 |             98 |  100.00% |
 | `src/worker.rs`           |           227 |            237 |   95.78% |

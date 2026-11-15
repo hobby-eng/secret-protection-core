@@ -11,7 +11,7 @@ secret-protection-core keeps secrets in memory out of the places they leak to: s
 
 The [documentation index](docs/README.md) lists the guides; [How it works](docs/TECHNICAL.md) says what each system applies and what it does not cover.
 
-Line coverage on Linux x86-64, measured on 2026-11-15, is **97.41%** for the unit tests and the three test programs (source fingerprint `eabe6a92`). [Test scope and per-file results](docs/COVERAGE.md).
+Line coverage on Linux x86-64, measured on 2026-11-15, is **97.41%** for the unit tests and the three test programs (source fingerprint `db750b50`). [Test scope and per-file results](docs/COVERAGE.md).
 
 ## Contents
 
