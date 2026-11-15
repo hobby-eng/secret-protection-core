@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-013",
+  "auditNumber": 13,
+  "date": "2026-11-15",
+  "title": "Independent pre-release review of secret-protection-core",
+  "reviewer": {
+    "name": "Independent static and dynamic review",
+    "model": "grok-4.7",
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "2747028f4452c3e36f2a500eabdbc795010bf295",
+    "commitComplete": true,
+    "workingTree": "Code snapshot is 2747028f. The probe harness was untracked at execution and was later committed, with audit records only, in 6c8de7ffb29161be6de4a22091371b4ec97839cd.",
+    "sourceFingerprint": "db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808"
+  },
+  "scope": {
+    "repository": "secret-protection-core",
+    "tree": "901913bbc261b1ecfb7b9c668bd0e3ef6555cd52",
+    "signature": "GitHub verification verified true, reason valid",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "id": "CHECK-SEC-002",
+      "command": "descriptor-reuse probe against commit 2747028f",
+      "outcome": "failed",
+      "evidence": "Exit 1: FAIL: worker startup closed the linked library's reused descriptor"
+    },
+    {
+      "id": "CHECK-BLD-002",
+      "command": "cargo test --locked --offline",
+      "outcome": "passed",
+      "evidence": "29 unit, 20 isolation, 9 secret_memory, 18 worker, 0 doctests, exit 0"
+    },
+    {
+      "id": "CHECK-BLD-003",
+      "command": "GitHub commit verification API",
+      "outcome": "passed",
+      "evidence": "verified true, reason valid, committer 2026-11-15T13:25:16Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-013-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Worker startup closes a descriptor number a linked library has reused",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "Probe exit 1. before_main closes inherited numbers without comparing device and inode. starts_clean can then pass.",
+      "reproduction": "A shared-library constructor closes an inherited descriptor above 2 and opens /dev/null on the same number. The process is started with SECRET_PROTECTION_CORE_WORKER=0,0,<number>.",
+      "expected": "A descriptor a library opened before the crate initializer ran stays the library's, as docs/TECHNICAL.md and CHANGELOG.md say.",
+      "observed": "The initializer closed the reused number. The probe printed FAIL: worker startup closed the linked library's reused descriptor.",
+      "impact": "The library loses its descriptor and the start can still be reported clean. The probe does not show the parent's original file remaining open.",
+      "recommendedFix": "Close a number only when it still names the parent's file. If it was reused, leave it and refuse the start as unclean. Narrow the docs until that check exists.",
+      "requiredVerification": "Reuse probe exits 0, and a descriptor that still names the parent's file is still closed. cargo test --test worker on Linux and macOS."
+    },
+    {
+      "id": "AUD-013-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "ClosedSecret::is_closed ignores fork generation",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/protect/closed.rs returns access == Nothing and does not call Pages::here.",
+      "reproduction": "Fork after creating a ClosedSecret and read is_closed in the continuing child.",
+      "expected": "False when the child does not hold the pages, consistent with is_locked and is_out_of_children.",
+      "observed": "True when access is Nothing, including in that child.",
+      "impact": "Status lie only. A later read or write still aborts before forming a reference.",
+      "recommendedFix": "Return pages.here() && access == Nothing, and assert that in the fork test.",
+      "requiredVerification": "cargo test --test secret_memory on Linux and macOS."
+    },
+    {
+      "id": "AUD-013-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "docs/COVERAGE.md names commit c0c472af for this tree",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "Fingerprint recomputed as db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808 while the prose names c0c472af.",
+      "reproduction": "Compare docs/COVERAGE.md with git rev-parse HEAD.",
+      "expected": "The note names 2747028f4452c3e36f2a500eabdbc795010bf295.",
+      "observed": "It says the measured source follows c0c472af2327cc55a561881201db9830613bd3fc.",
+      "impact": "The percentage can be tied to the wrong commit name. Coverage was not remeasured in this pass.",
+      "recommendedFix": "Name 2747028f4452c3e36f2a500eabdbc795010bf295.",
+      "requiredVerification": "Fingerprint unchanged if docs/ stays outside the hash."
+    },
+    {
+      "id": "AUD-013-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Build-time macro crates are not named in THIRD_PARTY_NOTICES.md",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "Notices say the macros of those two. Cargo.lock has enumflags2_derive 0.7.12 and thiserror-impl 2.0.21.",
+      "reproduction": "Compare locked package names with THIRD_PARTY_NOTICES.md.",
+      "expected": "Each locked crate name and version appears.",
+      "observed": "Those two macro crates are not named.",
+      "impact": "Inventory gap only.",
+      "recommendedFix": "Name both crates and versions.",
+      "requiredVerification": "Name-by-name comparison with Cargo.lock."
+    },
+    {
+      "id": "AUD-013-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Crate metadata is still a draft",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "Cargo.toml publish = false. README draft warning. CHANGELOG.md heading Unreleased.",
+      "reproduction": "Read those three files.",
+      "expected": "A versioned release has a version section. Registry publish is a separate step.",
+      "observed": "Metadata still describes an unreleased draft.",
+      "impact": "crates.io publish is refused. In-tree use is not blocked by this item alone.",
+      "recommendedFix": "Keep publish false until the startup sentence matches the code, then replace Unreleased.",
+      "requiredVerification": "cargo package --list --locked --offline and a read of the three files."
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-013-ARC001",
+      "category": "ARC",
+      "kind": "observation",
+      "title": "tests/worker.rs has 790 lines of code",
+      "severity": "info",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "790 non-blank, non-comment lines, under the 800-line ceiling.",
+      "reproduction": "Count lines of code in tests/worker.rs.",
+      "expected": "At most 800 lines of code.",
+      "observed": "790.",
+      "impact": "No defect. A new worker test should be split out rather than appended.",
+      "recommendedFix": "Put a descriptor-identity test in its own file if one is added.",
+      "requiredVerification": "Line count after that test is added."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-013-SEC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Probe exit 1"
+    },
+    {
+      "id": "AUD-013-API001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Source inspection"
+    },
+    {
+      "id": "AUD-013-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "docs/COVERAGE.md"
+    },
+    {
+      "id": "AUD-013-DOC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "THIRD_PARTY_NOTICES.md"
+    },
+    {
+      "id": "AUD-013-BLD001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Cargo.toml, README.md, CHANGELOG.md"
+    }
+  ],
+  "limitations": [
+    "Coverage, Miri, AddressSanitizer, libFuzzer, WebAssembly, Clippy on six targets, cargo audit, and GitHub Actions were not re-executed in this pass.",
+    "Windows, macOS, Android and iOS were not run.",
+    "Replacing descriptors 0, 1 or 2 in a constructor was not executed and is not a confirmed leak.",
+    "The reuse probe does not show the parent's original file remaining open."
+  ]
+}
