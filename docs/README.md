@@ -4,3 +4,4 @@
 - [Changelog](../CHANGELOG.md): what each version changed.
 - [Third-party notices](../THIRD_PARTY_NOTICES.md).
 - [Test coverage](COVERAGE.md) for the measured Linux test suites and individual source files.
+- [Audits](audits/README.md): the security reviews of this crate and what they found.

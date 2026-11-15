@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-002",
+  "auditNumber": 2,
+  "date": "2026-11-15",
+  "title": "Security audit of secret-protection-core",
+  "reviewer": {
+    "name": "Kimi Code",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "60adba5b2f2d144ccdd61cb4829e8e5abc9bc1ca",
+    "commitComplete": true,
+    "workingTree": {
+      "baseline": "clean",
+      "duringExecution": "Unrelated uncommitted changes appeared across production sources, tests and documentation. They were preserved and excluded from baseline conclusions; later changed-source and replaced-artifact builds are not baseline results."
+    },
+    "sourceFingerprint": "60adba5b2f2d144ccdd61cb4829e8e5abc9bc1ca"
+  },
+  "scope": {
+    "included": [
+      "Every Rust source and test file",
+      "Secret memory, wiping, guard pages and closed pages",
+      "Linux seccomp, Landlock and namespaces",
+      "Unix workers and protected stacks",
+      "Apple and Windows platform code by static review",
+      "Manifests, lockfile, notices and documentation"
+    ],
+    "excluded": [
+      "macOS, Windows, Android and iOS runtime execution",
+      "Browser execution",
+      "Upstream dependency internals",
+      "Release artifacts",
+      "Compiler-assembly proof of wiping"
+    ],
+    "environment": "Linux 7.0.0-43-generic x86-64; rustc and Cargo 1.99.1",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo test",
+      "outcome": "failed",
+      "exitCode": 101,
+      "result": "11 unit tests passed; isolation passed one check and then failed the shared-IPC assertion; later tests did not run"
+    },
+    {
+      "command": "cargo test --test secret_memory",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "4 checks passed"
+    },
+    {
+      "command": "cargo test --test worker",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "5 checks passed"
+    },
+    {
+      "command": "cargo test --doc",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "0 doc-tests"
+    },
+    {
+      "command": "cargo clippy --all-targets for host and all five rust-toolchain targets with -D warnings",
+      "outcome": "passed",
+      "exitCode": 0,
+      "result": "Host, WebAssembly, Windows, macOS, iOS and Android compiled; this is not runtime evidence"
+    },
+    {
+      "command": "AUD-002 harness ipc",
+      "outcome": "failed",
+      "exitCode": 1,
+      "evidence": "local AUD-002-evidence/ipc.log and ipc.command.json"
+    },
+    {
+      "command": "AUD-002 harness pidfd-signal",
+      "outcome": "passed",
+      "exitCode": 0,
+      "evidence": "local AUD-002-evidence/pidfd-signal.log and pidfd-signal.command.json"
+    },
+    {
+      "command": "AUD-002 harness worker-drop",
+      "outcome": "failed",
+      "exitCode": 1,
+      "evidence": "local AUD-002-evidence/worker-drop.log and worker-drop.command.json"
+    },
+    {
+      "command": "AUD-002 harness stack-overflow",
+      "outcome": "failed",
+      "exitCode": 1,
+      "evidence": "local AUD-002-evidence/stack-overflow.log and stack-overflow.command.json"
+    },
+    {
+      "command": "AUD-002 harness inherited-fd",
+      "outcome": "failed",
+      "exitCode": 1,
+      "evidence": "local AUD-002-evidence/inherited-fd.log and inherited-fd.command.json"
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-002-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Worker keeps inherited channels when both descriptor-closing methods fail",
+      "severity": "high",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/unix.rs:249-276",
+        "src/worker.rs:140-152"
+      ],
+      "evidence": "A public-API harness refused close_range and supplied a synthetic /proc without self/fd. The worker retained an inherited socket and wrote byte [120] after isolation. Local inherited-fd log and command JSON.",
+      "reproduction": "Create an inheritable synthetic socket, refuse close_range with an earlier seccomp filter, hide /proc/self/fd while retaining /proc/self/exe, then start Worker and use that descriptor.",
+      "expected": "The worker has only its standard pipes or startup fails before a successful isolation report and any request.",
+      "observed": "close_inherited silently returned after both methods failed; the worker started and transmitted through the inherited socket.",
+      "impact": "A connected socket, writable file or other inherited descriptor remains a direct secret-egress channel in a restricted container or seccomp-confined program.",
+      "recommendedFix": "Make descriptor closure fallible and stop worker startup when neither close_range nor descriptor enumeration completes.",
+      "requiredVerification": "Repeat the live-socket probe and run ordinary close_range, /proc and /dev/fd fallback tests plus the worker suite on Linux and macOS."
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Sequential namespace calls leave IPC shared while network isolation succeeds",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/linux.rs:109-154",
+        "src/os/linux.rs:301-316",
+        "tests/isolation.rs:1000-1035"
+      ],
+      "evidence": "Harness ipc returned exit 1 with empty_network true and IPC inode 4026531839 before and after. The stock isolation test failed the same assertion. Independent unshare commands confirmed sequential IPC failure and combined-flag success.",
+      "reproduction": "Compare /proc/self/ns/ipc before and after Isolation::enter on a single-threaded Linux process where user/network namespaces are available.",
+      "expected": "The documented IPC namespace is created or its absence is explicitly reported.",
+      "observed": "CLONE_NEWUSER|CLONE_NEWNET succeeded, CLONE_NEWIPC failed with EPERM and its result was discarded; empty_network was true while IPC remained shared.",
+      "impact": "IPC objects remain shared. Seccomp mitigates this on x86-64/AArch64, but unsupported architectures lack that filter; the baseline mandatory test is red.",
+      "recommendedFix": "Request user, network and IPC namespaces atomically and avoid nested re-entry after success, or expose IPC failure separately.",
+      "requiredVerification": "Pass the stock whole-process test and positive/negative System V IPC and POSIX-queue probes on filtered and unfiltered architectures."
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Several advertised Windows protections discard their read-back results",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/windows.rs:271-315",
+        "src/os/windows.rs:380-452"
+      ],
+      "evidence": "Source control flow discards mitigation results for extension points, image loading and child processes, ignores job setup and assignment, and discards lower_integrity's read-back. No Protection values represent them. Windows was not executed.",
+      "reproduction": "On a Windows context that refuses one of these operations, call Isolation::enter and inspect fields and measures. Static inspection shows no caller-visible state for the failure.",
+      "expected": "Every advertised protection is confirmed and reported, and required protections can fail strict mode.",
+      "observed": "The operations' failures cannot be distinguished from success through the public report even though documentation says they are applied.",
+      "impact": "Callers may rely on protections Windows refused. The audit does not assert which policy fails on a particular Windows build.",
+      "recommendedFix": "Expose confirmed state for every retained protection, include failures in strict mode and measures, and check job configuration and assignment.",
+      "requiredVerification": "Run success and forced-failure cases on supported Windows versions for child creation, UI restrictions, image loading and integrity."
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "Dropping a worker after an oversized answer can deadlock both processes",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/worker.rs:92-129",
+        "src/os/unix.rs:242-246",
+        "src/os/windows.rs:784-791"
+      ],
+      "evidence": "A 1 MiB synthetic answer with a 1 KiB caller limit produced InvalidData; Drop then exceeded a three-second watchdog. Local worker-drop log and command JSON.",
+      "reproduction": "Return a 1 MiB answer from serve, call Worker::call with most=1024, then drop the worker.",
+      "expected": "Error cleanup closes the worker and returns without draining an unbounded frame.",
+      "observed": "The parent stopped reading but kept its read pipe open; the child blocked on write while Drop closed only input and waited.",
+      "impact": "The response-size bound can cause permanent caller and worker blockage during ordinary error cleanup.",
+      "recommendedFix": "Close or shut down the parent read channel before waiting and ensure blocked children are terminated and reaped; mark partial-frame I/O failures broken.",
+      "requiredVerification": "Test responses above pipe capacity, partial frames and exit during writes on every worker platform without hangs or leftover processes."
+    },
+    {
+      "id": "AUD-002-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "Overflowing protected-stack size panics instead of returning an error",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/unix.rs:355-358"
+      ],
+      "evidence": "The stack-overflow harness caught an attempt-to-add-with-overflow panic. Local log and command JSON.",
+      "reproduction": "Call run_on_protected_stack(usize::MAX, || {}).",
+      "expected": "The io::Result API returns a size or allocation error.",
+      "observed": "next_multiple_of(page_size()) overflowed before WorkArea's checked allocation path.",
+      "impact": "A caller-triggered panic with bounded availability impact; no corruption or disclosure was found.",
+      "recommendedFix": "Use checked_next_multiple_of and map overflow to InvalidInput or OutOfMemory.",
+      "requiredVerification": "Test usize::MAX, page boundaries, zero and PTHREAD_STACK_MIN on supported Unix targets."
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Technical notes still describe shipped options as future work",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/TECHNICAL.md:167-184"
+      ],
+      "evidence": "The limitations say sendmsg/file locks are future options and signals are blocked only from Linux 6.12; the test section says two programs although three exist.",
+      "reproduction": "Compare docs/TECHNICAL.md lines 167-184 with Options and Cargo.toml integration tests.",
+      "expected": "The document describes current options and actual test coverage.",
+      "observed": "Implemented options are described as future work and the test inventory/count is stale.",
+      "impact": "Readers can misunderstand available protections and test coverage; no direct runtime impact.",
+      "recommendedFix": "Update the limitation and test inventory, including signals, lock-all, channels, measures, protected stack and the new negative regressions.",
+      "requiredVerification": "Review final text against the final API and tests; no build is required for text alone."
+    }
+  ],
+  "observations": [],
+  "remediation": [
+    {
+      "id": "AUD-002-SEC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original live-socket reproduction"
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original IPC and stock-test failure"
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Source trace; Windows runtime pending"
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original watchdog reproduction"
+    },
+    {
+      "id": "AUD-002-API001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original overflow reproduction"
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Source/document comparison"
+    }
+  ],
+  "limitations": [
+    "Windows and macOS runtime behavior was not executed; Android and iOS were also not run.",
+    "The baseline full test command failed; no release acceptance is stated.",
+    "Initial stock-test and clippy console results are recorded in the report without timestamped local logs; retained reproduction commands have exact UTC records and hashes.",
+    "No assembly-level or exhaustive dependency-internal audit was performed; cargo-audit and cargo-deny were unavailable.",
+    "Unrelated working-tree changes that appeared during execution were not reviewed and were not used to invalidate or replace baseline evidence.",
+    "The audit does not claim absence of all vulnerabilities or independent cryptographic certification."
+  ]
+}
