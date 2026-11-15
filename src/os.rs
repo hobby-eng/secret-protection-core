@@ -35,6 +35,9 @@ pub(crate) use windows::{
 /// killed.
 #[cfg(any(unix, windows))]
 const GRACE: std::time::Duration = std::time::Duration::from_secs(1);
+/// How long a wait for a worker or for its pipe pauses before it looks again.
+#[cfg(any(unix, windows))]
+const STEP: std::time::Duration = std::time::Duration::from_millis(2);
 
 /// Where this crate knows no protection of the process, as in WebAssembly, it applies none.
 #[cfg(not(any(

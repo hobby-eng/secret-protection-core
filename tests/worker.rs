@@ -132,8 +132,15 @@ fn main() {
         if let Some(file) = early {
             std::process::exit(i32::from(file.metadata().is_err()));
         }
-        // A worker that was asked to linger does not end when its pipes close.
-        if LINGERS.load(Ordering::Relaxed) {
+        // A worker that was asked to linger does not end when its pipes close, as long as the
+        // numbers of its streams are still taken.
+        #[cfg(unix)]
+        // SAFETY: fcntl with F_GETFD takes integers and only reads.
+        let taken =
+            unsafe { libc::fcntl(0, libc::F_GETFD) != -1 && libc::fcntl(1, libc::F_GETFD) != -1 };
+        #[cfg(not(unix))]
+        let taken = true;
+        if taken && LINGERS.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_secs(LINGER_SECONDS.into()));
         }
         return;
@@ -247,7 +254,7 @@ fn main() {
             || linux::role("unsignalling"),
         );
         run(
-            "without /dev/null a worker that serves no more closes its pipes",
+            "without /dev/null a worker that serves no more still ends its streams",
             || linux::role("without-null"),
         );
     }
@@ -526,31 +533,48 @@ fn kept() {
 /// thread of the test takes the pipe as soon as it is listed, a few times.
 #[cfg(windows)]
 fn a_stray_client_does_not_stop_the_start() {
+    use std::sync::atomic::AtomicUsize;
     let done = std::sync::Arc::new(AtomicBool::new(false));
-    let stop = std::sync::Arc::clone(&done);
+    let taken = std::sync::Arc::new(AtomicUsize::new(0));
+    let (stop, count) = (std::sync::Arc::clone(&done), std::sync::Arc::clone(&taken));
     let stray = std::thread::spawn(move || {
-        let mut taken = 0;
-        while taken < 3 && !stop.load(Ordering::Relaxed) {
-            for entry in std::fs::read_dir(r"\\.\pipe\").unwrap().flatten() {
+        while !stop.load(Ordering::Relaxed) {
+            // A listing that fails ends this pass; the next one lists again.
+            for entry in std::fs::read_dir(r"\\.\pipe\")
+                .unwrap()
+                .map_while(Result::ok)
+            {
                 let ours = entry
                     .file_name()
                     .to_string_lossy()
                     .starts_with("secret-protection-core.");
+                if stop.load(Ordering::Relaxed) {
+                    return;
+                }
                 if ours && let Ok(pipe) = std::fs::File::open(entry.path()) {
-                    taken += 1;
+                    count.fetch_add(1, Ordering::Relaxed);
                     std::thread::sleep(Duration::from_millis(20));
                     drop(pipe);
                 }
             }
         }
-        taken
     });
-    // The thread is listing pipes by the time the worker's appears.
+    // The thread is listing pipes by the time a worker's appears. Every start succeeds; one in
+    // which the thread came first is enough, and several are tried for it.
     std::thread::sleep(Duration::from_millis(200));
-    let mut worker = Worker::start(Options::new(), &required()).unwrap();
-    assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+    for _ in 0..8 {
+        let mut worker = Worker::start(Options::new(), &required()).unwrap();
+        assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+        if taken.load(Ordering::Relaxed) > 0 {
+            break;
+        }
+    }
     done.store(true, Ordering::Relaxed);
-    assert!(stray.join().unwrap() > 0, "the test never took the pipe");
+    stray.join().unwrap();
+    assert!(
+        taken.load(Ordering::Relaxed) > 0,
+        "the test never took a pipe"
+    );
 }
 
 /// The `unserved` role: the worker's variable is set, and the program is past `serve`.
@@ -753,8 +777,9 @@ mod linux {
         assert!(!open.complete, "{open:?}");
     }
 
-    /// Where /dev/null cannot be opened, a worker that serves no more closes its pipes outright:
-    /// the parent's call fails at once, long before the worker ends by itself.
+    /// Where /dev/null cannot be opened, a worker that serves no more points its streams at an
+    /// ended pipe: the parent's call fails long before the worker ends by itself, and the
+    /// worker, whose numbers are still taken, lives on until it is killed after a second.
     pub(super) fn without_null() {
         refuse_read_write_opens();
         let mut worker = Worker::start(Options::new(), &[]).unwrap();
@@ -762,7 +787,10 @@ mod linux {
         let started = Instant::now();
         assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
         let taken = started.elapsed();
-        assert!(taken < Duration::from_millis(2500), "{taken:?}");
+        assert!(
+            taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
+            "{taken:?}"
+        );
     }
 
     /// A worker that cannot leave its parent's session says so and gets no request; on the
@@ -772,10 +800,7 @@ mod linux {
         refuse(&[(libc::SYS_setsid, errno(libc::EPERM))]);
         let error = Worker::start(Options::new(), &[]).unwrap_err();
         assert!(matches!(error, WorkerError::Unclean), "{error:?}");
-        assert_eq!(
-            error.to_string(),
-            "the worker could not shed what it inherited"
-        );
+        assert_eq!(error.to_string(), "the worker's start was not clean");
         let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
         assert_eq!(
             on_terminal.call(b"public", 100).unwrap().as_bytes(),

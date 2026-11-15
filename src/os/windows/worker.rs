@@ -215,7 +215,7 @@ fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
         if ended || !(listens || error == ERROR_PIPE_LISTENING) {
             return Err(io::Error::other("the worker did not open its pipe"));
         }
-        std::thread::sleep(Duration::from_millis(2));
+        std::thread::sleep(crate::os::STEP);
     }
     let waits = PIPE_READMODE_BYTE | PIPE_WAIT;
     // SAFETY: the call reads one mode word, which lives for the call.
@@ -523,7 +523,7 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
         if !busy || std::time::Instant::now() >= deadline {
             return Err(error);
         }
-        std::thread::sleep(Duration::from_millis(2));
+        std::thread::sleep(crate::os::STEP);
     };
     // SAFETY: the handle was just opened and nothing else owns it.
     Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))

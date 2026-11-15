@@ -1,10 +1,10 @@
 # Test coverage
 
-On 2026-11-15 UTC the tests covered **90.51%** of the source lines that LLVM reports for the Linux x86-64 build (1,899 of 2,098). The run passed 22 unit tests and 40 checks of the three test programs `isolation`, `secret_memory` and `worker`. One more worker check passes in an ordinary run and cannot run under the measurement.
+On 2026-11-15 UTC the tests covered **90.22%** of the source lines that LLVM reports for the Linux x86-64 build (1,900 of 2,106). The run passed 22 unit tests and 40 checks of the three test programs `isolation`, `secret_memory` and `worker`. One more worker check passes in an ordinary run and cannot run under the measurement.
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `709a5a21dca4c57a7f05943d34f4f52786317765`; the SHA-256 fingerprint of its inputs is `613ecbc1fba027a7232121e4acf85b0e55e7b208b3456acf03a162c578bb5d96`.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `f89d0bf7578cdf3d9e9acc616fb3f1f6a71f9886`; the SHA-256 fingerprint of its inputs is `6c6c37593c6fa0c9f871aeeffa3ab601f39ad42c7865c1dfc27ce1a5958712c6`.
 
 The tests start child processes that isolate themselves and can then write no file, so a profile written when a process ends would be lost. The counters are therefore synced to the profile file as they change (`%c` in its name, with LLVM's `-runtime-counter-relocation`), and such a child is counted.
 
@@ -12,7 +12,7 @@ What the figure leaves out:
 
 - The worker's own side. A worker starts with an empty environment, so it has no profile file: `serve`, the closing of inherited descriptors and the leaving of the terminal run in every worker check and are not counted. They are most of the lines missing in `src/worker.rs` and `src/os/unix.rs`.
 - The worker check "a worker gets nothing of its parent's but its pipes". LLVM's profiling runtime puts a variable of its own into the worker's environment, which the check refuses, as it should. It passes without the instrumentation.
-- The code for Android, macOS, iOS, Windows and WebAssembly, which this build does not compile. Its tests have not run on those systems, so there is no measurement for them.
+- The code for Android, macOS, iOS, Windows and WebAssembly, which this build does not compile. The tests run on macOS and Windows as well, at every push, without a measurement of their lines.
 - Files under `tests/`. The count includes the unit tests inside `src/`.
 
 ## Reproduce on Linux
@@ -40,7 +40,7 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/os.rs`               |            38 |             41 |   92.68% |
 | `src/os/linux.rs`         |           426 |            462 |   92.21% |
 | `src/os/linux/seccomp.rs` |           145 |            145 |  100.00% |
-| `src/os/unix.rs`          |           322 |            384 |   83.85% |
+| `src/os/unix.rs`          |           323 |            392 |   82.40% |
 | `src/protect.rs`          |           368 |            378 |   97.35% |
 | `src/protect/closed.rs`   |           116 |            129 |   89.92% |
 | `src/protect/options.rs`  |            76 |            101 |   75.25% |

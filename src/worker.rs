@@ -36,8 +36,9 @@ pub struct Worker {
 pub enum WorkerError {
     /// The process did not start, or ended before it said what read back.
     Start(io::Error),
-    /// The worker could not confirm that it closed every descriptor it inherited, or could not
-    /// leave the terminal.
+    /// The worker's start was not clean: it holds a descriptor besides its standard streams,
+    /// inherited or opened by the program before `serve`, could not list its descriptors, or
+    /// could not leave the terminal.
     Unclean,
     /// Protections the parent required are not confirmed in the worker.
     Missing(Missing),
@@ -47,7 +48,7 @@ impl fmt::Display for WorkerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Start(error) => write!(f, "the worker did not start: {error}"),
-            Self::Unclean => f.write_str("the worker could not shed what it inherited"),
+            Self::Unclean => f.write_str("the worker's start was not clean"),
             Self::Missing(missing) => write!(f, "the worker is not isolated enough: {missing}"),
         }
     }
@@ -239,11 +240,11 @@ pub(crate) fn is_setting(text: &std::ffi::CStr) -> bool {
     text.to_str().ok().and_then(setting).is_some()
 }
 
-/// The worker side. If this process was started by [`Worker::start`], it leaves the terminal,
-/// isolates itself, reports, then answers requests of up to `most` bytes with `answer` until the
-/// parent closes the pipe, and returns `true`; otherwise, and at any later call, it returns
-/// `false` at once. Call it first in `main`: it closes nothing, so a worker that already holds
-/// a descriptor of its own, or inherited one, says its start was not clean and takes no request.
+/// The worker side. In a process started by [`Worker::start`] it leaves the terminal, isolates
+/// itself, reports, answers requests of up to `most` bytes with `answer` until the parent closes
+/// the pipe, and returns `true`; otherwise, and at any later call, `false` at once. Call it
+/// first in `main`: it closes nothing, so a worker that holds a descriptor of its own by then
+/// says its start was not clean and takes no request (Windows does not look at those).
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();

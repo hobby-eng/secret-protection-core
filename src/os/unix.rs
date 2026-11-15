@@ -196,10 +196,10 @@ fn advise(start: NonNull<u8>, bytes: usize) -> (bool, bool) {
     (out_of_dumps, wiped)
 }
 
-/// Keeps a secret on small pages. Joining pages into a huge one copies them, and the kernel
-/// frees the old ones without wiping them. A work area keeps the huge pages the system gives it:
-/// a large computation is much slower without them. A kernel without huge pages refuses, which
-/// leaves nothing to join.
+/// Asks the kernel to keep a secret on small pages. Joining pages into a huge one copies them,
+/// and the kernel frees the old ones without wiping them. A work area keeps the huge pages the
+/// system gives it: a large computation is much slower without them. A kernel without huge
+/// pages refuses, which leaves nothing to join, so the answer is not read.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn keep_small(start: NonNull<u8>, bytes: usize) {
     // SAFETY: madvise marks the pages of a mapping this process owns and changes no content.
@@ -298,7 +298,7 @@ impl WorkerProcess {
             match self.child.try_wait() {
                 Ok(Some(_)) => return true,
                 Ok(None) if Instant::now() < deadline => {
-                    std::thread::sleep(Duration::from_millis(2));
+                    std::thread::sleep(super::STEP);
                 }
                 Ok(None) => return false,
                 // The system has taken an ended child off its list itself, as with SIGCHLD ignored.
@@ -584,13 +584,13 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
 }
 
 /// The worker's standard input and output, unbuffered, so that no copy of a secret stays in a
-/// buffer of the standard library. When dropped, both numbers are pointed at /dev/null, or
-/// closed where it could not be opened: the parent sees the end of the pipes at once, however
-/// long the worker lives on.
+/// buffer of the standard library. When dropped, both numbers are pointed at /dev/null, or at
+/// an ended pipe where it could not be opened: the parent sees the end of the pipes at once,
+/// however long the worker lives on.
 pub(crate) struct WorkerStreams {
     input: ManuallyDrop<File>,
     output: ManuallyDrop<File>,
-    /// /dev/null, opened before the isolation refuses opening for writing.
+    /// /dev/null or an ended pipe, made before the isolation refuses opening for writing.
     nowhere: Option<OwnedFd>,
 }
 
@@ -612,22 +612,31 @@ impl io::Write for WorkerStreams {
 
 impl Drop for WorkerStreams {
     fn drop(&mut self) {
-        // SAFETY: dup2 and close take integers. Both numbers come to name /dev/null, which
-        // closes the pipes they named, or are closed themselves. The files above never close
-        // them.
-        unsafe {
-            match &self.nowhere {
-                Some(nowhere) => {
-                    libc::dup2(nowhere.as_raw_fd(), libc::STDIN_FILENO);
-                    libc::dup2(nowhere.as_raw_fd(), libc::STDOUT_FILENO);
-                }
-                None => {
-                    libc::close(libc::STDIN_FILENO);
-                    libc::close(libc::STDOUT_FILENO);
-                }
+        if let Some(nowhere) = &self.nowhere {
+            // SAFETY: dup2 takes integers: both numbers now name what leads nowhere, which
+            // closes the pipes they named and keeps the numbers taken. The files above never
+            // close them.
+            unsafe {
+                libc::dup2(nowhere.as_raw_fd(), libc::STDIN_FILENO);
+                libc::dup2(nowhere.as_raw_fd(), libc::STDOUT_FILENO);
             }
         }
     }
+}
+
+/// The read end of a pipe whose write end is closed: reading it gives the end, and nothing is
+/// written to it. It stands in for /dev/null where that cannot be opened, so that the numbers of
+/// the worker's streams stay taken and no later descriptor of the program gets them.
+fn ended_pipe() -> Option<OwnedFd> {
+    let mut ends = [0; 2];
+    // SAFETY: pipe writes two new descriptors into the array it is given.
+    if unsafe { libc::pipe(ends.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: both descriptors were just made and nothing else owns them.
+    let [read, write] = ends.map(|end| unsafe { OwnedFd::from_raw_fd(end) });
+    drop(write);
+    Some(read)
 }
 
 /// The streams of a worker, which on Unix has no channel of another name.
@@ -640,7 +649,8 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
         .write(true)
         .open("/dev/null")
         .ok()
-        .map(OwnedFd::from);
+        .map(OwnedFd::from)
+        .or_else(ended_pipe);
     // SAFETY: descriptors 0 and 1 are the pipes the parent made, open for the whole process;
     // `ManuallyDrop` never closes them.
     Ok(unsafe {
