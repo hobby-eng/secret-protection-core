@@ -749,6 +749,9 @@ fn inspect_thread(
     set_acl: bool,
     pinned: &mut BTreeMap<u32, OwnedHandle>,
 ) -> (bool, Option<Outcome>) {
+    if !set_acl && let Some(level) = threads::pinned_integrity(id, pinned) {
+        return (true, Some(level));
+    }
     // SAFETY: opens the thread with what its list grants: every right while it has the list it
     // started with; READ_CONTROL and THREAD_QUERY_LIMITED_INFORMATION once it has THREAD_ACCESS.
     // Closed below.

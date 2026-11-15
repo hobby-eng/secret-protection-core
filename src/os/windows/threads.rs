@@ -99,6 +99,32 @@ pub(super) fn inventory(process: u32, caller: Option<u32>) -> io::Result<Vec<u32
     Err(io::ErrorKind::FileTooLarge.into())
 }
 
+/// Read the serving thread through its pseudo handle and a live sibling through the
+/// handle acquired before hardening. A live thread still owns its ID. If the old
+/// handle has become signalled, the caller checks the current object afresh.
+pub(super) fn pinned_integrity(
+    id: u32,
+    pinned: &mut super::BTreeMap<u32, super::OwnedHandle>,
+) -> Option<crate::Outcome> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+    use windows_sys::Win32::System::Threading::{GetCurrentThread, WaitForSingleObject};
+    // SAFETY: the pseudo handle identifies the current thread regardless of its ACL.
+    let (caller, current) = unsafe { (GetCurrentThreadId(), GetCurrentThread()) };
+    if id == caller {
+        pinned.remove(&id);
+        return Some(super::thread_integrity(current));
+    }
+    let handle = pinned.get(&id)?.as_raw_handle().cast();
+    // SAFETY: the map owns the handle, and a zero timeout never blocks.
+    if unsafe { WaitForSingleObject(handle, 0) } != WAIT_TIMEOUT {
+        return None;
+    }
+    let level = super::thread_integrity(handle);
+    pinned.remove(&id);
+    Some(level)
+}
+
 fn field<const N: usize>(record: &[u8], offset: usize) -> Option<[u8; N]> {
     record.get(offset..)?.first_chunk::<N>().copied()
 }

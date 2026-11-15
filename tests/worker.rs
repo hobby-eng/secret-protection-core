@@ -91,6 +91,8 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 /// The worker's answers, by request.
 fn answer(request: &[u8]) -> Secret {
     let text = match request {
+        #[cfg(windows)]
+        b"test token metadata" => windows::token_metadata(),
         b"environment" => std::env::vars_os()
             .map(|(name, _)| name.to_string_lossy().into_owned())
             .collect::<Vec<_>>()
@@ -469,7 +471,17 @@ fn speculation_can_be_limited() -> bool {
 }
 
 fn a_worker_answers_isolated() {
-    let mut worker = Worker::start(Options::new(), &required()).unwrap();
+    let result = Worker::start(Options::new(), &required());
+    #[cfg(windows)]
+    if let Err(ref error) = result {
+        let mut observer = Worker::start(Options::new(), &[]).unwrap();
+        let diagnostic = observer.call(b"test token metadata", 4096).unwrap();
+        panic!(
+            "strict startup failed: {error:?}; fresh AppContainer measurement: {:?}",
+            diagnostic.as_str()
+        );
+    }
+    let mut worker = result.unwrap();
     assert!(worker.isolation().whole_process, "{worker:?}");
     assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
     // Its debug text shows what holds, and nothing it was sent.
@@ -887,3 +899,7 @@ fn a_worker_starts_from_a_protected_stack() {
 ))]
 #[path = "worker/linux.rs"]
 mod linux;
+
+#[cfg(windows)]
+#[path = "worker/windows.rs"]
+mod windows;
