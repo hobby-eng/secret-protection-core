@@ -29,7 +29,11 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: rustup show
       - name: Check the formatting
-        run: cargo fmt --check
+        run: |
+          cargo fmt --check
+          cargo fmt --manifest-path fuzz/Cargo.toml --check
+      - name: Lint the fuzz targets
+        run: RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings
       - name: Lint the host and every target
         run: |
           cargo clippy --locked --all-targets -- -D warnings

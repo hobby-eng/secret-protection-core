@@ -9,11 +9,15 @@ on:
     paths:
       - Cargo.toml
       - Cargo.lock
+      - fuzz/Cargo.toml
+      - fuzz/Cargo.lock
       - .github/workflows/audit.yml
   pull_request:
     paths:
       - Cargo.toml
       - Cargo.lock
+      - fuzz/Cargo.toml
+      - fuzz/Cargo.lock
       - .github/workflows/audit.yml
   schedule:
     - cron: "23 4 * * 1"
@@ -28,6 +32,9 @@ permissions:
 
 jobs:
   audit:
+    strategy:
+      matrix:
+        lockfile: [Cargo.lock, fuzz/Cargo.lock]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -38,3 +45,4 @@ jobs:
         uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24 # v1.2.7
         with:
           createIssues: false
+          file: ${{ matrix.lockfile }}

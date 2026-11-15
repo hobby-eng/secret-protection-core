@@ -5,11 +5,10 @@ use std::fmt;
 use super::{Secret, SecretError};
 use crate::os::{Access, Region};
 
-/// Like [`Secret`], but its pages refuse all access between uses. The bytes are reachable only
-/// inside [`ClosedSecret::read`] and [`ClosedSecret::write`], so a stray read elsewhere in the
-/// program (a Heartbleed-style bug) crashes instead of leaking. Each use costs two system calls.
-/// The system may refuse to close the pages, and WebAssembly has none to close:
-/// [`ClosedSecret::is_closed`] says whether they are closed now.
+/// A [`Secret`] that asks the OS to deny access to its pages between uses. Check
+/// [`ClosedSecret::is_closed`] after each use if closing is required. WebAssembly has no
+/// per-buffer page permissions. On Unix a continuing child must leave pre-fork byte references
+/// unused. Returning or unwinding from a callback skips the parent’s permission change.
 pub struct ClosedSecret {
     secret: Secret,
     /// What the pages allow now, as the system last confirmed.
@@ -91,8 +90,8 @@ impl ClosedSecret {
         self.secret.capacity()
     }
 
-    /// Whether the pages refuse every access now, as the system confirmed when they were last
-    /// closed. A child of `fork` holds no pages of its parent's: false there.
+    /// Whether the OS last confirmed that these pages deny access. An inherited owner reports
+    /// false in a continuing child of ordinary Unix `fork`.
     pub fn is_closed(&self) -> bool {
         self.secret.pages.here() && self.access == Access::Nothing
     }

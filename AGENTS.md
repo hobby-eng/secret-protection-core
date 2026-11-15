@@ -1,35 +1,27 @@
 # secret-protection-core
 
-Protection of secrets in memory and of the process that holds them, shared by the workspace's
-programs. Workspace rules: `AGENTS.md` in the workspace root, and the coding guide it names (CORE,
-RUST, TOOL, DOC).
+Read the workspace `AGENTS.md` and the coding guides it names before changing this library. The checkout uses Rust 1.99.1 with the targets in `rust-toolchain.toml`. On the workspace laptop, use the workspace Cargo and Rustup homes and prefix Cargo commands with `run-capped --`.
 
-Toolchain: Rust 1.99.1 (`rust-toolchain.toml`, with the targets of every system the crate has code
-for). On the development machine set `CARGO_HOME` and `RUSTUP_HOME` as the workspace rules say, and
-start every cargo command through `run-capped`.
+## Where to work
 
-Fast gates (CORE-43):
+The public buffer and isolation APIs live in `src/protect.rs` and its submodules. The worker protocol is in `src/worker.rs`. The page abstraction lives in `src/os.rs`, and the platform calls are in the modules under `src/os/`. Keep unsafe production code in the OS modules, with a `SAFETY` comment for each unsafe block.
+
+Secret owners use fixed-capacity storage, wipe it on normal destruction in its owning process, and keep the contents out of debug output. Best-effort APIs report the protections the OS granted. Strict calls return errors when required properties are missing. Check [the platform contracts](docs/TECHNICAL.md) when changing an allocation, worker or isolation guarantee, and update the documentation with the code.
+
+## Checks
+
+The main crate uses these fast gates (CORE-43).
 
 - `cargo fmt --check`
-- `cargo clippy --all-targets --target <t> -- -D warnings` for each target of `rust-toolchain.toml`
-  and the host
-- `cargo test` (the isolation and secret-memory tests have a `main` of their own and start child
-  processes)
+- `cargo clippy --locked --all-targets -- -D warnings` for the host. Add `--target <triple>` before `--` for each target in `rust-toolchain.toml`.
+- `cargo test --locked`. The integration binaries `isolation`, `secret_memory` and `worker` each use a custom main and run parts of the suite in child processes.
 
-CI (`.github/workflows/ci.yml`) runs these gates on x86-64 Linux and the tests on ARM Linux, macOS
-and Windows; `audit.yml` holds `Cargo.lock` against the RustSec advisories.
+The CI workflow runs these checks on Linux x86-64 and runs the tests on Linux ARM64, macOS and Windows. The RustSec workflow checks the root and fuzz lockfiles. The separate fuzz workspace has its own manifest and lockfile. To check it locally, use `cargo fmt --manifest-path fuzz/Cargo.toml --check`, `RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings`, and `cargo audit -f fuzz/Cargo.lock`.
 
-Before a release, and after a change of what crosses between processes, the fuzz targets under
-`fuzz/` (the worker's setting, its report, the keys of a secret field) run under the sanitizer:
-`cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu <target> --
--max_total_time=90`. They build the crate with `--cfg fuzzing`, which opens `src/fuzzing.rs` to
-them. The coverage record in `docs/COVERAGE.md` is measured as it says, the worker included.
+Before a release or after changing data exchanged between processes, run the three sanitizer-backed fuzz targets, `setting`, `report` and `keystrokes`. Run the command once per target.
 
-Layout: `src/protect.rs` the public items and what each promises; `src/os.rs` the pages shared by
-every system; `src/os/{unix,linux,apple,windows}.rs` the calls of each system. `unsafe` is allowed
-only in `src/os*`, each block with a `SAFETY` comment. `docs/TECHNICAL.md` describes all of it and
-must change with it.
+```sh
+cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu <target> -- -max_total_time=90
+```
 
-Every buffer that holds secret bytes wipes them before it gives its pages back, never grows, and
-shows nothing of them in `Debug`. A protection that the system refuses is reported, never hidden
-and never an error.
+The setting and report targets use `--cfg fuzzing` to reach their parsers through `src/fuzzing.rs`. The keystrokes target calls the public input API. Follow [the coverage procedure](docs/COVERAGE.md) to include the worker and isolated subprocesses in a Linux line-coverage measurement.

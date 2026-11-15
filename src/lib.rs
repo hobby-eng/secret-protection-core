@@ -1,8 +1,8 @@
-//! Keeps secrets out of swap, core dumps, child processes and the reach of other programs.
+//! Memory buffers and process restrictions for applications that handle secrets.
 //!
-//! [`Secret`] and [`WorkArea`] give memory for secrets, [`Isolation`] closes the process against a
-//! secret leaving it, and [`Worker`] runs the secret work in a separate isolated process. What each
-//! system does is described in docs/TECHNICAL.md.
+//! [`Secret`] and [`WorkArea`] report the protection granted to their allocations. [`Isolation`]
+//! reports process and thread restrictions, and [`Worker`] runs operations in a separate process.
+//! Platform guarantees and usage limits are described in `docs/TECHNICAL.md`.
 
 mod channels;
 #[cfg(fuzzing)]

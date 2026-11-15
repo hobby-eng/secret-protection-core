@@ -1,6 +1,5 @@
-//! A worker process for the secret work. It cleans up and isolates itself before reading anything,
-//! tells the parent what took effect, and only then gets requests: length-prefixed frames on its
-//! standard input and output, read straight into a [`Secret`].
+//! A worker reports its startup checks and isolation before the parent sends a request.
+//! Frames travel over standard streams on Unix and a named pipe on Windows.
 
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -11,14 +10,18 @@ use crate::protect::{Isolation, Missing, Options, Protection, Secret};
 /// whether it keeps the terminal.
 pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
 
+#[cfg(windows)]
+pub(crate) const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
+
 /// What a worker sends before anything else: one byte for each protection, then whether its
 /// start left it clean.
 const REPORT_BYTES: usize = Protection::COUNT + 1;
 
-/// A child process, started from this same program, that does the secret work in full isolation.
-/// It shares no memory with the parent and inherits only its two pipes; on Windows it runs in an
-/// AppContainer without network. Android and iOS can't start one. `main` must call [`serve`] first.
-/// Answers should carry what the parent needs, never the password or the key.
+/// A separate process running the same executable on Linux, macOS or Windows.
+/// Call [`serve`] first in the worker. The parent checks the startup report and the protections
+/// it required before sending a request. A worker must confirm [`Protection::WholeProcess`].
+/// Linux closes inherited nonstandard descriptors during spawn. Windows disables inheritance and
+/// uses a named pipe in an AppContainer without network capabilities.
 pub struct Worker {
     process: crate::os::WorkerProcess,
     isolation: Isolation,
@@ -27,7 +30,8 @@ pub struct Worker {
     ended: Option<bool>,
 }
 
-/// Why a worker did not start. It was ended before any request reached it.
+/// Why the parent could not admit a worker. It sent no request and attempts to clean up any
+/// process it started.
 #[derive(Debug)]
 pub enum WorkerError {
     /// The process did not start, or ended before it said what read back.
@@ -53,9 +57,10 @@ impl fmt::Display for WorkerError {
 impl std::error::Error for WorkerError {}
 
 impl Worker {
-    /// Starts this program again as a worker with `options`, without the terminal. Returns it only
-    /// once the worker holds nothing of its parent's but its pipes and every protection in
-    /// `required` is confirmed in it; else the worker is ended and nothing was sent to it.
+    /// Starts the current executable without a terminal. Returns a worker after its startup check
+    /// passes and whole-process isolation and every protection in `required` are confirmed. The startup report has no deadline.
+    /// On Unix the check examines descriptors still open above standard error when [`serve`] runs.
+    /// On Windows the launcher disables inheritance and the worker does not enumerate handles.
     pub fn start(options: Options, required: &[Protection]) -> Result<Self, WorkerError> {
         Self::starting(options, required, false)
     }
@@ -86,12 +91,8 @@ impl Worker {
         let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
         let mut process =
             crate::os::WorkerProcess::start(&setting, terminal).map_err(WorkerError::Start)?;
-        let started = Self::report(&mut process).and_then(|(isolation, clean)| {
-            if !clean {
-                return Err(WorkerError::Unclean);
-            }
-            isolation.require(required).map_err(WorkerError::Missing)
-        });
+        let started = Self::report(&mut process)
+            .and_then(|(isolation, clean)| admit(isolation, clean, required));
         match started {
             Ok(isolation) => Ok(Self {
                 process,
@@ -124,11 +125,10 @@ impl Worker {
         self.isolation
     }
 
-    /// Sends `request` to the worker and returns its answer, read straight into a [`Secret`]. An
-    /// answer longer than `most` bytes is refused with `InvalidData`. After that, or after any
-    /// failed read or write, the pipes are out of step: the worker is ended before this returns,
-    /// as [`Worker::end`] does, and every later call is refused. Neither this nor
-    /// [`Worker::start`] has a deadline of its own for a worker that is slow to answer.
+    /// Sends a framed request and reads its reply into a [`Secret`]. A request too large for
+    /// the four-byte length is rejected before sending. A reply larger than `most` is refused.
+    /// A failed exchange closes the transport, attempts shutdown and prevents further calls.
+    /// Waiting for the reply has no deadline.
     pub fn call(&mut self, request: &[u8], most: usize) -> io::Result<Secret> {
         if self.broken {
             return Err(io::Error::new(
@@ -156,10 +156,11 @@ impl Worker {
         self.ended == Some(true)
     }
 
-    /// Ends the worker and says whether it ended: its pipes are closed, it gets a second to end
-    /// by itself, then is killed and given a second more. False when it is still there, as when
-    /// the program may no longer signal other processes; dropping a worker does the same and
-    /// cannot say so.
+    /// Closes the transport and waits up to a second for exit. Windows and Linux with a
+    /// spawn-time pidfd can request termination, then wait up to a second more. On macOS
+    /// and Linux without a pidfd, a worker still running at the deadline yields false.
+    /// A dedicated Unix waiter collects the worker when it exits. On the POSIX fallback
+    /// let this library own the child's wait status.
     pub fn end(mut self) -> bool {
         self.finish()
     }
@@ -186,6 +187,20 @@ impl Worker {
     }
 }
 
+fn admit(
+    isolation: Isolation,
+    clean: bool,
+    required: &[Protection],
+) -> Result<Isolation, WorkerError> {
+    if !clean {
+        return Err(WorkerError::Unclean);
+    }
+    isolation
+        .require_in_scope(&[Protection::WholeProcess], true)
+        .and_then(|isolation| isolation.require_in_scope(required, true))
+        .map_err(WorkerError::Missing)
+}
+
 /// What a worker's report says: its isolation, and whether its start left it clean. `None` for
 /// bytes that no worker of this crate sends.
 fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
@@ -199,12 +214,9 @@ fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
 }
 
 impl Drop for Worker {
-    /// Ends the worker as [`Worker::end`] does, unless it was ended already. A worker that was
-    /// left behind is taken off the system's list if it has ended since, without waiting.
+    /// Uses the first shutdown result; the Unix waiter outlives a failed shutdown.
     fn drop(&mut self) {
-        if !self.finish() {
-            self.process.reap();
-        }
+        self.finish();
     }
 }
 
@@ -216,11 +228,15 @@ impl fmt::Debug for Worker {
     }
 }
 
-/// What the parent wrote into [`WORKER`]: the options, whether to keep the terminal, and on
-/// Windows the name of the pipe. `None` for any other text, an unknown option or flag included.
+/// Parses known option bits and a terminal flag. Unix accepts no trailing field. On Windows
+/// the terminal flag must be zero and the named pipe must have its generated spelling.
 pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     let mut parts = text.splitn(3, ',');
-    let options: u32 = parts.next()?.parse().ok()?;
+    let digits = parts.next()?;
+    if digits.len() > 1 && digits.starts_with('0') || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let options: u32 = digits.parse().ok()?;
     let terminal = match parts.next()? {
         "0" => false,
         "1" => true,
@@ -228,16 +244,28 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     };
     let rest = parts.next();
     // Only Windows has more: the name of the worker's pipe. On Unix one text, one setting.
-    let fits = !cfg!(unix) || rest.is_none();
+    #[cfg(not(windows))]
+    let fits = rest.is_none();
+    #[cfg(windows)]
+    let fits = !terminal
+        && rest
+            .and_then(|name| name.strip_prefix(PIPE_PREFIX))
+            .is_some_and(|digits| {
+                digits.len() == 32
+                    && digits
+                        .bytes()
+                        .all(|d| d.is_ascii_digit() || (b'a'..=b'f').contains(&d))
+            });
     let known = Options::from_bits(options).to_bits() == options;
     (known && fits).then_some((options, terminal, rest.unwrap_or_default()))
 }
 
-/// The worker side. In a process started by [`Worker::start`] it leaves the terminal, isolates
-/// itself, reports, answers requests of up to `most` bytes with `answer` until the parent closes
-/// the pipe, and returns `true`; otherwise, and at any later call, `false` at once. Call it
-/// first in `main`: it closes nothing, so a worker that holds a descriptor of its own by then
-/// says its start was not clean and takes no request (Windows does not look at those).
+/// Handles worker requests of at most `most` bytes with `answer`. Call this at the beginning
+/// of `main`, before starting other threads. A recognized worker applies isolation and sends
+/// its report before taking requests. Unix checks descriptors still open above standard error.
+/// Windows does not enumerate handles the worker has opened. Returns true after handling a
+/// worker setting, including a failed worker startup, and false outside worker mode or on a
+/// later invocation after the worker role was claimed.
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
@@ -260,7 +288,7 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     let mut report = [0; REPORT_BYTES];
     report[..Protection::COUNT].copy_from_slice(&isolation.to_bytes());
     report[Protection::COUNT] = u8::from(clean);
-    if streams.write_all(&report).is_err() || !clean {
+    if streams.write_all(&report).is_err() || !clean || !isolation.whole_process {
         return true;
     }
     loop {
@@ -295,6 +323,28 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn whole_process_is_mandatory_even_without_caller_requirements() {
+        let mut found = crate::protect::Findings::new();
+        found.check(Protection::NoCoreDumps, true, false);
+        let report = found.finish();
+        for required in [&[][..], &[Protection::NoCoreDumps]] {
+            assert!(
+                matches!(admit(report, true, required), Err(WorkerError::Missing(m)) if m.missing.contains(&Protection::WholeProcess))
+            );
+        }
+    }
+
+    #[test]
+    fn a_required_thread_only_measure_cannot_admit_a_worker() {
+        let mut found = crate::protect::Findings::new();
+        found.check(Protection::WholeProcess, true, true);
+        found.check(Protection::NoNewSockets, true, false);
+        assert!(
+            matches!(admit(found.finish(), true, &[Protection::NoNewSockets]), Err(WorkerError::Missing(m)) if m.missing == [Protection::NoNewSockets])
+        );
+    }
+
     /// A refused start says which refusal it was.
     #[test]
     fn a_refused_start_says_why() {
@@ -315,15 +365,31 @@ mod tests {
     /// The worker's setting: options, the terminal, and the name of a pipe where there is one.
     #[test]
     fn a_setting_is_read_as_the_parent_writes_it() {
+        #[cfg(not(windows))]
         assert_eq!(setting("5,1"), Some((5, true, "")));
-        let channel = setting("0,0,//./pipe/name,with,commas");
-        let windows = cfg!(windows).then_some((0, false, "//./pipe/name,with,commas"));
-        assert_eq!(channel, windows);
+        #[cfg(windows)]
+        {
+            let name = format!("{PIPE_PREFIX}0123456789abcdef0123456789abcdef");
+            assert_eq!(
+                setting(&format!("5,0,{name}")),
+                Some((5, false, name.as_str()))
+            );
+            for bad in [
+                format!("0,1,{name}"),
+                format!("0,0,{name}0"),
+                format!("0,0,{}", name.to_uppercase()),
+                "5,1".into(),
+            ] {
+                assert!(setting(&bad).is_none());
+            }
+        }
         // On Unix nothing follows the two flags, not even a comma.
         #[cfg(unix)]
         assert!(setting("0,0,").is_none() && setting("0,0,3.17").is_none());
         // No other text: a flag that is neither 0 nor 1, or an option this crate does not have.
-        for other in ["", "none", "x,1", "7", "0,2", "0,true", "64,0"] {
+        for other in [
+            "", "none", "x,1", "+1,0", "01,0", "00,0", "7", "0,2", "0,true", "64,0",
+        ] {
             assert_eq!(setting(other), None, "{other}");
         }
     }

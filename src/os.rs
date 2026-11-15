@@ -36,7 +36,7 @@ pub(crate) use windows::{
 #[cfg(any(unix, windows))]
 const GRACE: std::time::Duration = std::time::Duration::from_secs(1);
 /// How long a wait for a worker or for its pipe pauses before it looks again.
-#[cfg(any(unix, windows))]
+#[cfg(windows)]
 const STEP: std::time::Duration = std::time::Duration::from_millis(2);
 
 /// Where this crate knows no protection of the process, as in WebAssembly, it applies none.
@@ -96,6 +96,8 @@ pub(crate) enum Access {
 /// their bytes meanwhile.
 #[derive(Clone, Copy)]
 pub(crate) struct Region {
+    #[cfg(unix)]
+    generation: usize,
     #[cfg(any(unix, windows))]
     start: std::ptr::NonNull<u8>,
     #[cfg(any(unix, windows))]
@@ -195,6 +197,8 @@ impl Pages {
     pub(crate) fn region(&self) -> Region {
         self.check();
         Region {
+            #[cfg(unix)]
+            generation: self.generation,
             start: self.start,
             bytes: self.bytes,
         }
@@ -248,8 +252,6 @@ mod unsupported {
             self.close();
             true
         }
-
-        pub(crate) fn reap(&mut self) {}
     }
 
     pub(crate) fn starts_clean() -> bool {
@@ -355,6 +357,17 @@ mod heap {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn a_foreign_region_cannot_change_page_permissions() {
+        let mut pages = super::Pages::new(1);
+        let mut stale = pages.region();
+        stale.generation = stale.generation.wrapping_add(1);
+        assert!(!stale.allow(super::Access::Nothing));
+        pages.as_mut_slice()[0] = 42;
+        assert_eq!(pages.as_slice(), [42]);
+    }
+
     /// Memory that was never written is wiped whole. Miri runs this check too and would stop at
     /// a read of an unwritten byte.
     #[test]

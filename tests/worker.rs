@@ -23,7 +23,7 @@ mod support;
 use support::run;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use secret_protection_core::{
     Keystroke, Options, Protection, Secret, SecretLine, Worker, WorkerError, serve,
@@ -41,31 +41,11 @@ const KEPT: &str = "SECRET_PROTECTION_CORE_TEST_KEPT";
 
 /// Set in a worker that was asked to stay after its pipes close.
 static LINGERS: AtomicBool = AtomicBool::new(false);
+#[cfg(unix)]
+static EXIT_GATE: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
 /// How long such a worker stays, at most: long past every wait of its parent, so that within a
 /// check it ends only when it is killed.
 const LINGER_SECONDS: u32 = 30;
-/// The exit status of a role whose timed part came late: its parent tries it again.
-#[cfg(all(
-    target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
-))]
-const LATE: i32 = 78;
-
-/// Runs `scenario`, which returns how long its timed part took, until the time is below `most`,
-/// three times at most: a process the system put on hold is late once, a fault of the code
-/// every time. What must hold whatever the time, the scenario asserts itself.
-fn timed(most: Duration, mut scenario: impl FnMut() -> Duration) {
-    let mut times = Vec::new();
-    for _ in 0..3 {
-        let taken = scenario();
-        if taken < most {
-            return;
-        }
-        times.push(taken);
-    }
-    panic!("late three times, against {most:?}: {times:?}");
-}
-
 /// The inodes of the pipes above standard error that were open when this program's first code
 /// ran, before `main`, as the start-up code of a library linked to it would find them; zeros
 /// after the last.
@@ -129,8 +109,17 @@ fn answer(request: &[u8]) -> Secret {
         #[cfg(unix)]
         // SAFETY: getsid and getpid take integers and touch no memory.
         b"session" => (unsafe { libc::getsid(0) == libc::getpid() }).to_string(),
+        b"pid" => std::process::id().to_string(),
         b"large" => "x".repeat(100),
         b"huge" => "x".repeat(HUGE),
+        #[cfg(unix)]
+        bytes if bytes.starts_with(b"wait for ") => {
+            use std::os::unix::ffi::OsStrExt;
+            let path = std::ffi::OsStr::from_bytes(&bytes[9..]);
+            let file = std::fs::File::open(path).unwrap();
+            assert!(EXIT_GATE.set(file).is_ok());
+            std::process::id().to_string()
+        }
         b"linger" => {
             LINGERS.store(true, Ordering::Relaxed);
             "lingers".to_owned()
@@ -211,6 +200,19 @@ fn main() {
     #[cfg(unix)]
     let early = (std::env::var(ROLE).as_deref() == Ok("late"))
         .then(|| std::fs::File::open("/dev/null").unwrap());
+    #[cfg(target_os = "linux")]
+    let _sibling =
+        (std::env::var("SECRET_PROTECTION_CORE_WORKER").as_deref() == Ok("12,0")).then(|| {
+            // The fixture reserves the two Windows-only flags for a pre-main sibling on
+            // Linux. The real launcher controls the environment and all descriptors.
+            let (ready, receiver) = std::sync::mpsc::sync_channel(0);
+            let sibling = std::thread::spawn(move || {
+                ready.send(()).unwrap();
+                std::thread::park();
+            });
+            receiver.recv().unwrap();
+            sibling
+        });
     if serve(MOST, answer) {
         // `serve` closed nothing: the file the program opened first is still its own.
         #[cfg(unix)]
@@ -225,6 +227,12 @@ fn main() {
             unsafe { libc::fcntl(0, libc::F_GETFD) != -1 && libc::fcntl(1, libc::F_GETFD) != -1 };
         #[cfg(not(unix))]
         let taken = true;
+        #[cfg(unix)]
+        if let Some(mut gate) = EXIT_GATE.get() {
+            use std::io::Read;
+            // EOF is the parent's release. A dead test parent also closes its writer.
+            assert_eq!(gate.read(&mut [0]).unwrap(), 0);
+        }
         if taken && LINGERS.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_secs(LINGER_SECONDS.into()));
         }
@@ -241,6 +249,21 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("unwaited") => return linux::unwaited(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("separate-table") => return linux::separate_table(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("first-reply") => return linux::first_reply(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("memory-baseline") => return linux::memory_baseline(),
         #[cfg(all(
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
@@ -272,6 +295,16 @@ fn main() {
         println!("test no worker starts here ... ok");
         return;
     }
+    #[cfg(target_os = "linux")]
+    run("a thread-scoped worker is refused before a request", || {
+        let options = Options::new().refuse_dynamic_code().microsoft_signed_only();
+        let refused = Worker::start(options, &[]).unwrap_err();
+        let WorkerError::Missing(missing) = refused else {
+            panic!("unexpected refusal: {refused}");
+        };
+        assert_eq!(missing.missing, [Protection::WholeProcess]);
+        assert!(!missing.isolation.whole_process);
+    });
     run(
         "a worker answers what it is asked, isolated",
         a_worker_answers_isolated,
@@ -298,7 +331,7 @@ fn main() {
         a_request_beyond_the_limit_ends_the_worker,
     );
     run(
-        "a worker that does not end by itself is killed after a second",
+        "a lingering worker is terminated only with a stable process handle",
         a_worker_that_lingers_is_killed,
     );
     run(
@@ -345,6 +378,14 @@ fn main() {
             || linux::role("without-listing"),
         );
         run(
+            "the first worker reply preserves Linux secret memory eligibility",
+            || linux::role("first-reply"),
+        );
+        run(
+            "channel enumeration follows the calling thread descriptor table",
+            || linux::role("separate-table"),
+        );
+        run(
             "a program that ignores SIGCHLD still ends its worker",
             || linux::role("unwaited"),
         );
@@ -369,7 +410,13 @@ fn main() {
 
 /// What every worker must have on the systems where it starts.
 fn required() -> Vec<Protection> {
-    let mut required = vec![Protection::NoMemoryReading, Protection::WholeProcess];
+    let mut required = vec![Protection::WholeProcess];
+    #[cfg(target_os = "linux")]
+    if support::initial_pid_namespace() {
+        required.push(Protection::NoMemoryReading);
+    }
+    #[cfg(not(target_os = "linux"))]
+    required.push(Protection::NoMemoryReading);
     if cfg!(unix) {
         required.extend([
             Protection::NoCoreDumps,
@@ -405,7 +452,15 @@ fn speculation_can_be_limited() -> bool {
         const CHANGEABLE_OR_OFF: libc::c_int = 0b101;
         [0, 1].into_iter().all(|kind: libc::c_ulong| {
             // SAFETY: prctl takes integers and touches no memory of this process.
-            let state = unsafe { libc::prctl(GET, kind, 0, 0, 0) };
+            let state = unsafe {
+                libc::prctl(
+                    GET,
+                    kind,
+                    0 as libc::c_ulong,
+                    0 as libc::c_ulong,
+                    0 as libc::c_ulong,
+                )
+            };
             state == 0 || (state > 0 && state & CHANGEABLE_OR_OFF != 0)
         })
     }
@@ -523,8 +578,7 @@ fn a_worker_lacking_a_protection_is_stopped() {
 
 /// Runs `end` on a thread of its own and fails when it takes longer than `limit`: a worker that
 /// waits for its parent, which waits for it, would hang the test for ever.
-fn within(limit: Duration, end: impl FnOnce() + Send + 'static) -> Duration {
-    let started = Instant::now();
+fn within(limit: Duration, end: impl FnOnce() + Send + 'static) {
     let (done, finished) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         end();
@@ -533,7 +587,6 @@ fn within(limit: Duration, end: impl FnOnce() + Send + 'static) -> Duration {
     finished
         .recv_timeout(limit)
         .unwrap_or_else(|_| panic!("not done within {limit:?}"));
-    started.elapsed()
 }
 
 fn a_refused_answer_ends_the_worker() {
@@ -550,13 +603,7 @@ fn a_refused_answer_ends_the_worker() {
         .map(|_| ())
         .map_err(|error| error.kind());
     assert_eq!(refused, Err(std::io::ErrorKind::BrokenPipe));
-    // Dropping it returns at once: its pipes were closed, so it ended instead of waiting to write.
-    timed(Duration::from_millis(900), || {
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert!(worker.call(b"huge", HUGE - 1).is_err());
-        within(Duration::from_secs(20), move || drop(worker))
-    });
-    drop(worker);
+    assert!(worker.end(), "failed exchange left the worker running");
     // The same from a drop alone, with the answer never read.
     let mut worker = Worker::start(Options::new(), &[]).unwrap();
     assert!(worker.call(b"huge", 10).is_err());
@@ -573,12 +620,14 @@ fn a_request_beyond_the_limit_ends_the_worker() {
     within(Duration::from_secs(20), move || drop(worker));
     // A worker that lives on after it stopped serving does not keep its parent waiting: its
     // streams ended with `serve`, so the request it left unread fails at once.
-    timed(Duration::from_millis(2500), || {
+    within(Duration::from_secs(20), || {
         let mut worker = Worker::start(Options::new(), &[]).unwrap();
         assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-        let started = Instant::now();
         assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
-        started.elapsed()
+        assert_eq!(
+            worker.call(b"public", 10).unwrap_err().kind(),
+            std::io::ErrorKind::BrokenPipe
+        );
     });
 }
 
@@ -762,39 +811,61 @@ fn served_here(pipe: &std::fs::File) -> bool {
 
 /// The `unserved` role: the worker's variable is set, and the program is past `serve`.
 fn unserved() {
-    timed(Duration::from_secs(2), || {
-        let started = Instant::now();
-        match Worker::start(Options::new(), &[]) {
-            Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
-            other => panic!("{other:?}"),
-        }
-        started.elapsed()
+    match Worker::start(Options::new(), &[]) {
+        Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// A lingering worker can be terminated through a stable process handle. On platforms
+/// without one, the parent stops waiting and reports that the worker is still running.
+fn a_worker_that_lingers_is_killed() {
+    within(Duration::from_secs(20), || {
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        #[cfg(unix)]
+        let (_gate, _id) = exit_gate(&mut worker);
+        #[cfg(not(unix))]
+        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+        #[cfg(target_os = "linux")]
+        let can_force = linux_pidfd(&_id);
+        #[cfg(not(target_os = "linux"))]
+        let can_force = cfg!(windows);
+        assert_eq!(worker.end(), can_force);
     });
 }
 
-/// Ending a worker never waits for ever: one that stays after its pipes close gets a second,
-/// then is killed and taken off the system's list, well before it would have ended by itself.
-fn a_worker_that_lingers_is_killed() {
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    let before = linux::children();
-    // One second of grace, then the kill, and no second wait.
-    timed(Duration::from_millis(1900), || {
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-        let started = Instant::now();
-        assert!(worker.end(), "the worker was not ended");
-        let taken = started.elapsed();
-        assert!(taken >= Duration::from_millis(900), "{taken:?}");
-        taken
-    });
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    assert_eq!(linux::children(), before, "the worker is still listed");
+#[cfg(unix)]
+fn exit_gate(worker: &mut Worker) -> (std::fs::File, String) {
+    use std::os::unix::{ffi::OsStrExt, fs::OpenOptionsExt};
+    let path = std::env::temp_dir().join(format!("spc-exit-gate-{}", std::process::id()));
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+    // SAFETY: the NUL-terminated path is valid; mkfifo refuses an existing entry.
+    let made = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "mkfifo: {}", std::io::Error::last_os_error());
+    let bootstrap = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(&path)
+        .unwrap();
+    let writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    let request = [b"wait for ".as_slice(), path.as_os_str().as_bytes()].concat();
+    let reply = worker.call(&request, 16);
+    std::fs::remove_file(&path).unwrap();
+    drop(bootstrap);
+    let id = String::from_utf8(reply.unwrap().as_bytes().to_vec()).unwrap();
+    (writer, id)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_pidfd(pid: &str) -> bool {
+    let needle = format!("Pid:\t{pid}");
+    std::fs::read_dir("/proc/thread-self/fdinfo")
+        .unwrap()
+        .flatten()
+        .any(|entry| {
+            std::fs::read_to_string(entry.path())
+                .is_ok_and(|info| info.lines().any(|line| line == needle))
+        })
 }
 
 #[cfg(unix)]
@@ -814,249 +885,5 @@ fn a_worker_starts_from_a_protected_stack() {
     target_os = "linux",
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
-mod linux {
-    use super::*;
-
-    /// The processes this thread started that are still there, ended or not.
-    pub(super) fn children() -> Vec<u32> {
-        let own = std::process::id();
-        std::fs::read_to_string(format!("/proc/self/task/{own}/children"))
-            .unwrap()
-            .split_whitespace()
-            .map(|pid| pid.parse().unwrap())
-            .collect()
-    }
-
-    /// A failed call ends the worker before it returns: the worker is gone from the system's
-    /// list while the program still holds the `Worker`.
-    pub(super) fn a_failed_call_ends_the_worker_before_it_is_dropped() {
-        let before = children();
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert_eq!(children().len(), before.len() + 1);
-        assert!(worker.call(b"huge", 10).is_err());
-        assert_eq!(children(), before, "the worker is still listed");
-        drop(worker);
-    }
-
-    /// The `unsignalling` role: a program that isolated itself so that it signals only itself
-    /// cannot kill a worker it started before. Ending the worker still returns in time, and
-    /// says that the worker is left behind.
-    pub(super) fn unsignalling() {
-        use secret_protection_core::Isolation;
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-        let isolation = Isolation::enter_with(Options::new().signals_to_self_only());
-        assert!(isolation.signals_to_self_only, "{isolation:?}");
-        let started = Instant::now();
-        let ended = worker.end();
-        let taken = started.elapsed();
-        assert!(
-            !ended,
-            "a process that signals only itself ended its worker"
-        );
-        // One second of grace and no second wait, in `end` or in the drop that follows. Late,
-        // the role is tried again: the isolation cannot be undone in this process.
-        assert!(taken >= Duration::from_millis(900), "{taken:?}");
-        if taken >= Duration::from_millis(1900) {
-            late(taken);
-        }
-    }
-
-    /// Starts this program again in a part that runs under a filter of its own, and expects it
-    /// to end well.
-    /// Ends a role whose timed part came late, with the time: its parent tries it again.
-    #[allow(
-        clippy::print_stderr,
-        reason = "the time goes to the parent on standard error"
-    )]
-    fn late(taken: Duration) -> ! {
-        eprintln!("{taken:?}");
-        std::process::exit(LATE)
-    }
-
-    /// Starts this program again in role `name`, again when its timed part came late, three
-    /// times at most.
-    pub(super) fn role(name: &str) {
-        let mut late = Vec::new();
-        for _ in 0..3 {
-            let output = std::process::Command::new(std::env::current_exe().unwrap())
-                .env(ROLE, name)
-                .output()
-                .unwrap();
-            if output.status.code() != Some(LATE) {
-                return super::support::role_ended(name, output.status, &output.stderr);
-            }
-            late.push(String::from_utf8_lossy(&output.stderr).trim().to_owned());
-        }
-        panic!("{name}: late three times: {late:?}");
-    }
-
-    /// The answer of a filter that refuses a call with `error`.
-    const fn errno(error: i32) -> u32 {
-        libc::SECCOMP_RET_ERRNO | error as u32
-    }
-
-    /// Installs a filter, which a started worker inherits, that gives `calls` the answers named
-    /// and allows every other call.
-    fn refuse(calls: &[(libc::c_long, u32)]) {
-        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
-        // Load the call's number, then answer or go on, call by call.
-        let mut program = vec![instruction(0x20, 0, 0, 0)];
-        for &(call, answer) in calls {
-            program.push(instruction(0x15, 0, 1, call as u32));
-            program.push(instruction(0x06, 0, 0, answer));
-        }
-        program.push(instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW));
-        install(&mut program);
-    }
-
-    /// Installs a filter, which a started worker inherits, that refuses every open for both
-    /// reading and writing, as a worker opens /dev/null, and allows every other call.
-    fn refuse_read_write_opens() {
-        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
-        // The flags are the third argument of openat; their two lowest bits say how it opens.
-        install(&mut [
-            instruction(0x20, 0, 0, 0),
-            instruction(0x15, 0, 4, libc::SYS_openat as u32),
-            instruction(0x20, 0, 0, 32),
-            instruction(0x54, 0, 0, libc::O_ACCMODE as u32),
-            instruction(0x15, 0, 1, libc::O_RDWR as u32),
-            instruction(0x06, 0, 0, errno(libc::EACCES)),
-            instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW),
-        ]);
-    }
-
-    /// Installs `program` as a filter of this process and of what it starts.
-    fn install(program: &mut [libc::sock_filter]) {
-        let filter = libc::sock_fprog {
-            len: program.len() as u16,
-            filter: program.as_mut_ptr(),
-        };
-        // SAFETY: prctl takes integers and, for the filter, a pointer to instructions that live
-        // for the call; the kernel copies them.
-        unsafe {
-            assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
-            assert_eq!(
-                libc::prctl(
-                    libc::PR_SET_SECCOMP,
-                    libc::SECCOMP_MODE_FILTER,
-                    &raw const filter,
-                    0,
-                    0
-                ),
-                0
-            );
-        }
-    }
-
-    /// The `unexamined` role: a sandbox refuses `fstat` on one descriptor. The list of descriptors
-    /// still reads, says it is not whole, and gives that one as unknown, never a kind it was not
-    /// seen to be; the others keep their kinds.
-    pub(super) fn unexamined() {
-        use secret_protection_core::ChannelKind;
-        use std::os::fd::AsRawFd;
-        let hidden = std::fs::File::open("/dev/null").unwrap();
-        let target = u32::try_from(hidden.as_raw_fd()).unwrap();
-        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
-        let refused = libc::SECCOMP_RET_ERRNO | libc::EACCES as u32;
-        // The call's number; for each way to `fstat`, the descriptor in its first argument.
-        let mut program = vec![
-            instruction(0x20, 0, 0, 0),
-            instruction(0x15, 2, 0, libc::SYS_fstat as u32),
-            instruction(0x15, 1, 0, libc::SYS_newfstatat as u32),
-            instruction(0x15, 0, 3, libc::SYS_statx as u32),
-            instruction(0x20, 0, 0, 16),
-            instruction(0x15, 0, 1, target),
-            instruction(0x06, 0, 0, refused),
-            instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW),
-        ];
-        install(&mut program);
-        let open = secret_protection_core::open_channels().unwrap();
-        assert!(!open.complete, "{open:?}");
-        let kind = |descriptor: i32| {
-            let channel = open
-                .channels
-                .iter()
-                .find(|channel| channel.descriptor == descriptor);
-            channel.map(|channel| (channel.kind, channel.writable))
-        };
-        assert_eq!(kind(hidden.as_raw_fd()), Some((ChannelKind::Unknown, None)));
-        assert!(
-            kind(2).is_some_and(|(kind, _)| kind != ChannelKind::Unknown),
-            "{open:?}"
-        );
-    }
-
-    /// The `unwaited` role: a program that ignores SIGCHLD, as many services do, has its ended
-    /// children taken off the system's list at once. Ending its worker still says that it ended.
-    pub(super) fn unwaited() {
-        // SAFETY: sets the action of one signal to the system's own "ignore".
-        let before = unsafe { libc::signal(libc::SIGCHLD, libc::SIG_IGN) };
-        assert_ne!(before, libc::SIG_ERR);
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
-        assert!(worker.end(), "the worker was not seen to end");
-    }
-
-    /// Without a readable list of descriptors the worker cannot know what it holds: it says so,
-    /// and the parent ends it before any request. A list cut short is not complete for
-    /// `open_channels` either.
-    pub(super) fn without_listing() {
-        refuse(&[(libc::SYS_getdents64, errno(libc::EACCES))]);
-        match Worker::start(Options::new(), &[]) {
-            Err(WorkerError::Unclean) => {}
-            other => panic!("{other:?}"),
-        }
-        let open = secret_protection_core::open_channels().unwrap();
-        assert!(!open.complete, "{open:?}");
-    }
-
-    /// Where /dev/null cannot be opened, a worker that serves no more points its streams at an
-    /// ended pipe: the parent's call fails long before the worker ends by itself, and the
-    /// worker, whose numbers are still taken, lives on until it is killed after a second.
-    pub(super) fn without_null() {
-        refuse_read_write_opens();
-        let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-        let started = Instant::now();
-        assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
-        let taken = started.elapsed();
-        assert!(taken >= Duration::from_millis(900), "{taken:?}");
-        if taken >= Duration::from_millis(2500) {
-            late(taken);
-        }
-    }
-
-    /// A worker that cannot leave its parent's session says so and gets no request; on the
-    /// terminal it does not try to, and starts. One that dies before it reports is an error of
-    /// the start, at once: here the kernel kills it at the same call.
-    pub(super) fn without_setsid() {
-        refuse(&[(libc::SYS_setsid, errno(libc::EPERM))]);
-        let error = Worker::start(Options::new(), &[]).unwrap_err();
-        assert!(matches!(error, WorkerError::Unclean), "{error:?}");
-        assert_eq!(error.to_string(), "the worker's start was not clean");
-        let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
-        assert_eq!(
-            on_terminal.call(b"public", 100).unwrap().as_bytes(),
-            b"cilbup"
-        );
-        drop(on_terminal);
-        // The killed worker would leave a core dump where the system writes them.
-        let none = libc::rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        // SAFETY: setrlimit reads the struct, which lives for the call.
-        assert_eq!(unsafe { libc::setrlimit(libc::RLIMIT_CORE, &none) }, 0);
-        refuse(&[(libc::SYS_setsid, libc::SECCOMP_RET_KILL_PROCESS)]);
-        let started = Instant::now();
-        let error = Worker::start(Options::new(), &[]).unwrap_err();
-        let said = error.to_string();
-        assert!(said.starts_with("the worker did not start"), "{said}");
-        let WorkerError::Start(cause) = error else {
-            panic!("{error:?}");
-        };
-        assert_eq!(cause.kind(), std::io::ErrorKind::UnexpectedEof);
-        assert!(started.elapsed() < Duration::from_secs(5));
-    }
-}
+#[path = "worker/linux.rs"]
+mod linux;

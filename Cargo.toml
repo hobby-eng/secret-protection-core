@@ -46,7 +46,7 @@ windows-sys = { version = "=0.61.2", features = [
 
 # The tests read the working set of the secret pages (QueryWorkingSetEx).
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "=0.61.2", features = ["Win32_System_ProcessStatus"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_System_ProcessStatus", "Wdk_Foundation", "Win32_System_WindowsProgramming"] }
 
 # A `main` of their own: the isolation needs a child process of one thread, and the counting
 # allocator a process without other threads.
@@ -85,3 +85,8 @@ print_stderr = "deny"
 
 [profile.test]
 opt-level = 2
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1

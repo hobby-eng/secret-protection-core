@@ -164,11 +164,11 @@ impl fmt::Debug for Secret {
     }
 }
 
-/// Pages for the work of a computation that holds secrets, such as the memory of a password hash:
-/// whole pages of its own, zero when made, locked where the system allows it and its lock limit
-/// holds all of them, kept out of core dumps and child processes as a [`Secret`]'s are, and wiped
-/// before they are given back. Unlike a [`Secret`] they are never Linux secret memory, so that a
-/// large area does not keep the machine from hibernating.
+/// Fixed-size scratch storage for a computation that handles secrets. It starts zeroed and
+/// wipes on drop. Unix and Windows allocate dedicated pages with guards and attempt to lock
+/// them where supported. WebAssembly uses a heap allocation. Linux uses anonymous pages here,
+/// even when [`Secret`] can use kernel secret memory. See [`WorkArea::is_locked`] and
+/// [`WorkArea::is_out_of_children`] for the properties of a particular allocation.
 pub struct WorkArea {
     pages: Pages,
 }
@@ -243,10 +243,10 @@ pub struct Isolation {
     /// error reports still hold the threads' stacks and registers; [`Isolation::enter`] asks them
     /// to leave out the heap, which Windows does not let it read back.
     pub no_core_dumps: bool,
-    /// Other programs of the same user cannot open the process to read or change its memory, nor
-    /// on Windows its threads to read or change their registers; and no thread had a debugger
-    /// attached before, which would keep reading. Unknown on Linux in a PID namespace of its
-    /// own, as in a container, where a debugger outside it does not show.
+    /// The platform confirmed its restrictions on new access to the process's memory. On
+    /// Windows the check covers current process and thread access controls and debugger status.
+    /// Access already granted to an existing handle can remain usable. On Linux the answer is
+    /// unknown if the PID namespace can hide an outside tracer.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it. On Windows
@@ -290,18 +290,16 @@ pub struct Isolation {
     /// input: on Linux and Android the filter refuses `execve`, on Windows the child-process
     /// policy holds. Unknown on macOS, whose sandbox allows it to no one but is not probed.
     pub no_new_programs: bool,
-    /// No library that another program planted loads (Windows): the default search for one
-    /// covers only the program's folder and System32, none loads from a remote share or from
-    /// where a low-integrity process could write, and none comes in through AppInit DLLs,
-    /// window hooks or input methods. A call with a path or search flags of its own still
-    /// loads from where it says.
+    /// Windows confirmed its extension-point and image-load policies, and the crate set the
+    /// default DLL search to the application directory and System32. The application directory
+    /// must be trusted. An explicit path or custom search flags can select another location.
     pub no_planted_libraries: bool,
     /// A job keeps the process from writing the clipboard, from global atoms, from other
     /// programs' windows and from changing the desktop, and allows it one process (Windows).
     /// Reading the clipboard stays, so that a secret can be pasted in.
     pub desktop_restricted: bool,
-    /// The process runs at low integrity or below, as in an AppContainer: it writes only where a
-    /// low label allows, not to the user's files or the user's other programs (Windows).
+    /// Windows read low integrity or below on the primary token and on the effective tokens
+    /// of the threads it inspected. A later impersonation can change a thread's rights.
     pub low_integrity: bool,
     /// What became of each protection, by its place in [`Protection::ALL`].
     outcomes: [Outcome; Protection::COUNT],
@@ -333,9 +331,20 @@ impl Isolation {
 
     /// `Ok` with this answer when every protection in `required` is confirmed, else [`Missing`].
     pub fn require(self, required: &[Protection]) -> Result<Self, Missing> {
+        self.require_in_scope(required, false)
+    }
+
+    pub(crate) fn require_in_scope(
+        self,
+        required: &[Protection],
+        process: bool,
+    ) -> Result<Self, Missing> {
         let missing: Vec<Protection> = Protection::ALL
             .into_iter()
-            .filter(|protection| required.contains(protection) && !self.has(*protection))
+            .filter(|protection| {
+                required.contains(protection)
+                    && (!self.has(*protection) || process && !self.process_wide[protection.index()])
+            })
             .collect();
         if missing.is_empty() {
             Ok(self)
@@ -347,7 +356,8 @@ impl Isolation {
         }
     }
 
-    /// Whether `protection` is confirmed.
+    /// Whether this report recorded `protection` as [`Outcome::Confirmed`]. The answer describes
+    /// the check performed at isolation time. See [`Isolation::measures`] for its scope and evidence.
     pub fn has(&self, protection: Protection) -> bool {
         self.outcome(protection) == Outcome::Confirmed
     }

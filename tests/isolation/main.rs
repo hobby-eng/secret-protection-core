@@ -46,6 +46,8 @@ fn main() {
     match std::env::var(ROLE).as_deref() {
         Ok("isolated") => isolated(),
         Ok("idle") => idle(),
+        #[cfg(windows)]
+        Ok("impersonating-sibling") => windows::an_impersonating_sibling_keeps_its_own_integrity(),
         #[cfg(all(
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
@@ -121,6 +123,11 @@ fn main() {
 
 /// Every check, in a process that plays no role.
 fn checks() {
+    #[cfg(windows)]
+    run("low integrity includes impersonating threads", || {
+        let output = child("impersonating-sibling").wait_with_output().unwrap();
+        support::role_ended("impersonating-sibling", output.status, &output.stderr);
+    });
     #[cfg(target_os = "linux")]
     run(
         "an isolated thread is refused what the filter names and keeps what it needs",
@@ -444,10 +451,8 @@ fn refused_filter_role() {
     let before = seccomp_filters();
     for _ in 0..3 {
         let isolation = Isolation::enter();
-        assert!(
-            isolation.no_core_dumps && isolation.no_memory_reading,
-            "{isolation:?}"
-        );
+        crate::support::check_memory_reading(isolation);
+        assert!(isolation.no_core_dumps, "{isolation:?}");
         // Without the filter none of these holds, though Landlock refuses opening a file for
         // writing.
         assert!(

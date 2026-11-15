@@ -1,0 +1,2479 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-014",
+  "auditNumber": 14,
+  "date": "2026-11-15",
+  "title": "Release audit of secret-protection-core and independent follow-up of AUD-008 through AUD-013",
+  "reviewer": {
+    "name": "Codex",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+    "commitComplete": true,
+    "workingTree": "Clean at baseline; editorial changes and this report are separately identified.",
+    "tree": "93f3b9f70f69b6dad58cb09e7b7642222a8e8f86",
+    "sourceFingerprint": "f49c444300b13258708baedf079b60f57a7d76a257ccfd1f98422418c6473eb9",
+    "trackedManifestSha256": "65462c318871d465650ce1a61add42646afa8ebce9c76851b7a2e29945a9654b"
+  },
+  "scope": {
+    "releaseDecision": "hold the unrestricted native release",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    },
+    "instructionSha256": {
+      "docs.instructions.md": "07476dac738618569b8de7f8f80abddd66ace4e50c6b0a9d80abd56c72791740",
+      "audits.instructions.md": "0e74e8ceeb0f86cb612866d8d302bb169d0be987c1843f235959a1876d32e2c0",
+      "code-tooling.instructions.md": "29352e5985429837c8325669f0a42dd1b03c43191b681c633db6a29df77fca63",
+      "bip-tools.instructions.md": "8465c1039b5408faee00d08cb19a52e20c12653129f8ef600247ebac66865378",
+      "ci.instructions.md": "22320f16f35a530bda5839a478ca9cce59cd2d1cabe64b75f96339af470cad41",
+      "code-core.instructions.md": "05b95d061464e4e09fa4dc3d74cae4c5a34bc0ce93e32802d4b96b2bbc6fa3de",
+      "code-rust.instructions.md": "8693723e1e28d3b3afc12dc383283d8d127b9079e168789a6c908fd300bdcb52",
+      "writing-for-agents": "551adca942227b44192edba88acd4e8db911f0121ce58ad16944ccf6a896a74a",
+      "humanizer": "9ef4fad77ea5396827fae5f6d9fea69ac09db27b8769c8700e29845807421803"
+    },
+    "trackedFiles": {
+      ".github/workflows/audit.yml": {
+        "sha256": "b217a43ecabc2cff9a40b48d064ffc45d566dd6f54db206cb6c3d17465905945",
+        "review": "Pinned actions, triggers, permissions, root lockfile advisory scope."
+      },
+      ".github/workflows/ci.yml": {
+        "sha256": "d38b8c42aaec03d32806281d5273d024157e3250e50257910b083e390becaddb",
+        "review": "Pinned actions, build matrix, conditions, permissions and existing exact-commit results."
+      },
+      ".gitignore": {
+        "sha256": "b824220c6110f2b8ccb25db135e6f98ae6b54ef7ed3fd32c08ed8d5dbdf7ec10",
+        "review": "Reviewed generated/evidence exclusions and release input scope."
+      },
+      "AGENTS.md": {
+        "sha256": "b0e6e5444d37f5593c6005600bfe53ad538b974eb424e8eddb233531a35e0b1d",
+        "review": "Repository fast and release gate declarations, resource controls and platform intent."
+      },
+      "CHANGELOG.md": {
+        "sha256": "5e5c9110720ef845d38aa9a153206c95d5eef3f829815444d47d465cce33440b",
+        "review": "Historical entries and release status; no versioned tag claimed."
+      },
+      "Cargo.lock": {
+        "sha256": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388",
+        "review": "Exact runtime and tool dependencies, checksums and notice correspondence."
+      },
+      "Cargo.toml": {
+        "sha256": "647ede92e3b757b5b1161c150cd9728bf9aaeea04d2e927317cce9376bd17654",
+        "review": "Targets, pins, lints and Git-only publication; manifest metadata."
+      },
+      "LICENSE-APACHE": {
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "review": "License file present and linked by dual-license declaration."
+      },
+      "LICENSE-MIT": {
+        "sha256": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+        "review": "License file present and linked by dual-license declaration."
+      },
+      "README.md": {
+        "sha256": "5be91ee324357542c4e4ed1361bc0daa23c03c48c2ab51c2170a3e5b6d396105",
+        "review": "User-facing defaults, examples, operation ordering, fallbacks and release claims."
+      },
+      "THIRD_PARTY_NOTICES.md": {
+        "sha256": "77f4182f9a278f392ac38beef29c9ac1806892af92b826069265f72994104f6a",
+        "review": "Runtime and macro package names, versions and license descriptions."
+      },
+      "clippy.toml": {
+        "sha256": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+        "review": "Function length threshold checked against CORE-15."
+      },
+      "docs/COVERAGE.md": {
+        "sha256": "6604ad27db70d0297308423ab3a9ffbc7ef89696ab397b008f5f091dfab2e96d",
+        "review": "Source fingerprint, measurement, numerator, denominator, cross-platform exclusions."
+      },
+      "docs/README.md": {
+        "sha256": "b25826fcf35df5cfdfa36f526e84db6af933722f79d268f866907cad6e9198f0",
+        "review": "Navigation, reference links and scope of reader guides."
+      },
+      "docs/TECHNICAL.md": {
+        "sha256": "da88418ac61c84703c1d5fbd2a7d2622726e95eccb212364a6ec202ce6d765c5",
+        "review": "Cross-check platform-specific guarantees, limits, lifecycle and tests against implementation."
+      },
+      "docs/audits/AUD-001-2026-11-15.json": {
+        "sha256": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-001-2026-11-15.md": {
+        "sha256": "962f3c601035f8052fe0f89d95639934183f6e2ff88df02af46e3eb5ed7450f3",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-001-harnesses/README.md": {
+        "sha256": "9c749018ba366f7570dae4714205d59a4ff1396516c121da84d6f647b2807b12",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-001-harnesses/report_state.rs": {
+        "sha256": "d2a796e7a69f2025fa16a9e977bafdd34a30030b8c819b2b38e051e4b360e2b7",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-002-2026-11-15.json": {
+        "sha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-002-2026-11-15.md": {
+        "sha256": "90105eb75934be43b957430954d8adbb7bf1ce2d3316fe6a0cc47793d7a482f8",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-002-harnesses/.gitignore": {
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "review": "Reviewed generated/evidence exclusions and release input scope."
+      },
+      "docs/audits/AUD-002-harnesses/Cargo.lock": {
+        "sha256": "e3a8e301aca1efa46e49b7ec555911287029bf1d539556499ad7762461229894",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-002-harnesses/Cargo.toml": {
+        "sha256": "7f39ecea7c7879e5ca7106fe718cd711514e38dcd0394f4f0b46f21e64bac965",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-002-harnesses/README.md": {
+        "sha256": "edfb199555744fb5b2ed92d7b9d750dc7a67987f325e776093838925efb821f6",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-002-harnesses/src/linux.rs": {
+        "sha256": "3a127c006c20f71ccd85cf24d27f84b413650c871918bf3937f2448ecf287697",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-002-harnesses/src/main.rs": {
+        "sha256": "5bd62ffea1aaf8357c047cbb158a567123af193457c453b64f5bb396af15fa87",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-003-2026-11-15.json": {
+        "sha256": "bfafe93c07c0a6866f5e5f9ead52a616b23b68f0c11128bbeca8436fa4cd5329",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-003-2026-11-15.md": {
+        "sha256": "560620653344f8f6e6b87282263f94d34f97c0f9128bf0fed387ecf771f53b49",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-004-2026-11-15.json": {
+        "sha256": "9af1f50a2e3ca506aa3e9144c0f1b0628f7fccf30e409ec4d3171c9661a6ef90",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-004-2026-11-15.md": {
+        "sha256": "27cecc528238b1bc5f4ad79901906aac8a43c8794ac1a3b88b0284a81af5e63a",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-005-2026-11-15.json": {
+        "sha256": "a87abef95a64aa737238e447190d1f387528239bd150ffb0e43090238b5260d8",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-005-2026-11-15.md": {
+        "sha256": "3e95856d276ec7217f84c9cc7b2429e33dbcf740d149f08df9ef86b60baa0f8d",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-005-harnesses/.gitignore": {
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "review": "Reviewed generated/evidence exclusions and release input scope."
+      },
+      "docs/audits/AUD-005-harnesses/Cargo.lock": {
+        "sha256": "f4786e6b2fcf71788adc1da1db3ce332c74f1d3aabc0618c31a4198973ec1c46",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-005-harnesses/Cargo.toml": {
+        "sha256": "d8d6f2c63939093e85d6758d7ccd5a5ab737f3d5f0b3f4b043cf0929df9fcd1d",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-005-harnesses/README.md": {
+        "sha256": "8558c4e3ed39748a42b19b489ef83fac03011863c0537e19f62ecfd1521954a0",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-005-harnesses/src/main.rs": {
+        "sha256": "c5ef8445dbb6d221351370a25ea6508e3e48f74c775305a3f154ba9b187f5cc4",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-006-2026-11-15.json": {
+        "sha256": "0d660409c4cd0a8a60a00c8119f369292b9f348e3e6cd2e42a0104c9d3412a68",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-006-2026-11-15.md": {
+        "sha256": "47fb824e39ebecdb24a3a24ede1df4b0d278e79a8bdbe3d78bc3cb9f293f053f",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-006-harnesses/README.md": {
+        "sha256": "b8df7cfba84684728299c9a3e7117d568f63e700cb2dd3b9b8e4f42d1ce37e28",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-006-harnesses/fallback.mjs": {
+        "sha256": "e5a4ac007b4528f3c2fb69c18e1b6da9d9a7bf32aa6c68ab5a8204223bce56f6",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-006-harnesses/fallback.rs": {
+        "sha256": "09e246cde061d0badcd649208edefba1eb56a002ef700bf02cf2938ee18ee9f8",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-007-2026-11-15.json": {
+        "sha256": "7aa2ab92eb654eba0971ba3e4be1274e2a1aa147fbcfa553184c8ba902307f07",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-007-2026-11-15.md": {
+        "sha256": "c5deda6eaf30fbb764ef886aaaf579d4ba94405bb7ee29fe304b6fbfb7c98fe1",
+        "review": "Archived historical record inventoried and hashed; previous audit scopes are not represented as new execution."
+      },
+      "docs/audits/AUD-008-2026-11-15.json": {
+        "sha256": "0410d370687a22c67c3aa6b46870a32221ed366643392d492f8d2a33636fae2e",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-008-2026-11-15.md": {
+        "sha256": "10f737e8a6dde22f946ff6688a480cc9ac34402cc1dce11551ca6e496b53fd1e",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-009-2026-11-15.json": {
+        "sha256": "51a47b01783a8fef9fa456c921dcf38eed4886955effdeae35d3ec2018feca64",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-009-2026-11-15.md": {
+        "sha256": "3982142910e1891dd5847f4028229eee11778366cd9b8a3c1facd99095877ff0",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-010-2026-11-15.json": {
+        "sha256": "58469b14be194f90468a24ebd28b018ba2361513930d5c315b17fbfcc12eed7c",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-010-2026-11-15.md": {
+        "sha256": "fafaea4d7795f0cdd47f1414323f77764f30f2da72fc8a4721a6279b552c2c4e",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-011-2026-11-15.json": {
+        "sha256": "137df42344894a60abbc0a373adb45a84857ca3af6f5b1eb30951c28d78fabc7",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-011-2026-11-15.md": {
+        "sha256": "bf7153a3d65e261f921987ee6645d81d63bc1fd12e0108794002ad11ab8a3e4c",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-012-2026-11-15.json": {
+        "sha256": "1dcd9ff0398bcd49a11eed3c073d97abac318fe55e65c872684f26c06284c212",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-012-2026-11-15.md": {
+        "sha256": "c33ba6cea2f2fe9db49e0825980b9aac35c03bbfdca6cae518ef4fccb2acb923",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-012-harnesses/.gitignore": {
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "review": "Reviewed generated/evidence exclusions and release input scope."
+      },
+      "docs/audits/AUD-012-harnesses/Cargo.lock": {
+        "sha256": "86b2f748c6aeefaa5402ecc283d49e4055d7d09b4abfca4a08a579c61e0c04c1",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/Cargo.toml": {
+        "sha256": "906bb76c015e4089a0ae1acb81405e92bf2e39339062619745beac5c67da4c6e",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/README.md": {
+        "sha256": "7d2d8e66a6376705bf948d0c34cff2196804005038afb208f03fc405ccccfeca",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/library/Cargo.toml": {
+        "sha256": "398f0c19d835565dde9918bf174908b1249b160cb9fe9a4ca8235b7d654a11cb",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/library/src/lib.rs": {
+        "sha256": "990df866e8c7128a73bc4640dc94b80b8cd38f07c46c4b9ce1605d0a0f913198",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/program/Cargo.toml": {
+        "sha256": "b2bade0ad36b3991b0297525bb5138bfae08382f89966fb8f8f441186a817a3e",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-012-harnesses/program/src/main.rs": {
+        "sha256": "38e757f15dfdf78c304e8c306948743215df6db18b30267721f100df27b38efa",
+        "review": "Historical test input/tool inventory, bound to its original snapshot; no claim of a fresh run unless named."
+      },
+      "docs/audits/AUD-013-2026-11-15.json": {
+        "sha256": "2e25550d9898c88c2832bb327b759621a3ae207ca4657c926b460b0347b65f51",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/AUD-013-2026-11-15.md": {
+        "sha256": "08ecd3c2f91cac025bfb69e2a5c5a7dd87c6254b05c0430dc4430d12c5f975a9",
+        "review": "Read full historical report/companion, reconciled findings and observations and verified source-bound dispositions."
+      },
+      "docs/audits/README.md": {
+        "sha256": "9fe2ac555eaff0c40239442dd6427e77aca69775dcd5384ce721670cb372d7b2",
+        "review": "Original state table and errata cross-checked against follow-up rows."
+      },
+      "dprint.json": {
+        "sha256": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+        "review": "Plugin pins, formatting targets and historical report exclusion."
+      },
+      "fuzz/.gitignore": {
+        "sha256": "e005979318db417d742efd014c6d72a7405128832d26e586fff772c031fc3445",
+        "review": "Reviewed generated/evidence exclusions and release input scope."
+      },
+      "fuzz/Cargo.lock": {
+        "sha256": "6703ba724e09dcc1caddc421f764eb5c8b7a1bc008f7bd5880a6577b8ed95cff",
+        "review": "Separate developer-only lockfile and advisory scan."
+      },
+      "fuzz/Cargo.toml": {
+        "sha256": "d3f05232e727ac41febd4a015e1161fa66113dcb44d6b10bc8f527312e97da3c",
+        "review": "Separate fuzz package, three binary targets, exact dependency."
+      },
+      "fuzz/fuzz_targets/keystrokes.rs": {
+        "sha256": "64c79f2cebf7fd0368658ac35740484785355ab4f449cdf33472ca7df10a5170",
+        "review": "Checked target oracle and limits against its production decoder (or typed keystroke API)."
+      },
+      "fuzz/fuzz_targets/report.rs": {
+        "sha256": "a9c8ba96717e364d01a2408fe3ca920d17d55d01236bd2a8a7494317eec93929",
+        "review": "Checked target oracle and limits against its production decoder (or typed keystroke API)."
+      },
+      "fuzz/fuzz_targets/setting.rs": {
+        "sha256": "1e8f06905a921ece2963cf352e4067a1cfdf7622db879054e8cdd21fa4e14a49",
+        "review": "Checked target oracle and limits against its production decoder (or typed keystroke API)."
+      },
+      "rust-toolchain.toml": {
+        "sha256": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+        "review": "Pinned Rust and cross targets matched against the CI loop."
+      },
+      "src/channels.rs": {
+        "sha256": "5c59253f2ce8c5a318a380c6d6582b5e43698318a58b27aadca748877c9ede73",
+        "review": "OpenChannels results, classification and completeness; procfs scope and collision in test."
+      },
+      "src/fuzzing.rs": {
+        "sha256": "695c9d3e79993bd77d321d72cd328678429714fdacb359585be8b16290914470",
+        "review": "Fuzz-only adapters reach actual setting, options and report decoders."
+      },
+      "src/input.rs": {
+        "sha256": "17dfd69c56808582a586cf3d50e34d258afc7898b4cd86dd3d465e0ac48dde8c",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      "src/lib.rs": {
+        "sha256": "77f7f914c56b3db54250896ea60b1cfa60e09706932298263caf7f1a2d9c58ee",
+        "review": "Export table and target gates; no executable entry point."
+      },
+      "src/os.rs": {
+        "sha256": "505379d215b2c06558d24a9d4542f7af7854bf689357ae5d1f4a2aa8a2f052f0",
+        "review": "Checked allocation sizes, Region and Pages ownership, volatile clearing, fallback heap and partial platform support."
+      },
+      "src/os/apple.rs": {
+        "sha256": "e9079395c12108b73a4746be8235bc53e0932e03f33b1b3deab77098058d4b82",
+        "review": "ptrace/sysctl, sandbox profile, existing debugger and unsupported readbacks; checked macOS CI."
+      },
+      "src/os/linux.rs": {
+        "sha256": "1b352242a7178722cf14352743be007ae5619c0d90daa8eef7293de214288a68",
+        "review": "Secret memory registration, locking, namespaces, tracer visibility, evidence versus refusal and one-thread boundary."
+      },
+      "src/os/linux/seccomp.rs": {
+        "sha256": "e9420b015dd07ef108c9a7d6643a405cee929f3dc461c324a1df723e44b6e012",
+        "review": "Architecture dispatch, operand widths, policy marker, optional rules and unsupported architectures."
+      },
+      "src/os/unix.rs": {
+        "sha256": "948f437c80c0f0ff227e758982e597b667edf6494210eeb704c1b54509abcb5f",
+        "review": "Mapped-page lifetime, fork policies, worker descriptor setup, reaping, terminal teardown and channel inventory."
+      },
+      "src/os/unix/forks.rs": {
+        "sha256": "ecadce6c2703ab3449b04309980c4b27f3583ba863d05aaf70ef11f1a9ead7cd",
+        "review": "atfork registration, child generation bump and foreign-owner refusal; raw forks outside contract."
+      },
+      "src/os/windows.rs": {
+        "sha256": "51ab2d46df3eb2826b829cf705deee3bc986c405690377fdbe0714c75a3e9c6b",
+        "review": "Guard reservations/commit, VirtualLock, WER, DACL, mitigation readback, process-token vs thread scope."
+      },
+      "src/os/windows/worker.rs": {
+        "sha256": "cef5ef2de9988f3d6890ef0fd9526effb28f03b978692055d9fd36dfed9f9ac9",
+        "review": "Named pipe, nonce and SID, client PID and retries, process handle, platform scope and closure."
+      },
+      "src/protect.rs": {
+        "sha256": "98bf66f6071900c3a6d1788b580ff152fccbe61065770f98a7a1a05dc328ba3a",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      "src/protect/closed.rs": {
+        "sha256": "0aa26c40fab9081c67c44386e1f65af8582354fdcb563a3ff5579a5c7113556a",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      "src/protect/options.rs": {
+        "sha256": "bb7f364b718d9252a49f9283e09bf0d187160343d3581f6efe2c2811dd2f6082",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      "src/stack.rs": {
+        "sha256": "dbff26383debf4800d26546c705456830399ff9d0903709646d918ece9a6b975",
+        "review": "Checked stack requirements, join/panic path, post-join wipe and fork exclusions."
+      },
+      "src/worker.rs": {
+        "sha256": "60476a5e624410f45b4e31aa16615f971344232fa7ab76b65bf0622ce0cef62e",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      "tests/isolation/linux.rs": {
+        "sha256": "51ce6c705eed18d5d066403a1c24e8c25aba000838edbb0792f6038ef2b76308",
+        "review": "Thread and whole-process probes, namespaces, temporary paths and inherited channels."
+      },
+      "tests/isolation/linux/roles.rs": {
+        "sha256": "e6321faee4e461941b5c1a4b4219ad63edc84b4071b56c80e83cb339c8aad675",
+        "review": "Positive/negative conditions, fork and wait status, skips and foreign filters."
+      },
+      "tests/isolation/main.rs": {
+        "sha256": "db116302e83c3799ac97484b627b2869f4dc765baf7331879c1ec2286fd87fe2",
+        "review": "Native dispatcher, portability, child roles and outcome assertions."
+      },
+      "tests/isolation/windows.rs": {
+        "sha256": "0b3e83cc0960f078d370b842dd15687d139c92136ef0b55e3d4bbe5c239f7913",
+        "review": "Native token, job and mitigation acceptance and platform-specific role scope."
+      },
+      "tests/secret_memory.rs": {
+        "sha256": "350bb980f79d1f85d4e19cbf47ef79b3b23e707b39cfdacc30355404f820193a",
+        "review": "Host-reported page properties, fork owner lifetime, limits, allocator and supported platform skips."
+      },
+      "tests/support/run.rs": {
+        "sha256": "1dc617763bac5e66663112f60a70c21b05058692db30abae92b7666f56059a12",
+        "review": "Shared status reporter, skip and partial-result protocol."
+      },
+      "tests/worker.rs": {
+        "sha256": "838cd9818cf266d22bb4cbbb769a84e686f762d7eaa39f2c245b5328ca84aba4",
+        "review": "Successful/failed admission, environment, transport, lifecycle, time bounds and Windows contention."
+      }
+    },
+    "consumerAndFuzzFunctions": [
+      {
+        "name": "open_channels",
+        "location": "src/channels.rs:52",
+        "scope": "consumer",
+        "review": "OpenChannels results, classification and completeness; procfs scope and collision in test."
+      },
+      {
+        "name": "setting",
+        "location": "src/fuzzing.rs:7",
+        "scope": "fuzz-only",
+        "review": "Fuzz-only adapters reach actual setting, options and report decoders."
+      },
+      {
+        "name": "options_again",
+        "location": "src/fuzzing.rs:12",
+        "scope": "fuzz-only",
+        "review": "Fuzz-only adapters reach actual setting, options and report decoders."
+      },
+      {
+        "name": "report",
+        "location": "src/fuzzing.rs:17",
+        "scope": "fuzz-only",
+        "review": "Fuzz-only adapters reach actual setting, options and report decoders."
+      },
+      {
+        "name": "report_bytes",
+        "location": "src/fuzzing.rs:22",
+        "scope": "fuzz-only",
+        "review": "Fuzz-only adapters reach actual setting, options and report decoders."
+      },
+      {
+        "name": "Keystroke::to_bytes",
+        "location": "src/input.rs:25",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "Keystroke::from_bytes",
+        "location": "src/input.rs:45",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "KeystrokeBytes::as_bytes",
+        "location": "src/input.rs:69",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::with_capacity",
+        "location": "src/input.rs:105",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::apply",
+        "location": "src/input.rs:114",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::push",
+        "location": "src/input.rs:129",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::remove_last",
+        "location": "src/input.rs:141",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::clear",
+        "location": "src/input.rs:151",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::characters",
+        "location": "src/input.rs:157",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::as_secret",
+        "location": "src/input.rs:162",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "SecretLine::as_str",
+        "location": "src/input.rs:167",
+        "scope": "consumer",
+        "review": "UTF-8 character framing, deletion boundaries, fixed capacity, zeroization and redacted formatting."
+      },
+      {
+        "name": "Secret::with_capacity",
+        "location": "src/protect.rs:61",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::locked",
+        "location": "src/protect.rs:73",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::push",
+        "location": "src/protect.rs:84",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::truncate",
+        "location": "src/protect.rs:100",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::as_bytes",
+        "location": "src/protect.rs:108",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::as_str",
+        "location": "src/protect.rs:113",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::capacity",
+        "location": "src/protect.rs:118",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::is_locked",
+        "location": "src/protect.rs:123",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::is_out_of_dumps",
+        "location": "src/protect.rs:128",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::is_out_of_children",
+        "location": "src/protect.rs:134",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::zeroed",
+        "location": "src/protect.rs:139",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Secret::as_mut_bytes",
+        "location": "src/protect.rs:146",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::new",
+        "location": "src/protect.rs:178",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::locked",
+        "location": "src/protect.rs:186",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::as_slice",
+        "location": "src/protect.rs:196",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::as_mut_slice",
+        "location": "src/protect.rs:201",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::is_locked",
+        "location": "src/protect.rs:206",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::is_out_of_dumps",
+        "location": "src/protect.rs:211",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "WorkArea::is_out_of_children",
+        "location": "src/protect.rs:216",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::enter",
+        "location": "src/protect.rs:318",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::enter_with",
+        "location": "src/protect.rs:323",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::enter_requiring",
+        "location": "src/protect.rs:330",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::require",
+        "location": "src/protect.rs:335",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::has",
+        "location": "src/protect.rs:351",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::outcome",
+        "location": "src/protect.rs:356",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "Isolation::measures",
+        "location": "src/protect.rs:362",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "write_secret",
+        "location": "src/protect.rs:509",
+        "scope": "consumer",
+        "review": "Secret and WorkArea ownership, strict constructors, public flags vs private canonical state and wire report."
+      },
+      {
+        "name": "ClosedSecret::with_capacity",
+        "location": "src/protect/closed.rs:21",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::locked",
+        "location": "src/protect/closed.rs:27",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::push",
+        "location": "src/protect/closed.rs:42",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::truncate",
+        "location": "src/protect/closed.rs:52",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::read",
+        "location": "src/protect/closed.rs:63",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::write",
+        "location": "src/protect/closed.rs:70",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::len",
+        "location": "src/protect/closed.rs:80",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::is_empty",
+        "location": "src/protect/closed.rs:85",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::capacity",
+        "location": "src/protect/closed.rs:90",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::is_closed",
+        "location": "src/protect/closed.rs:96",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::is_locked",
+        "location": "src/protect/closed.rs:101",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::is_out_of_dumps",
+        "location": "src/protect/closed.rs:106",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "ClosedSecret::is_out_of_children",
+        "location": "src/protect/closed.rs:111",
+        "scope": "consumer",
+        "review": "Closed-state transitions, unwinding and generation of live permission guard."
+      },
+      {
+        "name": "Options::new",
+        "location": "src/protect/options.rs:23",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::refuse_file_locks",
+        "location": "src/protect/options.rs:38",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::refuse_sendmsg",
+        "location": "src/protect/options.rs:47",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::refuse_dynamic_code",
+        "location": "src/protect/options.rs:56",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::microsoft_signed_only",
+        "location": "src/protect/options.rs:65",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::signals_to_self_only",
+        "location": "src/protect/options.rs:74",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "Options::lock_all_memory",
+        "location": "src/protect/options.rs:84",
+        "scope": "consumer",
+        "review": "Option masks, Protection numbering, outcomes, error displays and default behavior."
+      },
+      {
+        "name": "run_on_protected_stack",
+        "location": "src/stack.rs:68",
+        "scope": "consumer",
+        "review": "Checked stack requirements, join/panic path, post-join wipe and fork exclusions."
+      },
+      {
+        "name": "Worker::start",
+        "location": "src/worker.rs:59",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      {
+        "name": "Worker::start_on_terminal",
+        "location": "src/worker.rs:68",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      {
+        "name": "Worker::isolation",
+        "location": "src/worker.rs:123",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      {
+        "name": "Worker::call",
+        "location": "src/worker.rs:132",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      {
+        "name": "Worker::end",
+        "location": "src/worker.rs:163",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      },
+      {
+        "name": "serve",
+        "location": "src/worker.rs:241",
+        "scope": "consumer",
+        "review": "Parent admission, required reach, upper bounds, preflight errors, IPC, ending and singleton service."
+      }
+    ],
+    "historicalMarkdownRead": {
+      "docs/audits/AUD-008-2026-11-15.md": "10f737e8a6dde22f946ff6688a480cc9ac34402cc1dce11551ca6e496b53fd1e",
+      "docs/audits/AUD-009-2026-11-15.md": "3982142910e1891dd5847f4028229eee11778366cd9b8a3c1facd99095877ff0",
+      "docs/audits/AUD-010-2026-11-15.md": "fafaea4d7795f0cdd47f1414323f77764f30f2da72fc8a4721a6279b552c2c4e",
+      "docs/audits/AUD-011-2026-11-15.md": "bf7153a3d65e261f921987ee6645d81d63bc1fd12e0108794002ad11ab8a3e4c",
+      "docs/audits/AUD-012-2026-11-15.md": "c33ba6cea2f2fe9db49e0825980b9aac35c03bbfdca6cae518ef4fccb2acb923",
+      "docs/audits/AUD-012-harnesses/README.md": "7d2d8e66a6376705bf948d0c34cff2196804005038afb208f03fc405ccccfeca",
+      "docs/audits/AUD-013-2026-11-15.md": "08ecd3c2f91cac025bfb69e2a5c5a7dd87c6254b05c0430dc4430d12c5f975a9"
+    },
+    "binaryArtifacts": {
+      "public-api-harness-source": {
+        "sha256": "0dca909e1966971d6251824df0dfe14c001b891ea1f996b0203add574ce56701",
+        "bytes": 1439,
+        "use": "retained in AUD-014-harnesses/api.rs"
+      },
+      "linux-release-rlib": {
+        "sha256": "7a05c0d6fb08704b23b57b96aec76db8ba34ba4052f970b63f2a41235f89c0b5",
+        "bytes": 766344,
+        "use": "local audit artifact, not a distribution checksum"
+      },
+      "wasm-test-module": {
+        "sha256": "a4f19e0de073c7e850e9e828e15c19d83307b412d3553e114559a61303470e96",
+        "bytes": 2199399,
+        "use": "local audit artifact, not a distribution checksum"
+      },
+      "api-check-binary": {
+        "sha256": "390bfe27d6607a665872af536db21c0415e217a21cab7c8ed6a2dee7e61652a1",
+        "bytes": 4578192,
+        "use": "local audit artifact, not a distribution checksum"
+      }
+    },
+    "method": "Independent memory, isolation, worker and completeness review; coordinator challenged paths and ran release checks. A separate editor and reviewer reconciled current user documents."
+  },
+  "checks": {
+    "procedure": {
+      "CHECK-SEC-001": {
+        "status": "failed",
+        "evidence": "Inspected Secret, WorkArea, ClosedSecret, SecretLine, keystroke bytes and worker request ownership. A cached access guard can survive a continuing fork and reach pages outside its original owner."
+      },
+      "CHECK-SEC-002": {
+        "status": "failed",
+        "evidence": "Reviewed worker admission and IPC, native sandbox setup and disposal. Named-pipe client PID checking precedes application writes. Linux can admit thread-only isolation and its pre-exec FD inventory is not an atomic close-all. There is no HTML vault."
+      },
+      "CHECK-SEC-003": {
+        "status": "failed",
+        "evidence": "Examined Linux seccomp and network namespace readbacks, macOS sandbox evidence and Windows AppContainer capability reporting. An unconfined sibling thread changes the practical reach of worker egress controls. The crate has no HTTP provider or telemetry layer."
+      },
+      "CHECK-SEC-004": {
+        "status": "passed",
+        "evidence": "Static path in src/os/windows/worker.rs requests 16 bytes from BCryptGenRandom, checks the return code, uses a single local pipe instance and verifies the client PID. The crate implements no encryption or user authentication algorithm."
+      },
+      "CHECK-SEC-005": {
+        "status": "failed",
+        "evidence": "Reviewed drop, panic, truncation, guarded callbacks, native pages and worker failure. The stale permission guard and Unix termination/reaping limitations are not covered by the ordinary successful cleanup paths."
+      },
+      "CHECK-SEC-006": {
+        "status": "not-applicable",
+        "evidence": "No HTML, scripting bridge, CSP, browser storage, clipboard implementation or DOM exists in this crate. The WebAssembly heap fallback and keystroke API are reviewed under SEC-001 and API-004."
+      },
+      "CHECK-SEC-007": {
+        "status": "failed",
+        "evidence": "Reviewed frame sizes, allocation, process identity, shutdown and integration test filesystem effects. Waiting for a slow responding worker is unbounded by contract; predictable temporary paths and numeric-PID finalization have separate integrity implications."
+      },
+      "CHECK-FUN-001": {
+        "status": "not-applicable",
+        "evidence": "No BIP39, entropy-to-mnemonic conversion, seed interpretation or wallet inputs."
+      },
+      "CHECK-FUN-002": {
+        "status": "not-applicable",
+        "evidence": "No hierarchical derivation, coins, paths, addresses or network profiles."
+      },
+      "CHECK-FUN-003": {
+        "status": "not-applicable",
+        "evidence": "No BIP85, BIP38, wallet message signing or Silent Payments."
+      },
+      "CHECK-FUN-004": {
+        "status": "not-applicable",
+        "evidence": "No Bitcoin scripts, wallet descriptors, Miniscript or multisig. OS file descriptors are a different concept and are reviewed under SEC-002."
+      },
+      "CHECK-FUN-005": {
+        "status": "not-applicable",
+        "evidence": "No transaction parser, PSBT, signature, commitment or broadcast."
+      },
+      "CHECK-FUN-006": {
+        "status": "not-applicable",
+        "evidence": "No backup, recovery or share format; the crate protects memory used by its callers."
+      },
+      "CHECK-FUN-007": {
+        "status": "not-applicable",
+        "evidence": "No chain discovery, network provider, proof verification or balance accounting."
+      },
+      "CHECK-API-001": {
+        "status": "failed",
+        "evidence": "Reviewed libc/POSIX spawn and wait, Windows handles, tokens and security reach at native FFI boundaries. A primary-token LowIntegrity readback cannot establish all effective thread tokens; a numeric PID cannot remain a stable handle under independent reaping."
+      },
+      "CHECK-API-002": {
+        "status": "failed",
+        "evidence": "Reviewed single-service activation, synchronous request/reply framing, O/S admission and explicit/drop cleanup. The Unix cached-PID termination and eventual reaping limitations are observable across shutdown lifetimes. There is no UI cancellation model."
+      },
+      "CHECK-API-003": {
+        "status": "not-applicable",
+        "evidence": "No CSV, JSON, XLSX, wallet schemas or monetary-value exports. Structured protection outcomes and their private transport encoding are covered under API-001 and API-004."
+      },
+      "CHECK-API-004": {
+        "status": "failed",
+        "evidence": "Reviewed explicit UTF-8 keystroke tags, worker setting grammar, little-endian lengths and report decoding. Alternative option spellings can activate the service and the Windows channel can be rejected after consuming its one-shot activation."
+      },
+      "CHECK-BLD-001": {
+        "status": "passed",
+        "evidence": "Inspected platform-selected dependencies, crate-level cfg, unsupported fallbacks, the separate fuzz workspace and cfg(fuzzing) entry. Cargo.toml has no application edition matrix or feature-selected crypto modules."
+      },
+      "CHECK-BLD-002": {
+        "status": "passed",
+        "evidence": "The static matrix is explicit in rust-toolchain.toml and .github/workflows/ci.yml: host plus five lint targets, and four native testing jobs. Android and iOS native runtime testing are not configured. Execution evidence, including unavailable runners, belongs to the command ledger."
+      },
+      "CHECK-BLD-003": {
+        "status": "passed",
+        "evidence": "The direct production dependencies and optional target-specific wiring are pinned; both Cargo lockfiles and notices are tracked. THIRD_PARTY_NOTICES.md names the Windows linkage crate and the two procedural macros corrected after previous audits. This is a source/manifest review, not an upstream full-code audit."
+      },
+      "CHECK-BLD-004": {
+        "status": "not-applicable",
+        "evidence": "The Git library supplies a WebAssembly fallback but no canonical distributed wasm-bindgen module, Docker build recipe or byte-comparison release contract."
+      },
+      "CHECK-BLD-005": {
+        "status": "passed",
+        "evidence": "Inspected the pinned CI actions, read-only permissions, cross-target lint and native matrix, RustSec workflow and Cargo.toml publish=false. This baseline evaluates a Git source candidate; a registry package, signed release tag and downstream binary acceptance are separate."
+      },
+      "CHECK-UI-001": {
+        "status": "not-applicable",
+        "evidence": "No native or browser product GUI, page, widget or viewports are distributed."
+      },
+      "CHECK-UI-002": {
+        "status": "not-applicable",
+        "evidence": "No user interface implements navigation, copy/paste, single-page state or input controls. The core input data structures are reviewed separately."
+      },
+      "CHECK-UI-003": {
+        "status": "not-applicable",
+        "evidence": "No visible secret field, QR image, accessibility tree, GUI help or clipboard integration. The Rust keystroke owner is assessed under SEC-001 and API-004."
+      },
+      "CHECK-ARC-001": {
+        "status": "passed",
+        "evidence": "src/lib.rs is the API facade, src/os.rs selects native/heap backends, src/protect and src/worker.rs own the public state. Tests and cfg(fuzzing) do not form a separately shipped front end."
+      },
+      "CHECK-ARC-002": {
+        "status": "failed",
+        "evidence": "The current worker integration harness exceeds the shared file size limit (854 counted lines); the index accepts keeping it whole. Data duplicated between public Isolation summaries and private outcomes was challenged and does not let a caller forge a successful strict check."
+      },
+      "CHECK-ARC-003": {
+        "status": "failed",
+        "evidence": "Reviewed tests, three fuzz targets and dependency/integration checks, including wrong input, bounded response, fork and reaping. Current tests do not establish guard freshness after an in-callback fork or atomic FD exclusion; timing and temporary-path assumptions remain."
+      },
+      "CHECK-DOC-001": {
+        "status": "failed",
+        "evidence": "README.md, src/worker.rs, src/protect.rs and docs/TECHNICAL.md were compared with native code. The blanket worker isolation and pre-main descriptor claims, and the process-wide implication of Windows low integrity, exceed their implementation evidence."
+      },
+      "CHECK-DOC-002": {
+        "status": "passed",
+        "evidence": "Checked repository commands, coverage method, exact source identification, manifest publication policy and corrected license notices. docs/COVERAGE.md identifies the source fingerprint and continuous LLVM profiling. The audit does not turn CHANGELOG.md's Unreleased heading into a registry release."
+      },
+      "CHECK-DOC-003": {
+        "status": "failed",
+        "evidence": "The historical Markdown, JSON and index record a fixed status for AUD-008-API001 and workers' pre-main descriptor cleanup. The new cross-check qualifies those statements. The new report's schema validation and individual command evidence are recorded separately."
+      }
+    },
+    "codeCore": {
+      "CORE-01": {
+        "status": "passed",
+        "evidence": "src/lib.rs exports a library; input handling, policy decisions, worker framing and page ownership live in dedicated modules. The three custom executables are test harnesses."
+      },
+      "CORE-02": {
+        "status": "passed",
+        "evidence": "Secret, WorkArea, ClosedSecret and Worker own their state. Isolation has public summary fields and private outcome/reach arrays; the strict check reads the private representation."
+      },
+      "CORE-03": {
+        "status": "passed",
+        "evidence": "src/protect.rs, src/stack.rs and src/worker.rs use owner types where lifetime matters; open_channels and serve are functional entry points."
+      },
+      "CORE-04": {
+        "status": "passed",
+        "evidence": "src/lib.rs and src/os.rs select platform modules at compile time. This crate exposes no product GUI, coin module, browser page or command-line frontend."
+      },
+      "CORE-05": {
+        "status": "passed",
+        "evidence": "src/input.rs owns keystroke decoding and src/worker.rs owns framing. Operating-system backends supply the low-level calls."
+      },
+      "CORE-06": {
+        "status": "passed",
+        "evidence": "src/protect/options.rs centralizes the available protections and outcomes; adding a protection also requires updating the platform evidence and summaries. This is a maintenance seam."
+      },
+      "CORE-07": {
+        "status": "failed",
+        "evidence": "The shared worker contract includes whole-process isolation in README.md. On Linux a truthful thread-only report can satisfy requirements that omit WholeProcess."
+      },
+      "CORE-08": {
+        "status": "passed",
+        "evidence": "run_on_protected_stack and serve accept narrow closures; callers do not implement a large host interface."
+      },
+      "CORE-09": {
+        "status": "passed",
+        "evidence": "src/os.rs hides the backend and the test programs use public APIs. Worker time is tied to Instant and thread sleep, which limits deterministic timing tests (AUD-010-BLD004)."
+      },
+      "CORE-10": {
+        "status": "passed",
+        "evidence": "The protection names and iteration order are centralized in src/protect/options.rs, and src/os.rs defines worker grace and poll durations. Isolation also retains a derived Boolean view. No repository copies gate is present; this is a static structural assessment."
+      },
+      "CORE-11": {
+        "status": "passed",
+        "evidence": "Page addresses, native region handles, the worker transport and its private framed state are internal; public numeric summaries in Isolation do not control require()."
+      },
+      "CORE-12": {
+        "status": "passed",
+        "evidence": "ClosedSecret owns a Secret, SecretLine owns a secret buffer, and Worker owns its native process. Owner composition is explicit."
+      },
+      "CORE-13": {
+        "status": "passed",
+        "evidence": "The shared framing uses Read and Write, service computation enters through a closure, and platform-specific construction stays in src/os*."
+      },
+      "CORE-14": {
+        "status": "failed",
+        "evidence": "The temporary access guard keeps a raw Region and independently restores its access. It bypasses the owner's generation check when returning in a fork child (src/protect/closed.rs and src/os.rs)."
+      },
+      "CORE-15": {
+        "status": "failed",
+        "evidence": "tests/worker.rs has 854 nonblank, non-comment lines (1,062 physical). The 800-line excess is accepted in docs/audits/README.md. The local main waiver applies to one function. No other production, current integration-test or fuzz Rust file exceeds 800 such lines."
+      },
+      "CORE-16": {
+        "status": "passed",
+        "evidence": "Native setup and teardown use named operations (for example listen, accept and starts_clean). Low-level state and exceptional paths were read, including the limitations recorded under CORE-22 and CORE-48."
+      },
+      "CORE-17": {
+        "status": "passed",
+        "evidence": "The README, API and technical document consistently use worker, protection, secret and work area. A dedicated project glossary is not listed in the workspace GLOSSARY-MAP.md."
+      },
+      "CORE-18": {
+        "status": "passed",
+        "evidence": "Relevant process limits and Windows ACL masks are named or documented in src/os.rs and src/os/windows*. The wire layout and outcome flag bits are documented in src/worker.rs and src/protect.rs."
+      },
+      "CORE-19": {
+        "status": "failed",
+        "evidence": "src/os/unix.rs explains the pre-exec closure mechanism and locally acknowledges the numeric-PID race, but broad pre-main inheritance claims exceed the snapshot-based Linux guarantee."
+      },
+      "CORE-20": {
+        "status": "failed",
+        "evidence": "Cargo.toml denies missing_docs. Presence of a doc comment does not establish its accuracy: process-wide write restrictions for low integrity and unconditional worker isolation overstate the observations."
+      },
+      "CORE-21": {
+        "status": "deviation",
+        "evidence": "Rustfmt passed. The baseline dprint gate returned 20 and identified three Markdown files. See the documentation follow-up check for their edited bytes."
+      },
+      "CORE-22": {
+        "status": "failed",
+        "evidence": "src/os/unix.rs left_open() substitutes an empty list when enumeration fails. A subsequent scan can refuse the worker, but cannot show what initialization code was able to see before that scan."
+      },
+      "CORE-23": {
+        "status": "passed",
+        "evidence": "SecretError, WorkerError, StackError, Outcome and Missing give callers structured outcomes. Operating-system I/O errors carry io::Error; formatted public errors do not print request data."
+      },
+      "CORE-24": {
+        "status": "failed",
+        "evidence": "src/protect.rs and src/input.rs define wiping owners and redacted formatting. The normal owner check and the cached permission guard have different behavior across a continuing fork."
+      },
+      "CORE-25": {
+        "status": "passed",
+        "evidence": "Cargo.toml exactly pins zeroize, libc, landlock and windows-sys using platform gates. The fuzz Cargo.toml pins libfuzzer-sys and points at this working crate. Both targets have lockfiles; publish=false."
+      },
+      "CORE-26": {
+        "status": "passed",
+        "evidence": "Tests accompany the changed worker spawn and closed-state checks in 9e08979 (tests/worker.rs, tests/secret_memory.rs). This does not establish coverage of the races or callback lifecycle raised now."
+      },
+      "CORE-27": {
+        "status": "not-applicable",
+        "evidence": "This library has no end-user executable initialization or controls to gate. Native protection readbacks occur on API use; it implements no cryptographic primitive with startup known-answer vectors."
+      },
+      "CORE-28": {
+        "status": "failed",
+        "evidence": "The worker suite includes negative cases and previous audit records contain before/after tests. The pre-main FD test samples 3..256 and records at most 16 pipe identities; the setting fuzzer checks canonical re-parsing, not rejection of alternative spellings."
+      },
+      "CORE-29": {
+        "status": "not-applicable",
+        "evidence": "No end-user startup/self-test suite is distributed. Bounded expensive checks run separately under the repository's documented release procedure."
+      },
+      "CORE-30": {
+        "status": "not-applicable",
+        "evidence": "No self-test button, browser page or public CLI command is shipped. Cargo tests and the three fuzz targets are developer verification entry points."
+      },
+      "CORE-31": {
+        "status": "passed",
+        "evidence": "Native tests use cfg to select platform behavior; fuzz helpers in src/fuzzing.rs compile only under cfg(fuzzing). There are no product edition or coin feature flags."
+      },
+      "CORE-32": {
+        "status": "failed",
+        "evidence": "tests/worker.rs exercises service refusal and EOF, but wall-clock assumptions remain. Linux test setup can reuse pre-existing paths (src/channels.rs and tests/isolation/linux.rs). The precise scope of retained and new runs belongs to the command ledger."
+      },
+      "CORE-33": {
+        "status": "failed",
+        "evidence": "Tests cover the individual stored-owner fork cases and many native regressions. They do not cover a fork inside a ClosedSecret callback or prove race-free process identity at termination."
+      },
+      "CORE-34": {
+        "status": "passed",
+        "evidence": "The integration registration names and the Rust test functions describe behavior (examples in tests/worker.rs and tests/secret_memory.rs)."
+      },
+      "CORE-35": {
+        "status": "not-applicable",
+        "evidence": "There is no end-user terminal interface or color palette."
+      },
+      "CORE-36": {
+        "status": "not-applicable",
+        "evidence": "There is no terminal result layout. The test harness prints diagnostics for test runners."
+      },
+      "CORE-37": {
+        "status": "not-applicable",
+        "evidence": "There is no end-user command-line help or interactive wizard."
+      },
+      "CORE-38": {
+        "status": "not-applicable",
+        "evidence": "The library does not add terminal coloring. The public secret writer accepts caller-supplied text."
+      },
+      "CORE-39": {
+        "status": "not-applicable",
+        "evidence": "There are no interactive menu screens."
+      },
+      "CORE-40": {
+        "status": "not-applicable",
+        "evidence": "There is no application screen or layout in the source tree."
+      },
+      "CORE-41": {
+        "status": "not-applicable",
+        "evidence": "No menu actions or command-line option parser are shipped."
+      },
+      "CORE-42": {
+        "status": "not-applicable",
+        "evidence": "There is no interactive prompting/retry loop. Terminal password collection belongs to the integrating application."
+      },
+      "CORE-43": {
+        "status": "passed",
+        "evidence": "AGENTS.md defines rustfmt, cross-target Clippy and tests; CI encodes those fast gates. It separately specifies release fuzzing. Scope of execution is recorded per command; CI lacks dprint and project copies/code-rules tasks."
+      },
+      "CORE-44": {
+        "status": "not-applicable",
+        "evidence": "This baseline audit changes no production behavior. Existing accepted dispositions, including the worker test-file size, remain visible in docs/audits/README.md."
+      },
+      "CORE-45": {
+        "status": "not-applicable",
+        "evidence": "No new implementation commit is made by this audit. Historical signed commits and audit records are subject to their own evidence; their existence does not establish compliance for every earlier change."
+      },
+      "CORE-46": {
+        "status": "passed",
+        "evidence": "src/os/windows/worker.rs obtains the random pipe name from BCryptGenRandom using the system provider and rejects a failed call. No user key, seed or sharing randomness is generated by this crate."
+      },
+      "CORE-47": {
+        "status": "not-applicable",
+        "evidence": "There is no KDF, encryption, signature, Shamir or Reed–Solomon primitive. The FNV-1a digest derives an AppContainer profile label from the executable path and is not an authenticator."
+      },
+      "CORE-48": {
+        "status": "failed",
+        "evidence": "Worker framing has length caps and the strict parser rejects unknown flag bits, but some noncanonical numeric settings still activate worker mode; an invalid Windows channel can consume the serve-once state."
+      },
+      "CORE-49": {
+        "status": "failed",
+        "evidence": "The Windows pipe checks the client PID before a request is sent. Linux's parent-side inherited-FD snapshot and thread-limited worker admission do not prove the advertised process boundary."
+      },
+      "CORE-50": {
+        "status": "failed",
+        "evidence": "IPC frames and normal shutdown waits are bounded. Start/response I/O deliberately have no deadline. A Unix child that outlives failed termination can lose its library reaper; timing tests also depend on pauses."
+      },
+      "CORE-51": {
+        "status": "passed",
+        "evidence": "The public owner APIs hide allocation, protection readback, framing and platform differences. src/fuzzing.rs is a bounded build-only seam into otherwise private parsing logic."
+      },
+      "CORE-52": {
+        "status": "passed",
+        "evidence": "A design review identified the duplicate Boolean/outcome view in Isolation and the size of the worker test driver. The public Booleans do not bypass the private require() check."
+      },
+      "CORE-53": {
+        "status": "reviewed",
+        "evidence": "Independent specialists challenged the current baseline and a separate reader reviewed the editorial follow-up. This is current evidence, not a claim to have independently observed every historical review."
+      },
+      "CORE-54": {
+        "status": "reviewed",
+        "evidence": "A trusted callback or runtime was not treated as hostile. The reported conditions follow from legitimate host setup, OS refusals, normal fork, unshared descriptor tables or independent token state. No separate proportionality violation was established."
+      }
+    },
+    "commands": [
+      {
+        "name": "advisories-fuzz",
+        "command": "run-capped --mem 2200M --time 30m -- cargo audit -f fuzz/Cargo.lock",
+        "result": "Loaded 1509 security advisories (from <workspace>/workingspace/cargo/advisory-db) / Scanning fuzz/Cargo.lock for vulnerabilities (25 crate dependencies)",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:18.578748+00:00",
+        "endUtc": "2026-11-15T15:23:08.868911+00:00",
+        "logSha256": "ed4da8169562daea1b1e25c97dd4e377e683b182f55e042d913a73940b6ff4e6"
+      },
+      {
+        "name": "advisories",
+        "command": "run-capped --mem 2200M --time 30m -- cargo audit",
+        "result": "Loaded 1509 security advisories (from <workspace>/workingspace/cargo/advisory-db) / Scanning Cargo.lock for vulnerabilities (15 crate dependencies)",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:03.075536+00:00",
+        "endUtc": "2026-11-15T15:17:18.578480+00:00",
+        "logSha256": "ffedda09c937abbbe24a22ec0d76545b218ae8dbf27aadc2a0484861b96753cc"
+      },
+      {
+        "name": "api-check",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/tmp/spc-final-fb2a6d3-a14/api-check",
+        "result": "1112064 Unicode scalars, 7 invalid frames and one capacity boundary passed",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:22:42.427968+00:00",
+        "endUtc": "2026-11-15T15:22:42.611971+00:00",
+        "logSha256": "529eaec4d7ab536f82667d20984909f3cc21904110b1df4931ceb25817af166c"
+      },
+      {
+        "name": "api-lib",
+        "command": "run-capped --mem 2200M --time 30m -- cargo build --release --lib --locked --offline",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:06.265335+00:00",
+        "endUtc": "2026-11-15T15:22:26.952677+00:00",
+        "logSha256": "436b34ca00b674848d2b329f738bc04b823c5b5edf4faf362162e36ce9234890"
+      },
+      {
+        "name": "api-link",
+        "command": "run-capped --mem 2200M --time 30m -- rustc --edition=2024 -C opt-level=2 /tmp/spc-final-a14/api.rs -L dependency=<workspace>/tmp/spc-final-fb2a6d3-a14/api-target/release/deps --extern secret_protection_core=<workspace>/tmp/spc-final-fb2a6d3-a14/api-target/release/libsecret_protection_core.rlib -o <workspace>/tmp/spc-final-fb2a6d3-a14/api-check",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:22:26.952989+00:00",
+        "endUtc": "2026-11-15T15:22:42.427698+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "asan",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly test --offline --locked --target x86_64-unknown-linux-gnu -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip locking all memory --skip a secret works under every lock limit --skip the work area lies on pages of its own",
+        "result": "standard harness 28 passed / 0 ignored / 1 filtered / standard harness 0 passed / 0 ignored / 0 filtered / tests/isolation/main.rs: 19 passed, 1 ignored, 0 partial / tests/secret_memory.rs: 7 passed, 2 ignored, 0 partial / tests/worker.rs: 19 passed, 0 ignored, 0 partial",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:40.962764+00:00",
+        "endUtc": "2026-11-15T15:13:58.334159+00:00",
+        "logSha256": "eaffe68b4a97e5c45b84ce6bca8831c57bd8ae17a780228766ecfd85aae93719"
+      },
+      {
+        "name": "ci-existing",
+        "command": "gh run view 43727268201 --repo hobby-eng/secret-protection-core --json attempt,number,headSha,jobs,conclusion,status,url,workflowName",
+        "result": "run 7; native (windows-latest)=success, native (macos-latest)=success, native (ubuntu-24.04-arm)=success, checks=success",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:32.983762+00:00",
+        "endUtc": "2026-11-15T15:10:34.540261+00:00",
+        "logSha256": "c4a2b63cf26a6c7780646875a817658e1069d748a22f9c9b58c36f36a87ccd54"
+      },
+      {
+        "name": "ci-list",
+        "command": "gh run list --repo hobby-eng/secret-protection-core --commit fb2a6d345caf8eb58097f013f12e43985402150f --json databaseId,headSha,conclusion,status,url,workflowName --limit 10",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:30.568081+00:00",
+        "endUtc": "2026-11-15T15:10:32.983454+00:00",
+        "logSha256": "7360d77296b2ba9dc054a1b9e493f3be480e8dad55a3961956fdce51d5908a3f"
+      },
+      {
+        "name": "ci-transcript",
+        "command": "gh run view 43727268201 --repo hobby-eng/secret-protection-core --log",
+        "result": "named tests passed: checks 77, native (macos-latest) 41, native (ubuntu-24.04-arm) 77, native (windows-latest) 32",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:12:49.790042+00:00",
+        "endUtc": "2026-11-15T15:12:53.195102+00:00",
+        "logSha256": "8507100c539ade9f32843b298bc6493bc09c3a34fcfa10717b49fbf5a52b153b"
+      },
+      {
+        "name": "clippy-aarch64-apple-darwin",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets --target aarch64-apple-darwin -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:56.029521+00:00",
+        "endUtc": "2026-11-15T15:23:57.200862+00:00",
+        "logSha256": "2ba5a8fce6150951d84a3aaea6eb2735fc8f8496e7255cce7059e2abd1c732de"
+      },
+      {
+        "name": "clippy-aarch64-apple-ios",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets --target aarch64-apple-ios -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:57.201077+00:00",
+        "endUtc": "2026-11-15T15:23:58.067434+00:00",
+        "logSha256": "0758c86ca5cf0cb93b2579a713297a7f160a988295d7ea4d6d9e62bb67d8fa2e"
+      },
+      {
+        "name": "clippy-aarch64-linux-android",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets --target aarch64-linux-android -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:58.067686+00:00",
+        "endUtc": "2026-11-15T15:23:58.920798+00:00",
+        "logSha256": "1e37831f32de067538ddc30e12c3e95a41ebe40df280ebb6ca9f0a1da62a4e41"
+      },
+      {
+        "name": "clippy-host",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:08.869494+00:00",
+        "endUtc": "2026-11-15T15:23:09.660165+00:00",
+        "logSha256": "0f6272ffe04f682bab6291304e9e1bc7ddb5e87e85e5291d35d68f2660fbe349"
+      },
+      {
+        "name": "clippy-wasm32-unknown-unknown",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets --target wasm32-unknown-unknown -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:09.660461+00:00",
+        "endUtc": "2026-11-15T15:23:56.029296+00:00",
+        "logSha256": "e6a211ec47f3d8a85066bb81756fc9b6df19be8ed81967660e3b9cb6ac190a5d"
+      },
+      {
+        "name": "clippy-x86_64-pc-windows-gnu",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-gnu -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:23:58.921065+00:00",
+        "endUtc": "2026-11-15T15:24:07.941430+00:00",
+        "logSha256": "4f983c760f36f005db9af997ceff031e1509311759808b831913983112971164"
+      },
+      {
+        "name": "coverage",
+        "command": "run-capped --mem 2200M --time 30m -- bash -c set -eu\nsource <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline\ncargo llvm-cov report --summary-only",
+        "result": "standard harness 29 passed / 0 ignored / 0 filtered / standard harness 0 passed / 0 ignored / 0 filtered / tests/isolation/main.rs: 20 passed, 0 ignored, 0 partial / tests/secret_memory.rs: 9 passed, 0 ignored, 0 partial / tests/worker.rs: 19 passed, 0 ignored, 0 partial / warning: 9 functions have mismatched data / TOTAL                            3887               152    96.09%         326                11    96.63%        2347                66    97.19%           0                 0         -",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:12:49.794798+00:00",
+        "endUtc": "2026-11-15T15:17:00.889629+00:00",
+        "logSha256": "598d9ffdb149c3a9bbdd462fa6ec51507e92388c825b47761622539c31dcfa87"
+      },
+      {
+        "name": "docs-smoke",
+        "command": "run-capped --mem 2200M --time 30m -- rustdoc --edition=2024 --test README.md -L dependency=<workspace>/tmp/spc-final-fb2a6d3-a14/editorial/release/deps --extern secret_protection_core=<workspace>/tmp/spc-final-fb2a6d3-a14/editorial/release/libsecret_protection_core.rlib",
+        "result": "standard harness 2 passed / 0 ignored / 0 filtered / README Markdown examples via rustdoc",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:54.078348+00:00",
+        "endUtc": "2026-11-15T15:31:54.380164+00:00",
+        "logSha256": "3fc440d0c93c72a2a5f2cb3e4a0620b91fc615d895b3c535365279e89de7fe8d"
+      },
+      {
+        "name": "dprint-baseline",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/workingspace/dprint/0.63.0/dprint check .",
+        "result": "Found 3 not formatted files. Run dprint fmt to fix.",
+        "exitCode": 20,
+        "startUtc": "2026-11-15T15:12:53.195804+00:00",
+        "endUtc": "2026-11-15T15:13:34.008624+00:00",
+        "logSha256": "a455a2c3dad14b6b70fbf8a9bb9de19086612c916db2c67229c830f8e481799c"
+      },
+      {
+        "name": "editorial-all-dprint",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/workingspace/dprint/0.63.0/dprint check --incremental=false AGENTS.md README.md THIRD_PARTY_NOTICES.md CHANGELOG.md docs/README.md docs/COVERAGE.md docs/TECHNICAL.md",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:45:43.224612+00:00",
+        "endUtc": "2026-11-15T15:45:43.439962+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "editorial-diff-check",
+        "command": "git diff --check",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:54.380854+00:00",
+        "endUtc": "2026-11-15T15:31:54.388831+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "editorial-dprint",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/workingspace/dprint/0.63.0/dprint check --incremental=false README.md CHANGELOG.md docs/README.md docs/COVERAGE.md docs/TECHNICAL.md",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:43.599973+00:00",
+        "endUtc": "2026-11-15T15:31:43.773017+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "editorial-format",
+        "command": "run-capped --mem 2200M --time 30m -- cargo fmt --check",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:38.267417+00:00",
+        "endUtc": "2026-11-15T15:31:43.599685+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "editorial-rlib",
+        "command": "run-capped --mem 2200M --time 30m -- cargo build --locked --release --offline --lib",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:44.237986+00:00",
+        "endUtc": "2026-11-15T15:31:54.078048+00:00",
+        "logSha256": "ba0e07e9fb4638de38c2a6d495584aa65d40176e3b771edc84ff872ab0d20e84"
+      },
+      {
+        "name": "editorial-rustdoc",
+        "command": "run-capped --mem 2200M --time 30m -- cargo doc --locked --offline --no-deps",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:31:43.773275+00:00",
+        "endUtc": "2026-11-15T15:31:44.237595+00:00",
+        "logSha256": "1e43bee6c6383cd61e21c013d59a2cfa5d1ea5de2b3c47070579e7d10735b7bb"
+      },
+      {
+        "name": "final-agent-guide-format",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/workingspace/dprint/0.63.0/dprint check --incremental=false AGENTS.md",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:46:56.193765+00:00",
+        "endUtc": "2026-11-15T15:46:56.350032+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "format",
+        "command": "run-capped --mem 2200M --time 30m -- cargo fmt --check",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:34.573100+00:00",
+        "endUtc": "2026-11-15T15:10:55.149351+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "fuzz-format",
+        "command": "run-capped --mem 2200M --time 30m -- cargo fmt --manifest-path fuzz/Cargo.toml --check",
+        "result": "separate manifest fails rustfmt in fuzz/fuzz_targets/setting.rs; root fmt does not cover it",
+        "exitCode": 1,
+        "startUtc": "2026-11-15T15:29:39.292442+00:00",
+        "endUtc": "2026-11-15T15:29:39.492147+00:00",
+        "logSha256": "11ad466894895d710a093aad9d0611395d0d8bcb0dd2566a9f0e0bfefcdf7b9c"
+      },
+      {
+        "name": "fuzz-keystrokes",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu keystrokes <workspace>/tmp/spc-final-fb2a6d3-a14/corpus/keystrokes -- -max_total_time=90 -artifact_prefix=<workspace>/tmp/spc-final-fb2a6d3-a14/crashes/",
+        "result": "Done 923970 runs in 91 second(s)",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:29:41.220823+00:00",
+        "endUtc": "2026-11-15T15:31:13.281813+00:00",
+        "logSha256": "c047075bbcdb7cf62465626f9a00a072be61e5c0f54b3b0b480106ca34e563a1"
+      },
+      {
+        "name": "fuzz-lint-stable",
+        "command": "run-capped --mem 2200M --time 30m -- cargo clippy --locked --offline --manifest-path fuzz/Cargo.toml --bins -- -D warnings",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:30:32.216842+00:00",
+        "endUtc": "2026-11-15T15:31:01.113968+00:00",
+        "logSha256": "da1d078c7245dee813e945fd0e70ce75f5a5756e9f0a35bcc3a623ed3a3c3ab1"
+      },
+      {
+        "name": "fuzz-lint",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly clippy --locked --offline --manifest-path fuzz/Cargo.toml --bins -- -D warnings",
+        "result": "nightly Clippy component absent; see pinned stable Clippy rerun",
+        "exitCode": 1,
+        "startUtc": "2026-11-15T15:29:39.492357+00:00",
+        "endUtc": "2026-11-15T15:29:44.800169+00:00",
+        "logSha256": "869adce0d6c67b0cc368ab821922c7804f1da8afbc7e688fcd5576e1f16eaa2a"
+      },
+      {
+        "name": "fuzz-report",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu report <workspace>/tmp/spc-final-fb2a6d3-a14/corpus/report -- -max_total_time=90 -artifact_prefix=<workspace>/tmp/spc-final-fb2a6d3-a14/crashes/",
+        "result": "Done 18162047 runs in 281 second(s)",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:24:58.454138+00:00",
+        "endUtc": "2026-11-15T15:29:41.211008+00:00",
+        "logSha256": "c05bbf7700c9fba9ab93464d9510fc85f69c679fc89b5ee43a8f6a3510523a14"
+      },
+      {
+        "name": "fuzz-setting",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu setting <workspace>/tmp/spc-final-fb2a6d3-a14/corpus/setting -- -max_total_time=90 -artifact_prefix=<workspace>/tmp/spc-final-fb2a6d3-a14/crashes/",
+        "result": "Done 7752307 runs in 96 second(s)",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:13:58.334525+00:00",
+        "endUtc": "2026-11-15T15:24:58.453539+00:00",
+        "logSha256": "3bf5b84e9447ebb081ee7d8953fc4306aeadf2581080d11fe433c8965eed8657"
+      },
+      {
+        "name": "git-state",
+        "command": "git status --short --branch",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:30.564355+00:00",
+        "endUtc": "2026-11-15T15:10:30.567844+00:00",
+        "logSha256": "5fbcb2990ad25e368c12219bf3ddca36e464d044e7acac16696fa8cd54159185"
+      },
+      {
+        "name": "harness-final-check",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/tmp/spc-final-fb2a6d3-a14/api-final",
+        "result": "1112064 Unicode scalars, 7 invalid frames and one capacity boundary passed",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:44:22.315103+00:00",
+        "endUtc": "2026-11-15T15:44:22.465140+00:00",
+        "logSha256": "529eaec4d7ab536f82667d20984909f3cc21904110b1df4931ceb25817af166c"
+      },
+      {
+        "name": "harness-final-link",
+        "command": "run-capped --mem 2200M --time 30m -- rustc --edition=2024 -C opt-level=2 /tmp/spc-final-a14/api.rs -L dependency=<workspace>/tmp/spc-final-fb2a6d3-a14/api-target/release/deps --extern secret_protection_core=<workspace>/tmp/spc-final-fb2a6d3-a14/api-target/release/libsecret_protection_core.rlib -o <workspace>/tmp/spc-final-fb2a6d3-a14/api-final",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:44:22.080030+00:00",
+        "endUtc": "2026-11-15T15:44:22.314855+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "harness-format",
+        "command": "run-capped --mem 2200M --time 30m -- rustfmt --edition 2024 --check /tmp/spc-final-a14/api.rs",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:44:21.919410+00:00",
+        "endUtc": "2026-11-15T15:44:22.079784+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "metadata",
+        "command": "run-capped --mem 2200M --time 30m -- cargo metadata --locked --offline --format-version 1",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:02.874970+00:00",
+        "endUtc": "2026-11-15T15:17:03.075236+00:00",
+        "logSha256": "8185bcff8999b0ee4aa6c8ad4a3f149c52471cd3ee1afac3efbb4427e879e827"
+      },
+      {
+        "name": "miri",
+        "command": "run-capped --mem 2200M --time 30m -- cargo +nightly miri test --locked --offline --lib os::tests::unwritten_bytes_are_wiped_without_being_read -- --exact",
+        "result": "standard harness 1 passed / 0 ignored / 28 filtered",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:28.614071+00:00",
+        "endUtc": "2026-11-15T15:10:40.962522+00:00",
+        "logSha256": "6a9b3a53b541100a7a83cbca3dd9bb3ecfd4ea4c352187a5c07db9b75fd36e02"
+      },
+      {
+        "name": "package-list",
+        "command": "run-capped --mem 2200M --time 30m -- cargo package --list --locked --allow-dirty",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:02.687171+00:00",
+        "endUtc": "2026-11-15T15:17:02.874712+00:00",
+        "logSha256": "09e01cc56aaf7b5336464d9f05cc5f24f8c3ca74b8d895d29207500b976cc283"
+      },
+      {
+        "name": "release-assembly",
+        "command": "run-capped --mem 2200M --time 30m -- <workspace>/workingspace/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-objdump -d --demangle --no-show-raw-insn <workspace>/tmp/spc-final-fb2a6d3-a14/build/release/libsecret_protection_core.rlib",
+        "result": "optimized x86-64 rlib disassembled; zero-byte stores retained in zeroize routines; object spot-check, no claim about all callers or platforms",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:29:34.020539+00:00",
+        "endUtc": "2026-11-15T15:29:39.291125+00:00",
+        "logSha256": "8b42996c52a1fa7b5698054b7eb2f00429172440cb678bc4b8e7335180664da5"
+      },
+      {
+        "name": "release",
+        "command": "run-capped --mem 2200M --time 30m -- cargo build --release --locked --offline",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:16:51.301810+00:00",
+        "endUtc": "2026-11-15T15:17:01.645749+00:00",
+        "logSha256": "222a02ed477d249a21359df8cae975864a62d848f4739cadc5b00b6190a963c6"
+      },
+      {
+        "name": "rustdoc",
+        "command": "run-capped --mem 2200M --time 30m -- cargo doc --locked --offline --no-deps",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:17:01.645977+00:00",
+        "endUtc": "2026-11-15T15:17:02.686858+00:00",
+        "logSha256": "bc81c767b92a19d0ca5e0c340a4df9b52b00624dcd21d7df41111012a97f3fa8"
+      },
+      {
+        "name": "signed-source",
+        "command": "git -c gpg.ssh.allowedSignersFile=<workspace>/tmp/spc-final-fb2a6d3-a14/allowed-signers verify-commit fb2a6d3 9e08979",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:12:49.733965+00:00",
+        "endUtc": "2026-11-15T15:12:49.756657+00:00",
+        "logSha256": "9b72e54d7545b6f2dd06a0c4ed3447e0eeed1929100a89e48bb510f40e7f91d4"
+      },
+      {
+        "name": "test-debug",
+        "command": "run-capped --mem 2200M --time 30m -- cargo test --locked --offline",
+        "result": "standard harness 29 passed / 0 ignored / 0 filtered / standard harness 0 passed / 0 ignored / 0 filtered / tests/isolation/main.rs: 20 passed, 0 ignored, 0 partial / tests/secret_memory.rs: 9 passed, 0 ignored, 0 partial / tests/worker.rs: 19 passed, 0 ignored, 0 partial",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:55.149580+00:00",
+        "endUtc": "2026-11-15T15:13:08.851377+00:00",
+        "logSha256": "90f5afec2248b0bcb8cd039123944f0942cc1ad692dff0b961a3a92f897fac50"
+      },
+      {
+        "name": "test-release",
+        "command": "run-capped --mem 2200M --time 30m -- cargo test --release --locked --offline",
+        "result": "standard harness 29 passed / 0 ignored / 0 filtered / standard harness 0 passed / 0 ignored / 0 filtered / tests/isolation/main.rs: 20 passed, 0 ignored, 0 partial / tests/secret_memory.rs: 9 passed, 0 ignored, 0 partial / tests/worker.rs: 19 passed, 0 ignored, 0 partial",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:13:08.851686+00:00",
+        "endUtc": "2026-11-15T15:16:51.301509+00:00",
+        "logSha256": "d662a4d6c87ffd02e04a7e6bc9fa43441c5d374ccee2c2ec612b5f9a913a3be8"
+      },
+      {
+        "name": "tools",
+        "command": "rustc -vV",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:10:34.540547+00:00",
+        "endUtc": "2026-11-15T15:10:34.572807+00:00",
+        "logSha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+      },
+      {
+        "name": "wasm-link",
+        "command": "run-capped --mem 2200M --time 30m -- rustc --edition=2024 --crate-type=cdylib --target wasm32-unknown-unknown docs/audits/AUD-006-harnesses/fallback.rs -L dependency=<workspace>/tmp/spc-final-fb2a6d3-a14/build/wasm32-unknown-unknown/debug/deps --extern secret_protection_core=<workspace>/tmp/spc-final-fb2a6d3-a14/build/wasm32-unknown-unknown/debug/libsecret_protection_core.rlib -o <workspace>/tmp/spc-final-fb2a6d3-a14/fallback.wasm",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:24:08.405075+00:00",
+        "endUtc": "2026-11-15T15:24:08.655473+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "wasm-runtime",
+        "command": "run-capped --mem 2200M --time 30m -- node docs/audits/AUD-006-harnesses/fallback.mjs <workspace>/tmp/spc-final-fb2a6d3-a14/fallback.wasm",
+        "result": "check_buffer passed / check_closed passed / check_work_area passed / check_strict passed",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:24:08.655762+00:00",
+        "endUtc": "2026-11-15T15:24:08.810881+00:00",
+        "logSha256": "d1c89560c2089b377cf50545bc2dba001c7923a45b5510e796a90bc769935a4e"
+      },
+      {
+        "name": "wasm",
+        "command": "run-capped --mem 2200M --time 30m -- cargo build --lib --locked --offline --target wasm32-unknown-unknown",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:24:07.941663+00:00",
+        "endUtc": "2026-11-15T15:24:08.404822+00:00",
+        "logSha256": "48f7d37c5f6ba877bb8db245bd1b369da6b14d10285eff21205da5d7b7b1a223"
+      },
+      {
+        "name": "workflow-pins",
+        "command": "node <workspace>/.github/scripts/verify-action-pins.mjs <repo>",
+        "result": "exit 0",
+        "exitCode": 0,
+        "startUtc": "2026-11-15T15:12:49.756921+00:00",
+        "endUtc": "2026-11-15T15:12:49.789809+00:00",
+        "logSha256": "2b0934385af938816fd6e907b861d4efe3fa82c46b79bf93796eb9e7c1271953"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "AUD-014-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A live ClosedSecret callback can change protection on a foreign address after fork",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "src/protect/closed.rs:63,175; src/os.rs:97,195; src/os/unix.rs:123",
+      "reproduction": "Static path analysis of the frozen revision. The temporary Open guard keeps only an address and length. Its destructor calls allow even in a different generation. The outer ClosedSecret destructor checks the generation.",
+      "expected": "The post-fork owner rule should cover cleanup on both normal return and unwinding.",
+      "observed": "The temporary Open guard keeps only an address and length. Its destructor calls allow even in a different generation. The outer ClosedSecret destructor checks the generation.",
+      "impact": "If a supported continuing Unix child returns from a callback and the old range has been reused, it can remove access from unrelated pages. An unmapped range ordinarily makes the call fail. No secret read or collision observed.",
+      "recommendedFix": "Carry the generation to the permission guard and skip foreign-page changes. Explicitly document outstanding borrows.",
+      "requiredVerification": "Cover a normal callback return in a continuing single-thread child and confirm no permission operation on any foreign range. Keep the ordinary-owner regressions."
+    },
+    {
+      "id": "AUD-014-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The Linux worker cannot guarantee a clean descriptor table before library startup",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "src/os/unix.rs:397,419,551,574,609; tests/worker.rs; README.md",
+      "reproduction": "Static path analysis of the frozen revision. The Linux close list is taken from the parent in advance. Failed listing becomes empty and failed classification drops an entry. A later child scan can see only handles still present. Apple uses a different spawn facility.",
+      "expected": "For the advertised pre-main guarantee the child must drop every nonstandard inherited descriptor before library constructors.",
+      "observed": "The Linux close list is taken from the parent in advance. Failed listing becomes empty and failed classification drops an entry. A later child scan can see only handles still present. Apple uses a different spawn facility.",
+      "impact": "Startup code can see a parent resource that the handshake cannot retrospectively account for. A descriptor that remains visible at serve still causes refusal. No first secret is sent before a valid handshake.",
+      "recommendedFix": "Use a child-side close-from or equivalent atomic close-on-exec policy after redirecting standard streams. Fail on uncertain enumeration if the platform must use a fallback. Describe any remaining guarantee narrowly.",
+      "requiredVerification": "Test ordinary early library initialization, parent listing refusal, concurrent descriptor changes and the documented fallback, on Linux and macOS."
+    },
+    {
+      "id": "AUD-014-SEC003",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Forced Unix shutdown addresses a worker by a reusable process number",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "src/os/unix.rs:296,329,341; tests/worker.rs",
+      "reproduction": "Static path analysis of the frozen revision. The last nonblocking wait and kill by numeric PID are distinct operations. When the system or another reaper collects the worker in that interval, its number is free.",
+      "expected": "A termination request may affect only the worker created by this object.",
+      "observed": "The last nonblocking wait and kill by numeric PID are distinct operations. When the system or another reaper collects the worker in that interval, its number is free.",
+      "impact": "A permitted unrelated process assigned that number could receive SIGKILL. Normal exclusive reaping pins an exited worker until it has been waited for. No wrong-process signal was sent in this audit.",
+      "recommendedFix": "Use a stable child identity acquired at spawn, or decline forced termination on a path where identity cannot be retained.",
+      "requiredVerification": "Use a test double for identity retirement and verify cleanup under normal and automatic reaping without signaling unrelated processes."
+    },
+    {
+      "id": "AUD-014-SEC004",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Worker admission can accept thread-only isolation",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "src/worker.rs:89,255; src/protect.rs:335,356; src/os/linux.rs:229,287",
+      "reproduction": "Static path analysis of the frozen revision. A Unix clean descriptor list need not imply a single thread. A linked library may have started a thread before main. The parent enforces only its caller-supplied list. A thread-scoped confirmation can therefore satisfy a requested individual protection.",
+      "expected": "The documented whole-process worker must establish that scope before accepting a secret.",
+      "observed": "A Unix clean descriptor list need not imply a single thread. A linked library may have started a thread before main. The parent enforces only its caller-supplied list. A thread-scoped confirmation can therefore satisfy a requested individual protection.",
+      "impact": "A caller that omitted WholeProcess under the worker examples could admit a process with less isolation than expected. A caller requiring WholeProcess is refused when the condition is false.",
+      "recommendedFix": "Make the worker admission contract explicit. Enforce WholeProcess for a worker promising that scope or make selection of a weaker scope explicit.",
+      "requiredVerification": "Exercise a benign startup with an extra thread and no extra file descriptors. Confirm refusal for strict admission and document any deliberately weaker mode."
+    },
+    {
+      "id": "AUD-014-SEC005",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows reports primary-token integrity as a guarantee about all threads",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "evidence": "src/os/windows.rs:305,327,352,752; src/protect.rs:303; docs/TECHNICAL.md",
+      "reproduction": "Static path analysis of the frozen revision. The check changes and reads the primary token and marks LowIntegrity as reaching the process. A pre-existing impersonating thread can have a distinct effective token.",
+      "expected": "Process-wide write restrictions in an already-running host must reflect the effective security context of its threads.",
+      "observed": "The check changes and reads the primary token and marks LowIntegrity as reaching the process. A pre-existing impersonating thread can have a distinct effective token.",
+      "impact": "A Windows service could pass a strict low-integrity requirement although an existing client-impersonating thread has different rights. This is a finding about direct isolation in a supported integration. No evidence of this state in a fresh default worker.",
+      "recommendedFix": "Define primary-token integrity precisely and distinguish it from effective all-thread restrictions in measures and strict admission. Narrow the guarantee or verify it.",
+      "requiredVerification": "A native Windows regression should compare primary and impersonating-thread token metadata and require the honest scope. The existing runner does not exercise this case."
+    },
+    {
+      "id": "AUD-014-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "A complete Linux channel report can describe a different thread's descriptor table",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/os/unix.rs:551,560,670; src/channels.rs:39",
+      "reproduction": "Static path analysis of the frozen revision. The path enumerates the thread-group leader's file numbers while inspection uses the calling thread's descriptor table. Linux permits threads with distinct tables.",
+      "expected": "When complete is true, enumeration and classification must describe the same defined scope.",
+      "observed": "The path enumerates the thread-group leader's file numbers while inspection uses the calling thread's descriptor table. Linux permits threads with distinct tables.",
+      "impact": "A private live descriptor can be omitted even in a stable snapshot. The same mismatch affects the parent's close list in SEC002. No observed secret disclosure.",
+      "recommendedFix": "Define scope, enumerate the calling thread's table for a per-thread result or explicitly aggregate distinct tables for a process result. Report incomplete when scope cannot be established.",
+      "requiredVerification": "Test two valid thread file tables with public file handles, including the completeness flag."
+    },
+    {
+      "id": "AUD-014-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "A failed worker shutdown can leave a later exit unreaped",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/worker.rs:103,152,163,204; src/os/unix.rs:296,301",
+      "reproduction": "Static path analysis of the frozen revision. end consumes the worker, a failed finish is cached and Drop does at most one final nonblocking reap. On failed start no caller receives an owner.",
+      "expected": "A failed bounded shutdown must leave the parent a way to collect its child after it eventually exits.",
+      "observed": "end consumes the worker, a failed finish is cached and Drop does at most one final nonblocking reap. On failed start no caller receives an owner.",
+      "impact": "In a long-lived parent without another reaper a child that exits later can remain a zombie. No infinite wait in the caller is required.",
+      "recommendedFix": "Transfer ownership to a bounded supervisor or expose an identity-preserving completion/reaping mechanism on unsuccessful shutdown.",
+      "requiredVerification": "Check delayed exit after end returns false in a long-lived parent and confirm the child is eventually collected."
+    },
+    {
+      "id": "AUD-014-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Some Linux fork tests can succeed without running their child assertions",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "tests/isolation/linux/roles.rs:36,65,82,101; tests/secret_memory.rs:191",
+      "reproduction": "Static path analysis of the frozen revision. Four paths compare waitpid's result directly to the value from fork before requiring a positive PID. The status buffer starts at zero.",
+      "expected": "A refusal to fork or wait must never count as success.",
+      "observed": "Four paths compare waitpid's result directly to the value from fork before requiring a positive PID. The status buffer starts at zero.",
+      "impact": "A resource failure can appear as a passing memory-lock or signal-boundary test. The previously named secret_memory paths were fixed.",
+      "recommendedFix": "Use one child-status helper that checks a positive PID, a successful wait for that child, and a normal exit code.",
+      "requiredVerification": "Make the failure path deterministic through the status helper and retain the normal native cases."
+    },
+    {
+      "id": "AUD-014-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The nested-namespace test can silently omit its memory-lock subcheck",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "tests/isolation/linux/roles.rs:177; tests/support/run.rs:33",
+      "reproduction": "Static path analysis of the frozen revision. The first namespace refusal is handled, but refusal of the lock or second namespace skips the nested assertion without reporting a partial result.",
+      "expected": "A partial test should identify the assertion the OS prevented.",
+      "observed": "The first namespace refusal is handled, but refusal of the lock or second namespace skips the nested assertion without reporting a partial result.",
+      "impact": "A green run can be cited as evidence of readback in a configuration it never exercised.",
+      "recommendedFix": "Record an explicit partial reason for each skipped subcase or split independently named cases.",
+      "requiredVerification": "Check the emitted result for both unavailable and supported environments."
+    },
+    {
+      "id": "AUD-014-BLD003",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Isolation tests reuse predictable temporary paths without first obtaining ownership",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/channels.rs:65; tests/isolation/linux.rs:130,190",
+      "reproduction": "Static path analysis of the frozen revision. File::create can truncate an existing file. A separate test accepts an existing directory and recursively removes it at completion.",
+      "expected": "Test cleanup should affect only files and directories that the test created.",
+      "observed": "File::create can truncate an existing file. A separate test accepts an existing directory and recursively removes it at completion.",
+      "impact": "Stale same-user files can be overwritten or removed. Only test execution is affected. Runs in this audit used a private temporary directory for local Cargo checks.",
+      "recommendedFix": "Create exclusive private temporary storage; clean up only after exclusive creation succeeded.",
+      "requiredVerification": "Pre-place harmless sentinel entries and ensure unchanged contents and ownership on a collision."
+    },
+    {
+      "id": "AUD-014-BLD004",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Tests assume that Linux reports memory-reading protection inside a PID namespace",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "tests/isolation/main.rs:446; tests/isolation/linux.rs:151,617; src/os/linux.rs:254,577",
+      "reproduction": "Static path analysis of the frozen revision. Several assertions unconditionally require the positive boolean. Production code deliberately declines to confirm that an outside tracer is absent.",
+      "expected": "Tests in containers should accept the documented Unknown reading and still verify unrelated protections.",
+      "observed": "Several assertions unconditionally require the positive boolean. Production code deliberately declines to confirm that an outside tracer is absent.",
+      "impact": "An otherwise working container build can fail the suite before later checks. CI on the initial namespace does not cover the contrast.",
+      "recommendedFix": "Assert the expected outcome for the execution context and report any checks that cannot run.",
+      "requiredVerification": "Run the same regression on the host and in a nested PID namespace."
+    },
+    {
+      "id": "AUD-014-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Buffer and fork guarantees are inconsistent across the technical guide and public rustdoc",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "docs/TECHNICAL.md:25,68,130; src/protect.rs:167; src/os.rs:299; src/os/unix.rs:193",
+      "reproduction": "Static path analysis of the frozen revision. The README correction from AUD-010 did not reach the whole guide or the WorkArea documentation. Text describes wiped or absent child mappings categorically even when the OS refused exclusion.",
+      "expected": "Each public description must identify the WebAssembly heap fallback and the result of a refused fork-exclusion request.",
+      "observed": "The README correction from AUD-010 did not reach the whole guide or the WorkArea documentation. Text describes wiped or absent child mappings categorically even when the OS refused exclusion.",
+      "impact": "Integrators can mistake a per-owner generation guard for guaranteed removal of bytes from the child, or expect guard pages on WebAssembly.",
+      "recommendedFix": "Separate always-available wiping from platform-dependent protection, and distinguish owner access from raw mapping inheritance.",
+      "requiredVerification": "Cross-check README, technical tables and generated rustdoc on the documentation diff; rerun native and WASM public examples."
+    },
+    {
+      "id": "AUD-014-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "Some Linux calls pass int-width literals to the variadic prctl interface",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/os/linux.rs:236,245,536; src/os/linux/seccomp.rs:173,342",
+      "reproduction": "Static path analysis of the frozen revision. Several trailing arguments are unsuffixed zero literals passed as c_int in a variadic call. The Linux man page explicitly requires full-width arguments.",
+      "expected": "Arguments consumed as machine words must be passed with the width of the native interface.",
+      "observed": "Several trailing arguments are unsuffixed zero literals passed as c_int in a variadic call. The Linux man page explicitly requires full-width arguments.",
+      "impact": "Current native runs pass. Depending on a calling convention to extend those values makes the intended ABI less portable.",
+      "recommendedFix": "Use a small typed interface for machine-word arguments and preserve pointer arguments where required.",
+      "requiredVerification": "Cross-target Clippy, native x86-64 and AArch64 regressions and a review of each variadic call."
+    },
+    {
+      "id": "AUD-014-SEC006",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The Windows parent retains more access to the worker than it uses",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "src/os/windows/worker.rs:56,83,360,376",
+      "reproduction": "Static path analysis of the frozen revision. The full process handle returned by CreateProcessW stays in WorkerProcess for its lifetime. Tightening the worker DACL later cannot reduce the rights already granted to that handle.",
+      "expected": "Once the Windows transport is ready the parent needs only the process rights used to monitor and stop its worker.",
+      "observed": "The full process handle returned by CreateProcessW stays in WorkerProcess for its lifetime. Tightening the worker DACL later cannot reduce the rights already granted to that handle.",
+      "impact": "Unnecessary access remains in a GUI host that the worker is meant to separate from secrets. This does not demonstrate a disclosure or invalidate the no-inheritance fix.",
+      "recommendedFix": "Retain a reduced-rights handle and release the original before admission. Document which startup steps must trust the parent.",
+      "requiredVerification": "On Windows check the granted access mask and repeat connection, liveness and shutdown tests using the reduced handle."
+    },
+    {
+      "id": "AUD-014-BLD006",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The separate fuzz crate is outside the advertised CI formatting and lint matrix",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": ".github/workflows/ci.yml:29; .github/workflows/audit.yml:8; fuzz/Cargo.toml",
+      "reproduction": "Static path analysis of the frozen revision. CI runs Cargo at the main manifest; fuzz/Cargo.toml contains its own workspace. Root gates do not lint or format those three binaries. The pinned stable Clippy passed them separately, while cargo fmt on the fuzz manifest found a concrete difference in fuzz/fuzz_targets/setting.rs. The scheduled RustSec job has only the root configuration and the dependency-change trigger omits fuzz/Cargo.lock.",
+      "expected": "RUST-02 requires formatting and Clippy checks for every active crate. The developer lockfile has a distinct lifecycle.",
+      "observed": "CI runs Cargo at the main manifest; fuzz/Cargo.toml contains its own workspace. Root gates do not lint or format those three binaries. The pinned stable Clippy passed them separately, while cargo fmt on the fuzz manifest found a concrete difference in fuzz/fuzz_targets/setting.rs. The scheduled RustSec job has only the root configuration and the dependency-change trigger omits fuzz/Cargo.lock.",
+      "impact": "All three binaries can be exercised manually, but their lint regressions and developer-only dependency changes have weaker automated coverage.",
+      "recommendedFix": "Run explicit formatting and lint checks for the fuzz manifest and make developer-lock coverage explicit. Keep runtime and developer advisories distinct.",
+      "requiredVerification": "Show independent gates for both manifests and a separate fuzz/Cargo.lock advisory result."
+    },
+    {
+      "id": "AUD-014-BLD007",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The standalone release profile differs from the workspace Rust guide",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "Cargo.toml; rust-toolchain.toml",
+      "reproduction": "Static path analysis of the frozen revision. Only the test profile is set. Standalone cargo build --release therefore uses Cargo's defaults. A consuming application controls the effective profile when it links the library.",
+      "expected": "RUST-12 prescribes an explicit panic, LTO and codegen policy for release builds.",
+      "observed": "Only the test profile is set. Standalone cargo build --release therefore uses Cargo's defaults. A consuming application controls the effective profile when it links the library.",
+      "impact": "Passing tests of this rlib do not attest a consumer using an aborting or LTO build. Panic propagation in protected stack callbacks depends on whether unwinding is enabled.",
+      "recommendedFix": "State the crate-versus-consumer contract, record a justified exception or align the standalone profile, and verify the supported downstream release configurations.",
+      "requiredVerification": "Compile a representative consumer using its real release profile and check the documented panic and cleanup behavior."
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-014-ARC001",
+      "category": "ARC",
+      "kind": "observation",
+      "title": "Worker test file still exceeds CORE-15",
+      "severity": "info",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "evidence": "tests/worker.rs has 854 code lines. The rationale is in the historical index; the function-level waiver covers only main.",
+      "reproduction": "Static inspection; no adverse effect asserted.",
+      "expected": "Consumers can determine boundary and residual risk.",
+      "observed": "tests/worker.rs has 854 code lines. The rationale is in the historical index; the function-level waiver covers only main.",
+      "impact": "Nonblocking maintenance debt.",
+      "recommendedFix": "Split logically when this file changes, or record a justified source-local exception.",
+      "requiredVerification": "Keep the integration constraint explicit when this boundary changes."
+    },
+    {
+      "id": "AUD-014-SEC007",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "Isolation is a snapshot under a cooperative host policy",
+      "severity": "info",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "evidence": "A Windows DACL change does not revoke previously opened handles; the Linux seccomp marker distinguishes ordinary policies but does not authenticate arbitrary preinstalled policy. Signal/raw-fork and pre-existing aliases are separate from the checked owner paths.",
+      "reproduction": "Static inspection; no adverse effect asserted.",
+      "expected": "Consumers can determine boundary and residual risk.",
+      "observed": "A Windows DACL change does not revoke previously opened handles; the Linux seccomp marker distinguishes ordinary policies but does not authenticate arbitrary preinstalled policy. Signal/raw-fork and pre-existing aliases are separate from the checked owner paths.",
+      "impact": "The report alone cannot attest an adversarial runtime, an old external handle, or future changes made by trusted code.",
+      "recommendedFix": "Document effective assumptions; use a dedicated process and require the needed reach.",
+      "requiredVerification": "Keep the integration constraint explicit when this boundary changes."
+    },
+    {
+      "id": "AUD-014-BLD005",
+      "category": "BLD",
+      "kind": "observation",
+      "title": "Git source and a registry publication have different acceptance evidence",
+      "severity": "info",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "evidence": "Cargo.toml uses publish=false, the changelog has an Unreleased entry and the baseline has no version tag. Git signatures and CI refer to a source commit.",
+      "reproduction": "Static inspection; no adverse effect asserted.",
+      "expected": "Consumers can determine boundary and residual risk.",
+      "observed": "Cargo.toml uses publish=false, the changelog has an Unreleased entry and the baseline has no version tag. Git signatures and CI refer to a source commit.",
+      "impact": "No checks here attest to a future tag, registry artifact or application binary.",
+      "recommendedFix": "When releasing, bind the final artifact to its source commit and verification records.",
+      "requiredVerification": "Keep the integration constraint explicit when this boundary changes."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-008-SEC001",
+      "title": "The pipe access list admits ordinary processes of the same user",
+      "kind": "finding",
+      "status": "accepted",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Windows pipe ACL and its limitations are documented. It admits the user and package separately. The server defers the payload until the client PID matches. Restricting all preconnects from that user remains outside the guarantee. src/os/windows/worker.rs:131,198."
+    },
+    {
+      "id": "AUD-008-FUN001",
+      "title": "The client endpoint has no owner that closes it when serve returns",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "One owned File backs WorkerStreams on Windows and drops on service return. src/os/windows/worker.rs:472,529. Native CI exercised normal lifecycle."
+    },
+    {
+      "id": "AUD-008-API001",
+      "title": "Malformed worker settings can still activate worker mode",
+      "kind": "finding",
+      "status": "open",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Partially fixed. Unknown flag bits and malformed terminal fields are refused and Windows checks the pipe before entering isolation. Numeric aliases survive u32 parsing; on Windows invalid channel text can consume SERVED before it fails. src/worker.rs:221,247; src/os/windows/worker.rs:497. Reject noncanonical or impossible platform settings before consuming one-shot state."
+    },
+    {
+      "id": "AUD-009-SEC001",
+      "title": "A worker is called clean without a look at what it holds when it comes to serve",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Unix starts_clean inspects descriptors visible to its inventory at serve and rejects a failed listing. On Linux this assumes that the calling and leader tables match (API001). Windows explicitly does not enumerate process-owned handles. src/os/unix.rs:609; src/os/windows/worker.rs:457. This does not establish a history of the process before main (SEC002)."
+    },
+    {
+      "id": "AUD-009-SEC002",
+      "title": "Any text in the worker's variable closes the inherited descriptors before main",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The constructor now registers a fork watcher and never closes descriptors on the strength of environment text. src/os/unix.rs:585,603. Remaining parser behavior is tracked under AUD-008-API001."
+    },
+    {
+      "id": "AUD-009-SEC003",
+      "title": "A process of the same user that takes the worker's pipe first stops the start",
+      "kind": "finding",
+      "status": "accepted",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The server rejects a stray client and accepts again. Windows client retries a busy pipe for a second. Repeated local contention can still deny startup. No request is delivered to the stray client. src/os/windows/worker.rs:198,520; native competing-client test."
+    },
+    {
+      "id": "AUD-009-FUN001",
+      "title": "The Apple section of the function that runs before main does not name its kind",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Apple section explicitly specifies the initializer type and retention. src/os/unix.rs:594. Current macOS CI exercised the startup and fork-owner tests."
+    },
+    {
+      "id": "AUD-009-FUN002",
+      "title": "Without /dev/null the worker's streams do not end when it serves no more",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "When /dev/null is unavailable, ends are redirected to an ended pipe. Refusal of both sinks prevents clean admission. src/os/unix.rs:831,867; Linux fallback switch tested."
+    },
+    {
+      "id": "AUD-009-SEC004",
+      "title": "Anonymous secret pages may be joined into huge pages",
+      "kind": "finding",
+      "status": "accepted",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Anonymous secret pages request MADV_NOHUGEPAGE before locking. The response to the advice is best-effort and large work areas intentionally retain normal page policy. src/os/unix.rs:72,217; tests/secret_memory.rs:435."
+    },
+    {
+      "id": "AUD-009-SEC005",
+      "title": "A closed secret's change of access reaches its pages only",
+      "kind": "observation",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Historical observation: normal same-process secret regions have separate guarded mappings; opening one does not change the neighbouring owner's mapping. src/os/unix.rs:149; src/protect/closed.rs:63. The foreign-generation path is SEC001."
+    },
+    {
+      "id": "AUD-009-SEC006",
+      "title": "A secret made before the isolation lies in a process that can still be read",
+      "kind": "observation",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Historical integration observation: direct Secret allocation does not call Isolation::enter. Isolation must precede input; the standard worker reports before admitting it. src/protect.rs:312; src/worker.rs:255."
+    },
+    {
+      "id": "AUD-010-SEC001",
+      "title": "A continuing Unix child inherits buffer owners after the OS removes or unlocks their pages",
+      "kind": "finding",
+      "status": "open",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Partially verified. Ordinary inherited owners refuse access, return false for held protections and skip destructive Drop. tests/secret_memory.rs:145. A live callback has a second cleanup path without a generation check (SEC001); coverage of between-call fork does not close it."
+    },
+    {
+      "id": "AUD-010-SEC002",
+      "title": "The ELF worker initializer can close descriptors already owned by a linked library",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The old worker constructor no longer closes descriptors by number. posix_spawn runs close actions before program startup, so a library's replacement descriptor is not closed by later constructor cleanup. src/os/unix.rs:397,419,585. Linux snapshot completeness is a different condition (SEC002)."
+    },
+    {
+      "id": "AUD-010-API001",
+      "title": "Windows strict socket reporting describes a stronger guarantee than its evidence",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The public Windows NoNewSockets field describes capability-token evidence, and the implementation checks token data. src/protect.rs:251; src/os/windows.rs:383. No live network denial inferred from that bit."
+    },
+    {
+      "id": "AUD-010-BLD001",
+      "title": "The secret-memory fork tests can count a failed fork or wait as success",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "In the originally named secret_memory checks fork must produce a positive PID, wait matches that child, and status is checked. tests/secret_memory.rs:191,529. Four separate unchecked fork sites remain in isolation tests (BLD001)."
+    },
+    {
+      "id": "AUD-010-BLD002",
+      "title": "Test summaries count some skipped conditions and empty platform tests as passed",
+      "kind": "finding",
+      "status": "open",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Partial reporting works for top-level unavailable checks; a nested lock assertion can still be skipped without a reason. tests/support/run.rs:33; tests/isolation/linux/roles.rs:177. See BLD002."
+    },
+    {
+      "id": "AUD-010-BLD003",
+      "title": "The Windows competing-client regression can count a different instance",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The Windows competing-client counter now attributes the interaction to the expected server PID. tests/worker.rs:754. The test still opens before identifying the server; this can briefly contend with another same-user instance."
+    },
+    {
+      "id": "AUD-010-BLD004",
+      "title": "Worker timing tests confuse wall-clock pauses with backend behavior",
+      "kind": "finding",
+      "status": "open",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Mitigated. Increased linger and retries distinguish short scheduler delay in several cases. Remaining upper bounds including tests/worker.rs:1060 depend on wall time; green runs do not eliminate scheduling false negatives. Use lifecycle signals for tests requiring this distinction."
+    },
+    {
+      "id": "AUD-010-DOC001",
+      "title": "The all-platform buffer table promises guard pages in WebAssembly",
+      "kind": "finding",
+      "status": "open",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "README and Secret qualified WASM; the technical table and WorkArea rustdoc in the frozen tree still overstate the guarantee. See DOC001 and the separately checked documentation revision."
+    },
+    {
+      "id": "AUD-010-DOC002",
+      "title": "Windows Error Reporting heap exclusion is presented as assured",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Windows WER heap exclusion is described as a request without readback. src/protect.rs:241; docs/TECHNICAL.md. No guarantee about external dumps follows."
+    },
+    {
+      "id": "AUD-010-DOC003",
+      "title": "Third-party notices omit the Windows linkage dependency",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "THIRD_PARTY_NOTICES.md names windows-link 0.2.1; Cargo.lock contains the same version."
+    },
+    {
+      "id": "AUD-010-DOC004",
+      "title": "The historical audit index and two source links need corrections",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Historical path and behavior changes are explained in docs/audits/README.md under Errata. They point to the revision where the old tests and lines existed."
+    },
+    {
+      "id": "AUD-011-API001",
+      "title": "ClosedSecret::is_closed does not check pages.here() after fork",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "is_closed combines the recorded page state with the current fork generation. src/protect/closed.rs:96; tests/secret_memory.rs:153."
+    },
+    {
+      "id": "AUD-011-DOC001",
+      "title": "docs/COVERAGE.md references pre-commit working tree instead of 2747028f",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "d840951ccf709d1f892749b958cba8829bfa95ff",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The coverage document names 9e08979 and gives the measured input hash. Recomputed from the frozen input manifest and compared with the recorded coverage table."
+    },
+    {
+      "id": "AUD-011-DOC002",
+      "title": "THIRD_PARTY_NOTICES.md omits explicit crate names for enumflags2_derive and thiserror-impl",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Both build-time macro crates and their versions appear in the notices and lockfile."
+    },
+    {
+      "id": "AUD-011-BLD001",
+      "title": "Release metadata (publish = false, draft notice, Unreleased changelog) remains in draft state",
+      "kind": "finding",
+      "status": "accepted",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Draft banner removed. Cargo.toml still has publish=false and CHANGELOG still has Unreleased. These are deliberate for Git distribution. A versioned tag or registry package has its own outstanding release work."
+    },
+    {
+      "id": "AUD-011-ARC001",
+      "title": "tests/worker.rs is at 790 LOC, 10 lines below CORE-15's 800-line file limit",
+      "kind": "observation",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "The current worker integration test exceeds the 800-code-line rule. Reason is in the historical index. Unresolved source-structure exception; see CORE-15."
+    },
+    {
+      "id": "AUD-012-SEC001",
+      "title": "Worker pre-main cleanup closes a descriptor reused by a linked library",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Original descriptor replacement is fixed before exec; src/os/unix.rs:397,419,585; worker regression and CI. Adjacent Linux startup guarantee remains limited (SEC002)."
+    },
+    {
+      "id": "AUD-013-SEC001",
+      "title": "Worker startup closes a descriptor number a linked library has reused",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-012-SEC001. Verified the same fix. See SEC002 for the distinct enumeration condition."
+    },
+    {
+      "id": "AUD-013-API001",
+      "title": "ClosedSecret::is_closed ignores fork generation",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-011-API001. Guarded value verified by inspection and fork-owner tests."
+    },
+    {
+      "id": "AUD-013-DOC001",
+      "title": "docs/COVERAGE.md names commit c0c472af for this tree",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "d840951ccf709d1f892749b958cba8829bfa95ff",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-011-DOC001. Source and count checked independently of the filename."
+    },
+    {
+      "id": "AUD-013-DOC002",
+      "title": "Build-time macro crates are not named in THIRD_PARTY_NOTICES.md",
+      "kind": "finding",
+      "status": "verified",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-011-DOC002. Build-time crates present in notices."
+    },
+    {
+      "id": "AUD-013-BLD001",
+      "title": "Crate metadata is still a draft",
+      "kind": "finding",
+      "status": "accepted",
+      "fixCommit": "9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6",
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-011-BLD001; Git source distribution and registry publication have different requirements."
+    },
+    {
+      "id": "AUD-013-ARC001",
+      "title": "tests/worker.rs has 790 lines of code",
+      "kind": "observation",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+      "evidence": "Duplicate of AUD-011-ARC001. File-length exception remains."
+    },
+    {
+      "id": "AUD-014-SEC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/protect/closed.rs:63,175; src/os.rs:97,195; src/os/unix.rs:123"
+    },
+    {
+      "id": "AUD-014-SEC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/unix.rs:397,419,551,574,609; tests/worker.rs; README.md"
+    },
+    {
+      "id": "AUD-014-SEC003",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/unix.rs:296,329,341; tests/worker.rs"
+    },
+    {
+      "id": "AUD-014-SEC004",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/worker.rs:89,255; src/protect.rs:335,356; src/os/linux.rs:229,287"
+    },
+    {
+      "id": "AUD-014-SEC005",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/windows.rs:305,327,352,752; src/protect.rs:303; docs/TECHNICAL.md"
+    },
+    {
+      "id": "AUD-014-API001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/unix.rs:551,560,670; src/channels.rs:39"
+    },
+    {
+      "id": "AUD-014-FUN001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/worker.rs:103,152,163,204; src/os/unix.rs:296,301"
+    },
+    {
+      "id": "AUD-014-BLD001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "tests/isolation/linux/roles.rs:36,65,82,101; tests/secret_memory.rs:191"
+    },
+    {
+      "id": "AUD-014-BLD002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "tests/isolation/linux/roles.rs:177; tests/support/run.rs:33"
+    },
+    {
+      "id": "AUD-014-BLD003",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/channels.rs:65; tests/isolation/linux.rs:130,190"
+    },
+    {
+      "id": "AUD-014-BLD004",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "tests/isolation/main.rs:446; tests/isolation/linux.rs:151,617; src/os/linux.rs:254,577"
+    },
+    {
+      "id": "AUD-014-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "docs/TECHNICAL.md:25,68,130; src/protect.rs:167; src/os.rs:299; src/os/unix.rs:193"
+    },
+    {
+      "id": "AUD-014-API002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/linux.rs:236,245,536; src/os/linux/seccomp.rs:173,342"
+    },
+    {
+      "id": "AUD-014-SEC006",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "src/os/windows/worker.rs:56,83,360,376"
+    },
+    {
+      "id": "AUD-014-BLD006",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": ".github/workflows/ci.yml:29; .github/workflows/audit.yml:8; fuzz/Cargo.toml"
+    },
+    {
+      "id": "AUD-014-BLD007",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Cargo.toml; rust-toolchain.toml"
+    },
+    {
+      "id": "AUD-014-ARC001",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "tests/worker.rs has 854 code lines. The rationale is in the historical index; the function-level waiver covers only main."
+    },
+    {
+      "id": "AUD-014-SEC007",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "A Windows DACL change does not revoke previously opened handles; the Linux seccomp marker distinguishes ordinary policies but does not authenticate arbitrary preinstalled policy. Signal/raw-fork and pre-existing aliases are separate from the checked owner paths."
+    },
+    {
+      "id": "AUD-014-BLD005",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Cargo.toml uses publish=false, the changelog has an Unreleased entry and the baseline has no version tag. Git signatures and CI refer to a source commit."
+    }
+  ],
+  "limitations": [
+    "Current source is a Rust library. No wallet derivation, cryptographic primitive, network provider, mnemonic, UI application, or consumer release binary is shipped here.",
+    "GitHub results are existing exact-SHA runs. Windows/macOS/ARM Linux tests ran there. Android and iOS are cross-checked; there is no native device result. No other platform is inferred from Linux coverage.",
+    "Static findings do not demonstrate secret disclosure. No exploit, harmful signal, debugger attachment to an unrelated process or forced file collision was run. Existing intended exclusions include elevated observers, memory already copied out, and lack of browser OS controls.",
+    "Coverage is line coverage; the Linux remeasurement reported nine functions with mismatched profile data. The retained 97.32% and independent 97.19% differ by three lines. No cause assigned. Miri covers one wipe helper. ASan cannot establish physical locking. Fuzzing is time-bounded.",
+    "No cryptographic attestation of every build artifact or unrestricted safety certification. No registry publication or consumer executable exists to reproduce. Historic harnesses and AUD-001 through AUD-007 were inventoried for provenance; their earlier experiments were not repeated as if newly executed."
+  ],
+  "documentationFollowup": {
+    "codeFindingStatus": "Documentation qualified; underlying code findings still require remediation. DOC001 is corrected in the uncommitted editorial diff. The Linux coverage table now reports 2281/2347 before these comment edits.",
+    "paths": [
+      "AGENTS.md",
+      "CHANGELOG.md",
+      "README.md",
+      "THIRD_PARTY_NOTICES.md",
+      "docs/COVERAGE.md",
+      "docs/README.md",
+      "docs/TECHNICAL.md",
+      "src/lib.rs",
+      "src/os/unix.rs",
+      "src/protect.rs",
+      "src/protect/closed.rs",
+      "src/worker.rs"
+    ],
+    "diffSha256": "596461722e5c95e5c201929fa3b7e0995d3470c7a4054685d26373cb42d29ac9",
+    "sha256": {
+      "AGENTS.md": "f707d3f44e32289f699b100dadb77fe4275039ba18fb3153e133768da070adcd",
+      "CHANGELOG.md": "0a272bf3131aff19df71193d9cd42474346d8e6b7c162a8fffd642b97218d0b9",
+      "README.md": "6b6852e34dda7ecbaef59f51b8656daf40dedf1e05e43ca61bda549f614dc90b",
+      "THIRD_PARTY_NOTICES.md": "58e03a9293add225dd60edcd47e68af06c01f9e912c7485a3bd8b0f7c06274cd",
+      "docs/COVERAGE.md": "f5e18af67f84e147361f4c23f384392c1180911aa581077682f5a02495bdcadb",
+      "docs/README.md": "6c1bd83bc513fd00b28d0194e7d675f7903b36eec431c06b971922a64cd8573b",
+      "docs/TECHNICAL.md": "a26e4ffb455ebdc1821757a646c9ec72d5a59bd67fea8e2cf62f0706e411859b",
+      "src/lib.rs": "671b9a4ae7356f039a5b807e3d77f690c52b89eff958c457a59836b046db898d",
+      "src/os/unix.rs": "961b802f1542771aaaa639f4f90f82dfdec801b1963b049ad5a7635705dd6419",
+      "src/protect.rs": "67e215c929b6b32e4b106fae10c0f332e01f880d7962aaa94fcd46864a489dc6",
+      "src/protect/closed.rs": "e6b3a12edf06284221e05b55d843294befc19f61be92dc509b12df9db8d84d6a",
+      "src/worker.rs": "c9b31d1036c7a10272d86822934f4e8063123507d5f9392c7fe475cc134a4724"
+    },
+    "summary": "Reader guides and applicable API comments are checked separately. Documentation qualifies deployment constraints but does not alter enforcement. Coverage describes the frozen tree."
+  }
+}

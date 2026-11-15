@@ -1,0 +1,1181 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-015",
+  "auditNumber": 15,
+  "date": "2026-11-15",
+  "title": "Verification of changes addressing AUD-014",
+  "reviewer": {
+    "name": "Codex",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "fb2a6d345caf8eb58097f013f12e43985402150f",
+    "commitComplete": false,
+    "workingTree": "Uncommitted remediation on the stated base commit.",
+    "sourceFingerprint": "89ac61b27cd6a2cb87ad0266a6d97b07b6344540f574ab27d50056bd6f8660ad",
+    "releaseInputSha256": "771ad50d3d22d034f2ca2c96946bbe2abfe9f7679d10ce6a2069d730880fd65f",
+    "releaseInputManifest": [
+      "5b79b83dc03638ddbf78703e8d2e23201fc53b01c77104e885789fe9df7db16d  .github/workflows/audit.yml",
+      "1bb811cfefd3cbb74dfb73e0f5fe31d8756f623b80e08d94106b89982d05f035  .github/workflows/ci.yml",
+      "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388  Cargo.lock",
+      "5b767d7aee84bd880b8c2827e075b55f8548f0a140943883cd125020aa7158fa  Cargo.toml",
+      "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea  clippy.toml",
+      "e005979318db417d742efd014c6d72a7405128832d26e586fff772c031fc3445  fuzz/.gitignore",
+      "6703ba724e09dcc1caddc421f764eb5c8b7a1bc008f7bd5880a6577b8ed95cff  fuzz/Cargo.lock",
+      "d3f05232e727ac41febd4a015e1161fa66113dcb44d6b10bc8f527312e97da3c  fuzz/Cargo.toml",
+      "64c79f2cebf7fd0368658ac35740484785355ab4f449cdf33472ca7df10a5170  fuzz/fuzz_targets/keystrokes.rs",
+      "a9c8ba96717e364d01a2408fe3ca920d17d55d01236bd2a8a7494317eec93929  fuzz/fuzz_targets/report.rs",
+      "b39742764c2f630665c050351f07bc399bf4375a4e99820c63c6a203ff7d979f  fuzz/fuzz_targets/setting.rs",
+      "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213  rust-toolchain.toml",
+      "e27c5981abdf5964f811c0132437ecbff7f5a749717c418ff212a4f7b91eaff8  src/channels.rs",
+      "695c9d3e79993bd77d321d72cd328678429714fdacb359585be8b16290914470  src/fuzzing.rs",
+      "17dfd69c56808582a586cf3d50e34d258afc7898b4cd86dd3d465e0ac48dde8c  src/input.rs",
+      "671b9a4ae7356f039a5b807e3d77f690c52b89eff958c457a59836b046db898d  src/lib.rs",
+      "fec379a48ed8ea58181c96a82614e5dff05ca7638fd7cb6e67756071c06c0596  src/os.rs",
+      "e9079395c12108b73a4746be8235bc53e0932e03f33b1b3deab77098058d4b82  src/os/apple.rs",
+      "f4c2fdb798eb4d1f82c49769ee3ffa89cefc24362252b67bef044c0fd65a1510  src/os/linux.rs",
+      "3ff8b0c4aa363b36fd6fd677c22a4b48bd90300be0ce23aa50cd170b681add19  src/os/linux/seccomp.rs",
+      "02e1e51c4f8f97af2806d449288f0d504825ccb1a6a6463a35e427bc92b6d136  src/os/unix.rs",
+      "1d3882ecc6811726a6f092e6d1b48f2a59fb608b778a2876dcbf026bee4d0c50  src/os/unix/child.rs",
+      "ecadce6c2703ab3449b04309980c4b27f3583ba863d05aaf70ef11f1a9ead7cd  src/os/unix/forks.rs",
+      "6517d24bed689e5f648f6ed2c789a0fa689ce7482db11677442995fe2c037180  src/os/windows.rs",
+      "b655c8a50ac955f396209159c5c28fa4da70f9ef43c41a745c9aaa2dcb35d24e  src/os/windows/worker.rs",
+      "a59736c8390ae32e74c2cc1b266a31cb52fbc77937a34399cbf4b84d39a924e4  src/protect.rs",
+      "ab85481f9e22766fc24caacef77358fb9504b6c568e7c31edc385713654e6aae  src/protect/closed.rs",
+      "bb7f364b718d9252a49f9283e09bf0d187160343d3581f6efe2c2811dd2f6082  src/protect/options.rs",
+      "63dccde2a4612386c221acfdf336b9af05b39881023e40c99d20e20aea351427  src/stack.rs",
+      "6236567d5a24d8c2674b1790f755e4a3f790506bc4ba7a956cdaf7363d854328  src/worker.rs",
+      "9205d7b700344168eb26e79e973f0d4c4ce54794e466e0dc14fd1bfa116d7ab2  tests/isolation/linux.rs",
+      "2fe17a99a49dcb6874f950cc9d74fdfaabb9a747f791ba733d88f4e52c9c773a  tests/isolation/linux/roles.rs",
+      "9aab775559a0f9bdf85fd52be63a70d2e2428952fe48d783109ca1858fa0c1b1  tests/isolation/main.rs",
+      "ad745c1d0e5d0c03a0fd83eb0d37ae3d167aec4ba116df50ee9e32201357c496  tests/isolation/windows.rs",
+      "5f80eda69e0dde720b401c8f0fff9c07a664bd07fb791b0da334623e26606c73  tests/secret_memory.rs",
+      "165c21759bccce7c11417f233302ecceb5bffab8048fd7af950bf2fb069868f9  tests/support/run.rs",
+      "380f218a40ad3b3a0a2272cc3110bbab2d4d45b36fd8d984e00d10300025ba02  tests/worker.rs",
+      "c0ff3e862969b3782287a1b185d57b7dbd7153709863e6ae3b1e32092941cab7  tests/worker/linux.rs"
+    ],
+    "priorWorkerTestFileSha256": "79f17826509b9291c414b75ec697a80fc0ee96db45dfa09c835f63ff37f28f1b",
+    "postdocChecks": "postdoc-* and final-* ran after correcting two lines of commentary in tests/worker.rs. This edit did not change a statement or assertion.",
+    "releaseInputDiffSha256": "510bb513f30bc3a949bb9050a574992b955a4dc0f1671c155858036ed8df3dde"
+  },
+  "scope": {
+    "releaseDecision": "Hold cross-platform release pending native CI",
+    "findingsReviewed": 16,
+    "earlierPartialFindings": 5,
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": {
+    "commands": [
+      {
+        "name": "fmt-check",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "fmt",
+          "--all",
+          "--check"
+        ],
+        "startUtc": "2026-11-15T16:24:56.023546+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "fmt-fuzz-check",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "fmt",
+          "--manifest-path",
+          "fuzz/Cargo.toml",
+          "--check"
+        ],
+        "startUtc": "2026-11-15T16:25:26.770194+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy-host",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:06.390208+00:00",
+        "logSha256": "be777c11c85a87559dda5946f17cdb567e687ce4b9f34bc0ff8ca72aec0b1c4d"
+      },
+      {
+        "name": "clippy-aarch64-apple-darwin",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--target",
+          "aarch64-apple-darwin",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:33.371577+00:00",
+        "logSha256": "b2b31aa1f00c0e4208e0ed758ba3d3c5f6072a55abfa284b52052d3fa981da84"
+      },
+      {
+        "name": "clippy-aarch64-apple-ios",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--target",
+          "aarch64-apple-ios",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:49.871801+00:00",
+        "logSha256": "316482ad77fd9bf9e24c3a3648e3d969ac532c6f4aa080faa6f5ccdd67aa86d1"
+      },
+      {
+        "name": "clippy-aarch64-linux-android",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--target",
+          "aarch64-linux-android",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:44.159193+00:00",
+        "logSha256": "556f7b3b7ea4d12178d0e8636b1c15182e270879510572d437b5ec3cf7fe9e9a"
+      },
+      {
+        "name": "clippy-wasm32-unknown-unknown",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--target",
+          "wasm32-unknown-unknown",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:50.468998+00:00",
+        "logSha256": "6f6a6a59b96506490fb6ade916b173aaefd9d00253a0c6b380bfa5bf21b87883"
+      },
+      {
+        "name": "clippy-x86_64-pc-windows-gnu",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--all-targets",
+          "--target",
+          "x86_64-pc-windows-gnu",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:24:27.616398+00:00",
+        "logSha256": "1a051476b18523492c543d9b4c5767fad0146fd6bd083e93a57504165eecbbd8"
+      },
+      {
+        "name": "clang-fuzz",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "clippy",
+          "--locked",
+          "--offline",
+          "--manifest-path",
+          "fuzz/Cargo.toml",
+          "--bins",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "startUtc": "2026-11-15T16:18:55.067609+00:00",
+        "logSha256": "0f50557096c26a9fd8688754266debe21cdedbd580b7d9636c843ca347446b77",
+        "compilerFlags": [
+          "--cfg",
+          "fuzzing"
+        ]
+      },
+      {
+        "name": "linux-debug",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "test",
+          "--locked",
+          "--offline"
+        ],
+        "startUtc": "2026-11-15T16:25:26.948038+00:00",
+        "logSha256": "0e2bea9daf0c915a58f1f1c42e6a6b57c8991b585fb68511af3e98a94748bee6"
+      },
+      {
+        "name": "release-test",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "test",
+          "--release",
+          "--locked",
+          "--offline"
+        ],
+        "startUtc": "2026-11-15T16:26:03.140983+00:00",
+        "logSha256": "5335e1398817202a0e81d9e8591e08db78faa0e5fab492b4f968032a02fa364b"
+      },
+      {
+        "name": "release-lib",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "build",
+          "--release",
+          "--locked",
+          "--offline"
+        ],
+        "startUtc": "2026-11-15T16:20:20.116695+00:00",
+        "logSha256": "f7e5d74ba010a9b570001f91eaf169dbf47948ec6e37f421d320fe2fe3689536"
+      },
+      {
+        "name": "rustdoc",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "doc",
+          "--locked",
+          "--offline",
+          "--no-deps"
+        ],
+        "startUtc": "2026-11-15T16:20:22.066780+00:00",
+        "logSha256": "09d1c0381fe22e40bad155e99799d74734083f8fb5c1a2f1335a1c09724c65f6"
+      },
+      {
+        "name": "advisories",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "audit"
+        ],
+        "startUtc": "2026-11-15T16:20:27.553774+00:00",
+        "logSha256": "e21ef1235c153b7404801fdcf3476d56b1831252ce394e6319e46cbf858b9cd9"
+      },
+      {
+        "name": "advisories-fuzz",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "audit",
+          "-f",
+          "fuzz/Cargo.lock"
+        ],
+        "startUtc": "2026-11-15T16:20:37.878670+00:00",
+        "logSha256": "78a901aa24376bc39f6606335d6677efcc9e9c7bd67e3c393a925fccb9f01c13"
+      },
+      {
+        "name": "asan",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "+nightly",
+          "test",
+          "--offline",
+          "--locked",
+          "--target",
+          "x86_64-unknown-linux-gnu",
+          "--",
+          "--skip",
+          "work_runs_on_a_protected_stack_and_panics_come_back",
+          "--skip",
+          "locking all memory",
+          "--skip",
+          "a secret works under every lock limit",
+          "--skip",
+          "the work area lies on pages of its own"
+        ],
+        "startUtc": "2026-11-15T16:21:46.500033+00:00",
+        "logSha256": "2a338fac29eefaeaffaa109ab6f8090255333e0631d624419a1d8f9acce5c5af",
+        "compilerFlags": [
+          "-Zsanitizer=address"
+        ]
+      },
+      {
+        "name": "miri",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "+nightly",
+          "miri",
+          "test",
+          "--locked",
+          "--offline",
+          "--lib",
+          "os::tests::unwritten_bytes_are_wiped_without_being_read",
+          "--",
+          "--exact"
+        ],
+        "startUtc": "2026-11-15T16:21:28.031590+00:00",
+        "logSha256": "c0bd04a8eaf6b24bee4d8ccea2e7326dd607b1862fe6d97448fe5d2170c7f021"
+      },
+      {
+        "name": "windows-executables",
+        "exit": 101,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "test",
+          "--no-run",
+          "--locked",
+          "--offline",
+          "--target",
+          "x86_64-pc-windows-gnu"
+        ],
+        "startUtc": "2026-11-15T16:26:25.685165+00:00",
+        "logSha256": "2f73e86578af48f51c810c6ea24f456e06a3a73ef80b791ef02084709b603e75"
+      },
+      {
+        "name": "zig-windows",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "zigbuild",
+          "--tests",
+          "--locked",
+          "--offline",
+          "--target",
+          "x86_64-pc-windows-gnu"
+        ],
+        "startUtc": "2026-11-15T16:57:13.354892+00:00",
+        "logSha256": "9149285fa25ecc51ad48a9629570bcad4c1ccf06d127ab19be6280e2425748cf"
+      },
+      {
+        "name": "wasm-lib",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "build",
+          "--lib",
+          "--locked",
+          "--offline",
+          "--target",
+          "wasm32-unknown-unknown"
+        ],
+        "startUtc": "2026-11-15T16:26:31.608961+00:00",
+        "logSha256": "80124cb55dd764e0dd28a3e181a858933569daf981ddb0486189d1d56cada27a"
+      },
+      {
+        "name": "wasm-link",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "rustc",
+          "--edition=2024",
+          "--crate-type=cdylib",
+          "--target",
+          "wasm32-unknown-unknown",
+          "docs/audits/AUD-006-harnesses/fallback.rs",
+          "-L",
+          "dependency=<scratch>/build/wasm32-unknown-unknown/debug/deps",
+          "--extern",
+          "secret_protection_core=<scratch>/build/wasm32-unknown-unknown/debug/libsecret_protection_core.rlib",
+          "-o",
+          "<scratch>/fallback.wasm"
+        ],
+        "startUtc": "2026-11-15T16:26:37.171366+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "wasm-v8",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "node",
+          "docs/audits/AUD-006-harnesses/fallback.mjs",
+          "<scratch>/fallback.wasm"
+        ],
+        "startUtc": "2026-11-15T16:26:37.429404+00:00",
+        "logSha256": "d1c89560c2089b377cf50545bc2dba001c7923a45b5510e796a90bc769935a4e"
+      },
+      {
+        "name": "smoke-link",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "rustc",
+          "--edition=2024",
+          "-C",
+          "panic=abort",
+          "-C",
+          "opt-level=2",
+          "docs/audits/AUD-014-harnesses/api.rs",
+          "-L",
+          "dependency=<scratch>/build/release/deps",
+          "--extern",
+          "secret_protection_core=<scratch>/build/release/libsecret_protection_core.rlib",
+          "-o",
+          "<scratch>/public-api"
+        ],
+        "startUtc": "2026-11-15T16:26:37.578207+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "smoke-release",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "<scratch>/public-api"
+        ],
+        "startUtc": "2026-11-15T16:26:37.947456+00:00",
+        "logSha256": "529eaec4d7ab536f82667d20984909f3cc21904110b1df4931ceb25817af166c"
+      },
+      {
+        "name": "action-pins",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "node",
+          "<workspace>/.github/scripts/verify-action-pins.mjs",
+          "<repo>"
+        ],
+        "startUtc": "2026-11-15T16:26:38.132569+00:00",
+        "logSha256": "2b0934385af938816fd6e907b861d4efe3fa82c46b79bf93796eb9e7c1271953"
+      },
+      {
+        "name": "fuzz-setting",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "+nightly",
+          "fuzz",
+          "run",
+          "--fuzz-dir",
+          "fuzz",
+          "--target",
+          "x86_64-unknown-linux-gnu",
+          "setting",
+          "<scratch>/corpus/setting",
+          "--",
+          "-max_total_time=90",
+          "-artifact_prefix=<scratch>/crashes/"
+        ],
+        "startUtc": "2026-11-15T16:26:38.300711+00:00",
+        "logSha256": "6c36162f2ccf28810060111600fcf978876cff3e020b74ccd9b05f51ab0a1348"
+      },
+      {
+        "name": "fuzz-report",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "35m",
+          "--",
+          "cargo",
+          "+nightly",
+          "fuzz",
+          "run",
+          "--fuzz-dir",
+          "fuzz",
+          "--target",
+          "x86_64-unknown-linux-gnu",
+          "report",
+          "<scratch>/corpus/report",
+          "--",
+          "-max_total_time=90",
+          "-artifact_prefix=<scratch>/crashes/"
+        ],
+        "startUtc": "2026-11-15T16:32:50.849594+00:00",
+        "logSha256": "74928d0c3b0d3b27423954c23e42674043059641fe1ea4565726ce3a1ebd0838"
+      },
+      {
+        "name": "fuzz-keystrokes",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "+nightly",
+          "fuzz",
+          "run",
+          "--fuzz-dir",
+          "fuzz",
+          "--target",
+          "x86_64-unknown-linux-gnu",
+          "keystrokes",
+          "<scratch>/corpus/keystrokes",
+          "--",
+          "-max_total_time=90",
+          "-artifact_prefix=<scratch>/crashes/"
+        ],
+        "startUtc": "2026-11-15T16:51:47.779770+00:00",
+        "logSha256": "b15c0ccb9ff41f595804ffce7fd3cc0bb732082cd48f5ed3e017b54253321ce7"
+      },
+      {
+        "name": "coverage",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "bash",
+          "-c",
+          "set -eu\nsource <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline\ncargo llvm-cov report --summary-only"
+        ],
+        "startUtc": "2026-11-15T16:49:24.824864+00:00",
+        "logSha256": "80fa574f483222000d5d1f54716ca147a6a0bf85dc93548c06155c386710b140"
+      },
+      {
+        "name": "nested-memory",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "unshare",
+          "--user",
+          "--map-root-user",
+          "--pid",
+          "--fork",
+          "<scratch>/build/debug/deps/isolation-49f786066dce1505"
+        ],
+        "startUtc": "2026-11-15T16:56:22.428806+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "environment": {
+          "SECRET_PROTECTION_CORE_TEST_ROLE": "refused"
+        }
+      },
+      {
+        "name": "postdoc-fmt",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "fmt",
+          "--check"
+        ],
+        "startUtc": "2026-11-15T17:01:30.918885+00:00",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "postdoc-debug",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "test",
+          "--offline",
+          "--locked"
+        ],
+        "startUtc": "2026-11-15T17:01:31.202248+00:00",
+        "logSha256": "4ea589a1cd39ff487b852d2837199f0f341c58812215f6f03b67bdaedd637c23"
+      },
+      {
+        "name": "postdoc-release",
+        "exit": 101,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "test",
+          "--release",
+          "--offline",
+          "--locked"
+        ],
+        "startUtc": "2026-11-15T17:01:55.086078+00:00",
+        "logSha256": "58594b6cf802f71e6a07537fe33c67c9adb0a84663fa5089e8fcd8d1dd737eb4"
+      },
+      {
+        "name": "postdoc-coverage",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "bash",
+          "-c",
+          "set -eu\nsource <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline\ncargo llvm-cov report --summary-only\n"
+        ],
+        "startUtc": "2026-11-15T17:05:17.383994+00:00",
+        "logSha256": "812fcaa008b876dc27a2a40a0e7eb1a4254d94ce81f17b82d0058492cdedba97"
+      },
+      {
+        "name": "timing-keystrokes",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "<scratch>/fuzz/x86_64-unknown-linux-gnu/release/keystrokes",
+          "-runs=1",
+          "<scratch>/crashes/slow-unit-628092fcf0ddcfa11d504649c99bbad7fd606fe5",
+          "<scratch>/crashes/slow-unit-9e39c1a04c03b92b301d19d2ef8e15c5aa700fa3"
+        ],
+        "startUtc": "2026-11-15T16:56:17.179232+00:00",
+        "logSha256": "3bef9111b64dba79a8a9aa795448a2d952cfd073babfccdc9af22d53ac4b58c6"
+      },
+      {
+        "name": "timing-setting",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "<scratch>/fuzz/x86_64-unknown-linux-gnu/release/setting",
+          "-runs=1",
+          "<scratch>/crashes/slow-unit-4710478b1eb6c67f513c25ccfae5638b56130160"
+        ],
+        "startUtc": "2026-11-15T16:56:17.000347+00:00",
+        "logSha256": "974d1e7ed363896ab252c034b881ee3b2f186c063aec3aa9ce0e7ff80cb4bea4"
+      },
+      {
+        "name": "final-release",
+        "exit": 0,
+        "command": [
+          "run-capped",
+          "--mem",
+          "2200M",
+          "--time",
+          "25m",
+          "--",
+          "taskset",
+          "-c",
+          "15",
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "--release"
+        ],
+        "startUtc": "2026-11-15T17:06:17.562272+00:00",
+        "logSha256": "1a297e493684fbb2f1b52a9bc6cf28bd1747290c019fdf264a3bd3d395170a45"
+      }
+    ],
+    "linuxTests": [
+      33,
+      20,
+      9,
+      22
+    ],
+    "asanTests": [
+      32,
+      19,
+      7,
+      22
+    ],
+    "coverage": {
+      "covered": 2468,
+      "measured": 2596,
+      "percent": "95.07%",
+      "warnings": [
+        "warning: 11 functions have mismatched data"
+      ],
+      "command": "postdoc-coverage"
+    },
+    "windowsCrossLinkedExecutables": {
+      "isolation-1a373b7ea754fc8d.exe": "fcb6b37df2994ffa875558bfb7cc78a08ad0a8c3abdb55aa2ed0b7c4a9775ae1",
+      "secret_memory-eeb03012b4597658.exe": "86f099818251970231374291a4ad53cadd824ddf7c3f796bc3b8c50c8e922903",
+      "secret_protection_core-e27513b1e16f3434.exe": "40451794efb773806932958b4897cdab394ce446d78c4d4147c24e696a69eb65",
+      "worker-91861461a57ee430.exe": "0b98521b295fa599237039b49ed4e086c36a43474c6c08dd167adfb2fcdc46cc"
+    },
+    "codeCoreFollowup": {
+      "CORE-07": [
+        "AUD-014-SEC004"
+      ],
+      "CORE-14": [
+        "AUD-014-SEC001"
+      ],
+      "CORE-15": [
+        "AUD-014-ARC001"
+      ],
+      "CORE-19": [
+        "AUD-014-SEC002",
+        "AUD-014-SEC003"
+      ],
+      "CORE-20": [
+        "AUD-014-DOC001",
+        "AUD-014-SEC004",
+        "AUD-014-SEC005"
+      ],
+      "CORE-22": [
+        "AUD-014-SEC002"
+      ],
+      "CORE-24": [
+        "AUD-014-SEC001"
+      ],
+      "CORE-28": [
+        "AUD-014-SEC002",
+        "AUD-008-API001"
+      ],
+      "CORE-32": [
+        "AUD-014-FUN001",
+        "AUD-014-BLD003"
+      ],
+      "CORE-33": [
+        "AUD-014-SEC001",
+        "AUD-014-SEC003"
+      ],
+      "CORE-48": [
+        "AUD-008-API001"
+      ],
+      "CORE-49": [
+        "AUD-014-SEC002",
+        "AUD-014-SEC004"
+      ],
+      "CORE-50": [
+        "AUD-014-SEC003",
+        "AUD-014-FUN001"
+      ]
+    },
+    "procedureFollowup": {
+      "CHECK-API-001": [
+        "AUD-014-SEC003",
+        "AUD-014-SEC005",
+        "AUD-014-SEC006",
+        "AUD-014-API002"
+      ],
+      "CHECK-API-002": [
+        "AUD-014-SEC004",
+        "AUD-014-FUN001"
+      ],
+      "CHECK-API-004": [
+        "AUD-008-API001"
+      ],
+      "CHECK-ARC-002": [
+        "AUD-014-ARC001"
+      ],
+      "CHECK-ARC-003": [
+        "AUD-014-SEC002",
+        "AUD-014-SEC001",
+        "AUD-014-BLD003",
+        "AUD-010-BLD004"
+      ],
+      "CHECK-DOC-001": [
+        "AUD-014-DOC001",
+        "AUD-014-SEC002",
+        "AUD-014-SEC004",
+        "AUD-014-SEC005"
+      ],
+      "CHECK-DOC-003": [
+        "AUD-008-API001",
+        "AUD-014-SEC002"
+      ],
+      "CHECK-SEC-001": [
+        "AUD-014-SEC001"
+      ],
+      "CHECK-SEC-002": [
+        "AUD-014-SEC002",
+        "AUD-014-SEC004",
+        "AUD-014-SEC005"
+      ],
+      "CHECK-SEC-003": [
+        "AUD-014-SEC004"
+      ],
+      "CHECK-SEC-005": [
+        "AUD-014-SEC001",
+        "AUD-014-FUN001"
+      ],
+      "CHECK-SEC-007": [
+        "AUD-014-SEC003",
+        "AUD-014-FUN001",
+        "AUD-014-BLD003"
+      ]
+    }
+  },
+  "findings": [],
+  "observations": [],
+  "remediation": [
+    {
+      "id": "AUD-014-SEC001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The permission guard checks its mapping generation before mprotect. Both a stale-region unit test and a real fork inside a read callback passed on Linux."
+    },
+    {
+      "id": "AUD-014-SEC002",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Linux closes from fd 3 after redirecting standard streams. The fallback blocks user signals and marks a private descriptor table close-on-exec. A Linux test exercised this fallback and checked that the parent retained its original descriptor flags. Native macOS acceptance is pending."
+    },
+    {
+      "id": "AUD-014-SEC003",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Only a spawn-time Linux pidfd or a Windows handle can receive a termination request. The POSIX fallback never signals a numeric PID. Linux covered both identity classes. Native Darwin acceptance is pending."
+    },
+    {
+      "id": "AUD-014-SEC004",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Both sides require whole-process isolation. The parent also verifies process scope for each required measure. A worker with an extra thread failed ordinary Worker::start even with an empty required list."
+    },
+    {
+      "id": "AUD-014-SEC005",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "After lowering the primary token, the library checks effective tokens and rejects an incomplete inspection. Earlier thread handles are reused only if Windows confirms object identity. The impersonating-sibling regression was compiled. Native Windows execution is pending."
+    },
+    {
+      "id": "AUD-014-API001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "open_channels and startup inspect the calling thread’s table. An integration role opens eight files in its private table and checks that each appears."
+    },
+    {
+      "id": "AUD-014-FUN001",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "A dedicated Unix waiter remains responsible for collection after startup failure or unsuccessful termination. A Linux worker held on a FIFO returned false and was collected after the parent closed the writer. Native macOS acceptance is pending."
+    },
+    {
+      "id": "AUD-014-BLD001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Affected parents wait for a positive PID, retry EINTR, require a matching wait result and distinguish normal child exit from a signal."
+    },
+    {
+      "id": "AUD-014-BLD002",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Memory-lock refusal and refusal of a second namespace now produce distinct partial-check reasons. The outer assertion must still pass."
+    },
+    {
+      "id": "AUD-014-BLD003",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The channel test uses exclusive creation. The isolation test claims its own mode-0700 directory and removes only its owned file and the empty directory."
+    },
+    {
+      "id": "AUD-014-BLD004",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Linux tests expect Confirmed in the initial PID namespace and Unknown where an external tracer is invisible. Worker requirements respect the same distinction."
+    },
+    {
+      "id": "AUD-014-DOC001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The technical guide and public rustdoc distinguish protected native allocations, heap-backed WASM buffers, inherited references and guarded cleanup."
+    },
+    {
+      "id": "AUD-014-API002",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Linux integer arguments use libc::c_ulong in variadic slots. The seccomp filter pointer retains its native type. Test probes follow the same ABI."
+    },
+    {
+      "id": "AUD-014-SEC006",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Before pipe admission the launcher drops its original process handle and keeps only wait and termination rights. The Windows test reads GrantedAccess and compares the exact mask. Native execution is pending."
+    },
+    {
+      "id": "AUD-014-BLD006",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "CI checks fuzz formatting and lints, and passes each lockfile to RustSec. The corresponding local checks passed. The changed workflow still needs to run on GitHub."
+    },
+    {
+      "id": "AUD-014-BLD007",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The crate selects panic=abort, LTO and one code-generation unit for standalone releases. A consuming workspace selects its own profile. The linked release API harness passed."
+    },
+    {
+      "id": "AUD-008-API001",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Aliases, unknown bits and malformed platform-specific channel names are rejected before claiming the one-shot role. The canonical parser was fuzzed on Linux. The Windows-only cases need native execution."
+    },
+    {
+      "id": "AUD-010-SEC001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The transient guard and the owning allocation both check the fork generation. Ordinary owners, callback return and a foreign-generation permission operation were tested on Linux."
+    },
+    {
+      "id": "AUD-010-BLD002",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The nested role communicates separate reasons for unavailable locking and namespace creation. Both are distinguishable from a successful subcase."
+    },
+    {
+      "id": "AUD-010-BLD004",
+      "status": "fixed",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The Unix assertions use protocol results, EOF, a parent-controlled FIFO and observed collection. Short wall-time thresholds and retries were removed. The Windows termination case needs native execution."
+    },
+    {
+      "id": "AUD-010-DOC001",
+      "status": "verified",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The WorkArea rustdoc and technical guide describe WASM heap allocation. The fallback also passed four checks in V8."
+    }
+  ],
+  "limitations": [
+    "Native Windows, macOS and Linux AArch64 have no test result for this working tree. Android and iOS have compile-time coverage only.",
+    "On macOS and Linux without a spawn-time pidfd, an unresponsive worker can outlive end(false). A Unix waiter remains until exit. Leave POSIX wait-status ownership to the library.",
+    "Windows token inspection describes the time of the check. A later impersonation can change a thread’s effective rights.",
+    "Line coverage is measured on Linux x86-64. ASan excludes four locking-related checks. Miri ran one wipe test."
+  ]
+}

@@ -1,7 +1,11 @@
-# Documentation
+# secret-protection-core documentation
 
-- [How it works](TECHNICAL.md): what a secret's pages and a work area are on each system, what the isolation applies on each system and what it does not cover, the secret writer, what changed from the copies this crate replaces, and how it is tested.
-- [Changelog](../CHANGELOG.md): what each version changed.
-- [Third-party notices](../THIRD_PARTY_NOTICES.md).
-- [Test coverage](COVERAGE.md) for the measured Linux test suites and individual source files.
-- [Audits](audits/README.md): the security reviews of this crate and what they found.
+Start with the [library README](../README.md) to choose a buffer or a worker. The technical guide describes what the operating system can confirm before an application accepts a secret.
+
+| Guide                                            | What it covers                                                                               |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| [How it works](TECHNICAL.md)                     | Buffer ownership, isolation, worker startup, platform limits and testing.                    |
+| [Test coverage](COVERAGE.md)                     | The measured source revision, Linux test suites, coverage by file and reproduction commands. |
+| [Security audits](audits/README.md)              | Findings and remediation records for specific revisions.                                     |
+| [Changelog](../CHANGELOG.md)                     | Changes to the public API, protections and tests.                                            |
+| [Third-party notices](../THIRD_PARTY_NOTICES.md) | Runtime and build dependencies and their licenses.                                           |

@@ -14,8 +14,12 @@ fuzz_target!(|bytes: &[u8]| {
     if let Some((options, terminal, rest)) = read {
         assert_eq!(fuzzing::options_again(options), options);
         let flags = format!("{options},{}", u8::from(terminal));
-        let again = if cfg!(unix) { flags } else { format!("{flags},{rest}") };
-        assert_eq!(fuzzing::setting(&again), read);
+        let again = if cfg!(windows) {
+            format!("{flags},{rest}")
+        } else {
+            flags
+        };
+        assert_eq!(again, text);
     }
     #[cfg(unix)]
     if let Some((_, _, rest)) = read {

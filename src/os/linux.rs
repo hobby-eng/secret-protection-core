@@ -195,6 +195,14 @@ mod fork_gate {
     }
 }
 
+/// Register the memory fork gate before this library introduces a waiter thread.
+#[cfg(target_os = "linux")]
+pub(super) fn prepare_secret_pages() {
+    if one_thread() {
+        drop(fork_gate::Gate::take());
+    }
+}
+
 /// Touches every page of new secret memory, so the lock limit is charged now. Newer kernels charge
 /// it at the first fault and send SIGBUS when over the limit, which would kill the process at its
 /// first write. A byte written by `getrandom` from inside the kernel only gets EFAULT. It is the raw
@@ -226,14 +234,22 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // A program isolates itself early, often while it has one thread: the gate of secret
     // memory is asked for now, for the secrets that threads make later.
     #[cfg(target_os = "linux")]
-    drop(fork_gate::Gate::take());
+    prepare_secret_pages();
     let whole_process = one_thread();
     #[cfg(target_os = "linux")]
     let empty_network = whole_process && enter_own_namespaces() && network_empty();
     let core_limit = super::unix::forbid_core_dumps();
     // SAFETY: PR_SET_DUMPABLE takes integers and touches no memory of this process. Once the
     // filter holds, it refuses this call, and the flag stays 0.
-    unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) };
+    unsafe {
+        libc::prctl(
+            libc::PR_SET_DUMPABLE,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
+    };
     let speculation = limit_speculation();
     let memory = lock_memory(options.lock_all);
     let wanted = (u32::from(options.file_locks) * seccomp::FILE_LOCKS)
@@ -242,13 +258,30 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // Seccomp and Landlock require no_new_privs of an unprivileged process: no program it starts
     // can gain privileges, as a set-user-ID program would.
     // SAFETY: as above.
-    let held = if unsafe { libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) } == 0 {
+    let held = if unsafe {
+        libc::prctl(
+            libc::PR_SET_NO_NEW_PRIVS,
+            1 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
+    } == 0
+    {
         restrict(whole_process, wanted)
     } else {
         seccomp::held()
     };
     // SAFETY: PR_GET_DUMPABLE takes no pointer and returns the flag.
-    let dumpable = unsafe { libc::prctl(libc::PR_GET_DUMPABLE, 0, 0, 0, 0) } != 0;
+    let dumpable = unsafe {
+        libc::prctl(
+            libc::PR_GET_DUMPABLE,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
+    } != 0;
     let self_only =
         held.is_some_and(|rules| rules & seccomp::SIGNALS != 0) && seccomp::names_this_process();
     let mut found = Findings::new();
@@ -532,12 +565,20 @@ fn limit_speculation() -> Outcome {
                 SET_SPECULATION,
                 which,
                 SPEC_FORCE_DISABLE as libc::c_ulong,
-                0,
-                0,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
             );
         }
         // SAFETY: as above.
-        let state = unsafe { libc::prctl(GET_SPECULATION, which, 0, 0, 0) };
+        let state = unsafe {
+            libc::prctl(
+                GET_SPECULATION,
+                which,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            )
+        };
         speculation_state((state >= 0).then_some(state))
     });
     if states.contains(&Speculation::On) {

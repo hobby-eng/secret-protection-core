@@ -131,7 +131,8 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
         "secret-protection-core-isolation-{}",
         std::process::id()
     ));
-    fs::create_dir_all(&folder).unwrap();
+    use std::os::unix::fs::DirBuilderExt;
+    fs::DirBuilder::new().mode(0o700).create(&folder).unwrap();
     let file = folder.join("file");
     fs::write(&file, "public").unwrap();
     // Opened before: /dev/ptmx opens only for reading and writing.
@@ -149,11 +150,9 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
     std::thread::scope(|scope| {
         scope.spawn(|| {
             let isolation = Isolation::enter();
+            crate::support::check_memory_reading(isolation);
             assert!(
-                isolation.no_core_dumps
-                    && isolation.no_memory_reading
-                    && isolation.no_new_sockets
-                    && isolation.no_file_changes,
+                isolation.no_core_dumps && isolation.no_new_sockets && isolation.no_file_changes,
                 "{isolation:?}"
             );
             assert!(!isolation.whole_process && !isolation.empty_network);
@@ -187,7 +186,8 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
     fs::rename(&file, folder.join("renamed")).unwrap();
     idle.stdin = None;
     idle.wait().unwrap();
-    fs::remove_dir_all(&folder).unwrap();
+    fs::remove_file(folder.join("renamed")).unwrap();
+    fs::remove_dir(&folder).unwrap();
 }
 
 /// Installs a filter that allows every call, as the system or a container installs one of its
@@ -207,14 +207,23 @@ pub(super) fn install_a_foreign_filter() {
     // SAFETY: prctl takes integers and, for the filter, a pointer to one instruction that
     // lives for the call; the kernel copies it.
     unsafe {
-        assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+        assert_eq!(
+            libc::prctl(
+                libc::PR_SET_NO_NEW_PRIVS,
+                1 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
+            ),
+            0
+        );
         assert_eq!(
             libc::prctl(
                 libc::PR_SET_SECCOMP,
-                libc::SECCOMP_MODE_FILTER,
+                libc::SECCOMP_MODE_FILTER as libc::c_ulong,
                 &raw const program,
-                0,
-                0
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
             ),
             0
         );
@@ -319,14 +328,23 @@ pub(super) fn install_a_filter_refusing_filters() {
     // SAFETY: prctl takes integers and, for the filter, a pointer to instructions that live
     // for the call; the kernel copies them.
     unsafe {
-        assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+        assert_eq!(
+            libc::prctl(
+                libc::PR_SET_NO_NEW_PRIVS,
+                1 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
+            ),
+            0
+        );
         assert_eq!(
             libc::prctl(
                 libc::PR_SET_SECCOMP,
-                libc::SECCOMP_MODE_FILTER,
+                libc::SECCOMP_MODE_FILTER as libc::c_ulong,
                 &raw const filter,
-                0,
-                0
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
             ),
             0
         );
@@ -434,15 +452,34 @@ fn the_dump_settings_cannot_be_undone() {
         (libc::PR_SET_PTRACER, libc::PR_SET_PTRACER_ANY),
     ] {
         // SAFETY: prctl takes integers and touches no memory of this process.
-        let result = unsafe { libc::prctl(option, value, 0, 0, 0) };
+        let result = unsafe {
+            libc::prctl(
+                option,
+                value,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            )
+        };
         assert_eq!(
             error_of(result.into()),
             Some(libc::EACCES),
             "option {option}"
         );
     }
-    // SAFETY: as above.
-    assert_eq!(unsafe { libc::prctl(libc::PR_GET_DUMPABLE, 0, 0, 0, 0) }, 0);
+    assert_eq!(
+        // SAFETY: PR_GET_DUMPABLE takes only integer arguments.
+        unsafe {
+            libc::prctl(
+                libc::PR_GET_DUMPABLE,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            )
+        },
+        0
+    );
 }
 
 /// From Linux 6.12 (Landlock's ABI 6), no signal reaches a process outside the layer, such as
@@ -459,12 +496,28 @@ fn signals_reach_no_other_process(idle: u32) {
 /// `speculation_limited` says what the kernel reads back for both kinds of speculation, and a
 /// disabled one cannot be enabled again.
 fn speculation_is_limited_as_reported(isolation: Isolation) {
-    let limited = [0_u64, 1].iter().all(|&which| {
+    let limited = [0 as libc::c_ulong, 1].iter().all(|&which| {
         // SAFETY: prctl takes integers and touches no memory of this process.
-        let state = unsafe { libc::prctl(52, which, 0, 0, 0) };
+        let state = unsafe {
+            libc::prctl(
+                52,
+                which,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+            )
+        };
         if state > 0 && state & 8 != 0 {
             // SAFETY: as above; PR_SPEC_ENABLE.
-            let enabled = unsafe { libc::prctl(53, which, 2_u64, 0, 0) };
+            let enabled = unsafe {
+                libc::prctl(
+                    53,
+                    which,
+                    2 as libc::c_ulong,
+                    0 as libc::c_ulong,
+                    0 as libc::c_ulong,
+                )
+            };
             assert_eq!(
                 error_of(enabled.into()),
                 Some(libc::EPERM),
@@ -615,9 +668,9 @@ fn what_a_secret_command_needs_still_works(terminal: &OwnedFd, secret_memory: bo
 
 /// What a process of one thread reports on Linux, and the side effects of the empty network.
 pub(super) fn expect_whole_process(isolation: Isolation) {
+    crate::support::check_memory_reading(isolation);
     assert!(
         isolation.no_core_dumps
-            && isolation.no_memory_reading
             && isolation.no_new_sockets
             && isolation.no_file_changes
             && isolation.no_new_programs,

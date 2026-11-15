@@ -4,6 +4,7 @@
 | --- | --- | --- | --- | --- |
 | [AUD-001](AUD-001-2026-11-15.md) · [JSON](AUD-001-2026-11-15.json) | 2026-11-15 | `8081d010b8040483d3ede458f522fad0fa81c571` | Secret memory, process isolation and worker IPC | 22: 5 high, 11 medium, 6 low |
 | [AUD-002](AUD-002-2026-11-15.md) · [JSON](AUD-002-2026-11-15.json) | 2026-11-15 | `8081d010b8040483d3ede458f522fad0fa81c571` | Full crate security review with Linux runtime probes and six-target compilation | 6: 1 high, 3 medium, 2 low |
+| [AUD-015](AUD-015-2026-11-15.md) · [JSON](AUD-015-2026-11-15.json) | 2026-11-15 | Working tree on `fb2a6d345caf` | Verify 16 findings and five earlier partial fixes | Native Windows, macOS and Linux AArch64 pending |
 
 Both reviews read the same commit at the same time, and both were first written as AUD-001, the second over the first. The first report is restored byte for byte: its SHA-256 is the one its own validation recorded. Its JSON companion was found afterwards and is the original too, with the SHA-256 that validation recorded; commit 22855bf holds a copy rebuilt from the report in its place. The second report became AUD-002 before publication: its identifiers and paths changed, nothing else.
 
@@ -147,3 +148,11 @@ The three reviews read the same commit at the same time, and each was first numb
 | AUD-011-ARC001 | accepted | none | none | tests/worker.rs stays one file: its checks and roles share their helpers and read best together, a little over the 800 lines of code of CORE-15. |
 
 AUD-013 found the same points: AUD-013-SEC001 stands as AUD-012-SEC001, and AUD-013-API001, AUD-013-DOC001, AUD-013-DOC002, AUD-013-BLD001 and AUD-013-ARC001 as the findings of AUD-011 of the same name. A review of the fix before it was committed found seven low points, fixed in the same commit: pipe ends at 0 to 2 are moved with `F_DUPFD_CLOEXEC`, a worker on the terminal on macOS keeps standard error only when its parent would hand it on, a setting with a trailing comma is refused on Unix, and the documents say what another thread's descriptor and a lowered descriptor limit do to a start; the standard error of both kinds of worker and a program whose standard streams are closed are checked.
+
+## Release audit of fb2a6d3
+
+[AUD-014](AUD-014-2026-11-15.md) and its [JSON companion](AUD-014-2026-11-15.json) verify 34 entries from AUD-008 through AUD-013. Of those entries, 21 are verified within their original scope, eight remain accepted limitations or observations and five are partly open. The new review records six Medium and ten Low findings. Five Medium findings block the unrestricted native release. The report separates the frozen code, the editorial follow-up, the four native CI results and the independently measured Linux line coverage of 97.19%.
+
+## Verification of AUD-014 fixes
+
+[AUD-015](AUD-015-2026-11-15.md) and its [JSON companion](AUD-015-2026-11-15.json) record fixes to 16 findings and revisit five older partial verifications. The source manifest identifies the uncommitted revision. Native Windows, macOS and Linux AArch64 acceptance is pending.

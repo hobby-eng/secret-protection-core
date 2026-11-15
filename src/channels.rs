@@ -45,7 +45,8 @@ pub struct OpenChannels {
     pub complete: bool,
 }
 
-/// The descriptors the process has open at this moment; another thread may open or close one
+/// The descriptors visible to the calling thread. On Linux each thread can have a separate
+/// descriptor table. Another thread sharing that table may open or close an entry
 /// meanwhile. Isolation keeps descriptors opened before it usable, so this shows what is left: a
 /// socket, or anything open for writing, is a way out the program chose. Fails where the system
 /// can't list them (`Unsupported` on Windows and in WebAssembly).
@@ -63,7 +64,7 @@ mod tests {
     fn open_channels_name_sockets_files_and_pipes() {
         let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
         let path = std::env::temp_dir().join(format!("spc-channels-{}", std::process::id()));
-        let file = std::fs::File::create(&path).unwrap();
+        let file = std::fs::File::create_new(&path).unwrap();
         let reading = std::fs::File::open(&path).unwrap();
         let null = std::fs::OpenOptions::new()
             .write(true)

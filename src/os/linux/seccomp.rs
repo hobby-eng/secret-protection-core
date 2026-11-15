@@ -170,7 +170,13 @@ pub(super) fn names_this_process() -> bool {
     // has it changes nothing and touches no memory of this process.
     let answer = unsafe {
         let own = libc::getpid() as libc::c_ulong;
-        libc::prctl(OWNER_OPTION as libc::c_int, own, 0, 0, 0)
+        libc::prctl(
+            OWNER_OPTION as libc::c_int,
+            own,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
     };
     let named = i32::try_from(NAMED).ok();
     answer == -1 && std::io::Error::last_os_error().raw_os_error() == named
@@ -339,7 +345,15 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
 pub(super) fn held() -> Option<u32> {
     // SAFETY: prctl takes integers; with an option that no kernel has it changes nothing and
     // touches no memory of this process.
-    let result = unsafe { libc::prctl(MARK_OPTION as libc::c_int, 0, 0, 0, 0) };
+    let result = unsafe {
+        libc::prctl(
+            MARK_OPTION as libc::c_int,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
+    };
     let error = std::io::Error::last_os_error().raw_os_error()?;
     let error = u32::try_from(error).ok()?;
     (result == -1 && error & !MARK_BITS == MARK).then_some(error & MARK_BITS)
@@ -360,10 +374,10 @@ pub(super) fn install(options: u32) -> Option<u32> {
     let installed = unsafe {
         libc::prctl(
             libc::PR_SET_SECCOMP,
-            libc::SECCOMP_MODE_FILTER,
+            libc::SECCOMP_MODE_FILTER as libc::c_ulong,
             &raw const filter,
-            0,
-            0,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
         )
     } == 0;
     if installed { held() } else { None }

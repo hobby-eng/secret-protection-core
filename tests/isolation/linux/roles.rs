@@ -3,6 +3,26 @@
 
 use super::*;
 
+/// Only the designated child's normal exit is evidence from the role.
+fn child_code(child: libc::pid_t) -> i32 {
+    assert!(child > 0);
+    let mut status = 0;
+    loop {
+        // SAFETY: wait for one positive child PID and write into a live status slot.
+        let waited = unsafe { libc::waitpid(child, &mut status, 0) };
+        if waited == child {
+            break;
+        }
+        let error = io::Error::last_os_error();
+        assert!(
+            waited == -1 && error.kind() == io::ErrorKind::Interrupted,
+            "waitpid: {error}"
+        );
+    }
+    assert!(libc::WIFEXITED(status), "abnormal child status {status}");
+    libc::WEXITSTATUS(status)
+}
+
 /// The `locked` role. A lock that took is still reported by a later call that does not ask
 /// for it, and never by words about a call that was not made; a child made by `fork`, which
 /// inherits no lock, does not report it.
@@ -34,14 +54,13 @@ pub(crate) fn locked_role() {
         assert_eq!(of(again).evidence, "mlockall was accepted in this process");
         // SAFETY: the process has one thread, so the child may go on as any process.
         let child = unsafe { libc::fork() };
+        assert!(child >= 0, "fork: {}", io::Error::last_os_error());
         if child == 0 {
             let inherited = Isolation::enter().memory_locked;
             // SAFETY: ends the child at once, without the parent's exit handlers.
             unsafe { libc::_exit(i32::from(inherited)) };
         }
-        let mut status = 0;
-        // SAFETY: waits for the child just made and writes its status.
-        assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+        let status = child_code(child);
         assert_eq!(status, 0, "the child reported its parent's lock");
     } else {
         assert_eq!(of(isolation).outcome, Outcome::Refused);
@@ -63,6 +82,7 @@ pub(crate) fn forked_role() {
     assert!(own.signals_to_self_only, "{own:?}");
     // SAFETY: the process has one thread, so the child may go on as any process.
     let child = unsafe { libc::fork() };
+    assert!(child >= 0, "fork: {}", io::Error::last_os_error());
     if child == 0 {
         let silent = Isolation::enter().outcome(Protection::SignalsToSelfOnly);
         let asked = Isolation::enter_with(options).outcome(Protection::SignalsToSelfOnly);
@@ -72,14 +92,13 @@ pub(crate) fn forked_role() {
         // SAFETY: ends the child at once, without the parent's exit handlers.
         unsafe { libc::_exit(i32::from(wrong)) };
     }
-    let mut status = 0;
-    // SAFETY: waits for the child just made and writes its status.
-    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+    let status = child_code(child);
     assert_eq!(status, 0, "the child took its parent's rule for its own");
     // A second thread of a child gets a rule of the child's own. The first thread still holds
     // the parent's alone, and says nothing of the second thread's.
     // SAFETY: as above.
     let child = unsafe { libc::fork() };
+    assert!(child >= 0, "fork: {}", io::Error::last_os_error());
     if child == 0 {
         let more = options.refuse_sendmsg();
         let other = std::thread::spawn(move || {
@@ -91,23 +110,20 @@ pub(crate) fn forked_role() {
         // SAFETY: as above.
         unsafe { libc::_exit(i32::from(wrong)) };
     }
-    let mut status = 0;
-    // SAFETY: as above.
-    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+    let status = child_code(child);
     assert_eq!(status, 0, "a thread took another thread's rule for its own");
     // Nor after an update of the filter that failed: from here on no further filter goes in.
     install_a_filter_refusing_filters();
     // SAFETY: as above.
     let child = unsafe { libc::fork() };
+    assert!(child >= 0, "fork: {}", io::Error::last_os_error());
     if child == 0 {
         let more = options.refuse_sendmsg();
         let asked = Isolation::enter_with(more).outcome(Protection::SignalsToSelfOnly);
         // SAFETY: as above.
         unsafe { libc::_exit(i32::from(asked == Outcome::Confirmed)) };
     }
-    let mut status = 0;
-    // SAFETY: as above.
-    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+    let status = child_code(child);
     assert_eq!(
         status, 0,
         "a refused filter left the parent's rule read as the child's"
@@ -172,33 +188,44 @@ pub(crate) fn own_pids_role() {
     }
     // SAFETY: the process has one thread, so the child may go on as any process.
     let child = unsafe { libc::fork() };
+    assert!(child >= 0, "fork: {}", io::Error::last_os_error());
     if child == 0 {
         let reading = Isolation::enter().outcome(Protection::NoMemoryReading);
-        let mut wrong = reading != Outcome::Unknown;
+        if reading != Outcome::Unknown {
+            std::process::exit(1);
+        }
         let locked = Isolation::enter_with(Options::new().lock_all_memory()).memory_locked;
         // SAFETY: unshare takes flags only; the grandchild ends at once, and this child
         // waits for it and reads its status.
         unsafe {
-            if locked && libc::unshare(libc::CLONE_NEWPID) == 0 {
+            let code = if !locked {
+                2
+            } else if libc::unshare(libc::CLONE_NEWPID) != 0 {
+                3
+            } else {
                 let grandchild = libc::fork();
                 if grandchild == 0 {
                     libc::_exit(i32::from(Isolation::enter().memory_locked));
                 }
-                // A grandchild that was not made, or not waited for, proves nothing.
-                let mut status = -1;
-                let waited =
-                    grandchild > 0 && libc::waitpid(grandchild, &mut status, 0) == grandchild;
-                wrong |= !waited || status != 0;
-            }
+                child_code(grandchild)
+            };
             // Ends the child at once, without the parent's exit handlers.
-            libc::_exit(i32::from(wrong));
+            libc::_exit(code);
         }
     }
     assert!(child > 0, "{}", io::Error::last_os_error());
-    let mut status = 0;
-    // SAFETY: waits for the child just made and writes its status.
-    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
-    assert_eq!(status, 0, "the reading of memory was not unknown");
+    let status = child_code(child);
+    match status {
+        2 => eprintln!(
+            "{}mlockall was refused; nested lock ownership was not exercised",
+            crate::support::NOT_CHECKED
+        ),
+        3 => eprintln!(
+            "{}the second PID namespace was refused; nested lock ownership was not exercised",
+            crate::support::NOT_CHECKED
+        ),
+        code => assert_eq!(code, 0, "namespace child failed"),
+    }
 }
 
 /// The `relayered` role: the kernel refuses the Landlock layer once, here for want of a free
@@ -343,14 +370,23 @@ fn install_a_filter_answering(call: libc::c_long, first: Option<u32>, error: i32
     // SAFETY: prctl takes integers and, for the filter, a pointer to instructions that live
     // for the call; the kernel copies them.
     unsafe {
-        assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+        assert_eq!(
+            libc::prctl(
+                libc::PR_SET_NO_NEW_PRIVS,
+                1 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
+            ),
+            0
+        );
         assert_eq!(
             libc::prctl(
                 libc::PR_SET_SECCOMP,
-                libc::SECCOMP_MODE_FILTER,
+                libc::SECCOMP_MODE_FILTER as libc::c_ulong,
                 &raw const filter,
-                0,
-                0
+                0 as libc::c_ulong,
+                0 as libc::c_ulong
             ),
             0
         );

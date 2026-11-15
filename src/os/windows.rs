@@ -10,8 +10,10 @@
 
 mod worker;
 
+use std::collections::BTreeMap;
 use std::io;
 use std::mem::size_of;
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::ptr::{self, NonNull};
 use std::slice;
 use std::sync::Once;
@@ -318,11 +320,12 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // WRITE_DAC included.
     let process = restrict_access(unsafe { GetCurrentProcess() }, PROCESS_ACCESS);
     let default_list = opened && restrict_default(token);
-    let threads = restrict_threads();
+    let mut pinned = BTreeMap::new();
+    let (threads, _) = inspect_threads(true, &mut pinned);
     // Low integrity keeps the process from writing up, but not where a low label allows it, such
     // as AppData\LocalLow: it is applied, and file changes stay unreported. An AppContainer
     // token is lower still and refuses the change.
-    let (mut low, mut contained) = (false, false);
+    let (mut low, mut contained) = (Outcome::Unknown, false);
     if opened {
         low = lower_integrity(token);
         contained = without_network(token);
@@ -349,7 +352,11 @@ pub(crate) fn enter(options: Options) -> Isolation {
         true,
     );
     found.check(Protection::DesktopRestricted, desktop_restricted, true);
-    found.check(Protection::LowIntegrity, low, true);
+    let integrity = match low {
+        Outcome::Confirmed => inspect_threads(false, &mut pinned).1,
+        outcome => outcome,
+    };
+    found.set(Protection::LowIntegrity, integrity, true);
     found.option(
         Protection::DynamicCodeRefused,
         options.dynamic_code,
@@ -667,13 +674,13 @@ fn restrict_default(token: HANDLE) -> bool {
     })
 }
 
-/// Gives every thread of the process [`THREAD_ACCESS`] as its access list, and returns whether
-/// each reads back so.
-fn restrict_threads() -> bool {
+/// First pass hardens thread ACLs and pins handles. The second pass checks current
+/// effective tokens after the primary token has been lowered.
+fn inspect_threads(set_acl: bool, pinned: &mut BTreeMap<u32, OwnedHandle>) -> (bool, Outcome) {
     // SAFETY: takes a snapshot of the threads of the system, closed below.
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
     if snapshot == INVALID_HANDLE_VALUE {
-        return false;
+        return (false, Outcome::Unknown);
     }
     // SAFETY: returns the number of this process.
     let process = unsafe { GetCurrentProcessId() };
@@ -685,39 +692,113 @@ fn restrict_threads() -> bool {
     let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
     // The list holds the calling thread at least.
     let mut all = more;
+    let mut integrity = Outcome::Confirmed;
+    let mut saw_thread = false;
     while more {
         if entry.th32OwnerProcessID == process {
-            all &= restrict_thread(entry.th32ThreadID, process);
+            let (restricted, level) = inspect_thread(entry.th32ThreadID, process, set_acl, pinned);
+            all &= restricted;
+            if let Some(level) = level {
+                saw_thread = true;
+                if level == Outcome::Refused || integrity == Outcome::Confirmed {
+                    integrity = level;
+                }
+            }
         }
         // SAFETY: as above.
         more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
     }
     // SAFETY: reads this thread's last error, which Thread32Next set: the end of the list, or a
     // failure that may have left threads out.
-    all &= unsafe { GetLastError() } == ERROR_NO_MORE_FILES;
+    let complete = unsafe { GetLastError() } == ERROR_NO_MORE_FILES && saw_thread;
+    if !complete && integrity == Outcome::Confirmed {
+        integrity = Outcome::Unknown;
+    }
+    all &= complete;
     // SAFETY: closes the snapshot taken above, once.
     unsafe { CloseHandle(snapshot) };
-    all
+    (all, integrity)
 }
 
 /// Gives the thread numbered `id` [`THREAD_ACCESS`] as its access list, and returns whether it
 /// reads back so. A thread that has ended since the snapshot is left out, and so is the thread
 /// of another process that has taken its number since.
-fn restrict_thread(id: u32, process: u32) -> bool {
+fn inspect_thread(
+    id: u32,
+    process: u32,
+    set_acl: bool,
+    pinned: &mut BTreeMap<u32, OwnedHandle>,
+) -> (bool, Option<Outcome>) {
     // SAFETY: opens the thread with what its list grants: every right while it has the list it
     // started with; READ_CONTROL and THREAD_QUERY_LIMITED_INFORMATION once it has THREAD_ACCESS.
     // Closed below.
     let thread = unsafe { OpenThread(MAXIMUM_ALLOWED, 0, id) };
     if thread.is_null() {
         // SAFETY: reads this thread's last error, which OpenThread set.
-        return unsafe { GetLastError() } == ERROR_INVALID_PARAMETER;
+        return if unsafe { GetLastError() } == ERROR_INVALID_PARAMETER {
+            (true, None)
+        } else {
+            (false, Some(Outcome::Unknown))
+        };
     }
+    // SAFETY: OpenThread transferred one owned handle. Retain its original query rights
+    // across ACL hardening and the subsequent lowering of the primary token.
+    let opened = unsafe { OwnedHandle::from_raw_handle(thread.cast()) };
     // SAFETY: the handle is open, with THREAD_QUERY_LIMITED_INFORMATION under either list.
     let owner = unsafe { GetProcessIdOfThread(thread) };
-    let holds = owner != 0 && (owner != process || restrict_access(thread, THREAD_ACCESS));
-    // SAFETY: closes the handle opened above, once.
-    unsafe { CloseHandle(thread) };
-    holds
+    let integrity = if owner == process {
+        Some(if set_acl {
+            Outcome::Unknown
+        } else {
+            // A newly created thread can reuse a numeric ID. Only use the earlier rights
+            // when Windows confirms both handles identify the very same thread object.
+            let original = pinned.get(&id).filter(|handle| {
+                // SAFETY: both handles remain live for this identity comparison.
+                unsafe {
+                    windows_sys::Win32::Foundation::CompareObjectHandles(
+                        handle.as_raw_handle().cast(),
+                        thread,
+                    ) != 0
+                }
+            });
+            thread_integrity(original.map_or(thread, |handle| handle.as_raw_handle().cast()))
+        })
+    } else if owner == 0 {
+        Some(Outcome::Unknown)
+    } else {
+        None
+    };
+    let holds =
+        owner != 0 && (owner != process || !set_acl || restrict_access(thread, THREAD_ACCESS));
+    if set_acl && owner == process {
+        pinned.insert(id, opened);
+    }
+    (holds, integrity)
+}
+
+/// A thread without an impersonation token follows the primary token checked by enter.
+fn thread_integrity(thread: HANDLE) -> Outcome {
+    use windows_sys::Win32::Foundation::ERROR_NO_TOKEN;
+    use windows_sys::Win32::System::Threading::OpenThreadToken;
+    let mut token = ptr::null_mut();
+    // SAFETY: thread is pinned by its open handle. OpenAsSelf requests access under the
+    // caller's process identity. On failure no token handle was acquired.
+    if unsafe { OpenThreadToken(thread, TOKEN_QUERY, 1, &mut token) } == 0 {
+        // SAFETY: read the immediately preceding error on this thread.
+        return if unsafe { GetLastError() } == ERROR_NO_TOKEN {
+            Outcome::Confirmed
+        } else {
+            Outcome::Unknown
+        };
+    }
+    let level = integrity_of(token);
+    // SAFETY: this function owns the token handle returned above.
+    unsafe { CloseHandle(token) };
+    match level {
+        Some(rid) if rid <= LOW_INTEGRITY_RID => Outcome::Confirmed,
+        Some(_) => Outcome::Refused,
+        None => Outcome::Unknown,
+    }
 }
 
 /// Whether the access lists `current` and `wanted` each hold one entry, and the same one.
@@ -749,7 +830,7 @@ unsafe fn same_only_entry(current: *const ACL, wanted: *const ACL) -> bool {
 
 /// Lowers `token`, the token of the process, to low integrity, and returns whether it reads back
 /// so.
-fn lower_integrity(token: HANDLE) -> bool {
+fn lower_integrity(token: HANDLE) -> Outcome {
     let mut low = ptr::null_mut();
     // SAFETY: the string is NUL-terminated; the call allocates the SID, freed below.
     if unsafe { ConvertStringSidToSidW(LOW_INTEGRITY, &mut low) } != 0 {
@@ -772,7 +853,11 @@ fn lower_integrity(token: HANDLE) -> bool {
             LocalFree(low);
         }
     }
-    integrity_of(token).is_some_and(|rid| rid <= LOW_INTEGRITY_RID)
+    match integrity_of(token) {
+        Some(rid) if rid <= LOW_INTEGRITY_RID => Outcome::Confirmed,
+        Some(_) => Outcome::Refused,
+        None => Outcome::Unknown,
+    }
 }
 
 /// The mandatory level of `token`: the last sub-authority of its label's SID.
@@ -906,9 +991,14 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::DesktopRestricted, O::Refused) => {
             "the process is in no job with the limits and one process"
         }
-        (P::LowIntegrity, O::Confirmed) => "the token's integrity level reads back low or below",
+        (P::LowIntegrity, O::Confirmed) => {
+            "the primary token and the effective tokens of the enumerated threads are low or below"
+        }
         (P::LowIntegrity, O::Refused) => {
-            "the token's integrity level is above low, or could not be read"
+            "the primary token or an observed thread token is above low"
+        }
+        (P::LowIntegrity, O::Unknown) => {
+            "the primary level or at least one live thread’s effective level could not be determined"
         }
         (P::DynamicCodeRefused, O::Confirmed) => {
             "the dynamic-code policy reads back, with no way out for a thread or another process"

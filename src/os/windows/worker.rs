@@ -16,7 +16,7 @@ use windows_sys::Win32::Storage::FileSystem::{FILE_GENERIC_READ, FILE_WRITE_DATA
 /// further instance of it.
 const CLIENT_ACCESS: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
 /// The name of every worker's pipe, before its 32 random hexadecimal digits.
-const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
+use crate::worker::PIPE_PREFIX;
 /// The pipe's buffers, each way.
 const PIPE_BUFFER: u32 = 64 << 10;
 /// How long a worker keeps trying its pipe while another process holds it.
@@ -225,11 +225,6 @@ fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
     Ok(())
 }
 
-impl WorkerProcess {
-    /// The handle of a worker left behind is closed with this value: nothing to take off a list.
-    pub(crate) fn reap(&mut self) {}
-}
-
 /// The SID of the user this process runs as, as text.
 fn user() -> io::Result<String> {
     use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
@@ -373,14 +368,45 @@ impl Container {
         if !started {
             return Err(io::Error::last_os_error());
         }
-        // SAFETY: the process and thread handles were just made and nothing else owns them.
-        unsafe {
+        // SAFETY: CreateProcess returned two owned handles. The thread is never used.
+        let process = unsafe {
             CloseHandle(information.hThread);
-            Ok((
-                OwnedHandle::from_raw_handle(information.hProcess.cast()),
-                information.dwProcessId,
-            ))
+            OwnedHandle::from_raw_handle(information.hProcess.cast())
+        };
+        let limited = limited_process(&process)?;
+        Ok((limited, information.dwProcessId))
+    }
+}
+
+/// Retain only the rights used to wait for and terminate the worker.
+fn limited_process(process: &OwnedHandle) -> io::Result<OwnedHandle> {
+    use windows_sys::Win32::Foundation::DuplicateHandle;
+    use windows_sys::Win32::System::Threading::{
+        GetCurrentProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
+        WaitForSingleObject,
+    };
+    let mut limited = ptr::null_mut();
+    // SAFETY: both process pseudo handles name the caller. The source is owned throughout;
+    // the new handle is noninheritable, with the explicit access mask.
+    unsafe {
+        let caller = GetCurrentProcess();
+        if DuplicateHandle(
+            caller,
+            process.as_raw_handle().cast(),
+            caller,
+            &mut limited,
+            PROCESS_SYNCHRONIZE | PROCESS_TERMINATE,
+            0,
+            0,
+        ) == 0
+        {
+            let error = io::Error::last_os_error();
+            if TerminateProcess(process.as_raw_handle().cast(), 1) != 0 {
+                WaitForSingleObject(process.as_raw_handle().cast(), 1000);
+            }
+            return Err(error);
         }
+        Ok(OwnedHandle::from_raw_handle(limited.cast()))
     }
 }
 
@@ -494,10 +520,6 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
     };
-    let digits = channel.strip_prefix(PIPE_PREFIX).unwrap_or_default();
-    if digits.len() != 32 || !digits.bytes().all(|digit| digit.is_ascii_hexdigit()) {
-        return Err(io::ErrorKind::InvalidInput.into());
-    }
     let name: Vec<u16> = channel.encode_utf16().chain([0]).collect();
     let deadline = std::time::Instant::now() + PATIENCE;
     let pipe = loop {
@@ -527,4 +549,58 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
     };
     // SAFETY: the handle was just opened and nothing else owns it.
     Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))
+}
+
+#[cfg(test)]
+mod handle_tests {
+    use super::limited_process;
+    use std::io;
+    use std::os::windows::io::{AsHandle, AsRawHandle};
+    use std::process::{Command, Stdio};
+    use windows_sys::Wdk::Foundation::{NtQueryObject, ObjectBasicInformation};
+    use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, GetLastError, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::{
+        GetProcessId, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, WaitForSingleObject,
+    };
+    use windows_sys::Win32::System::WindowsProgramming::PUBLIC_OBJECT_BASIC_INFORMATION;
+
+    #[test]
+    fn retained_handle_has_exactly_the_two_worker_lifecycle_rights() -> io::Result<()> {
+        let mut child = Command::new(std::env::current_exe()?)
+            .arg("--list")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let full = child.as_handle().try_clone_to_owned()?;
+        let limited = limited_process(&full)?;
+        let handle = limited.as_raw_handle().cast();
+        // SAFETY: the process handle is alive for this metadata query.
+        let id = unsafe { GetProcessId(full.as_raw_handle().cast()) };
+        assert_eq!(id, child.id());
+        // SAFETY: the duplicated handle is valid. Access denial is checked immediately.
+        let (id, error) = unsafe { (GetProcessId(handle), GetLastError()) };
+        assert_eq!(id, 0);
+        assert_eq!(error, ERROR_ACCESS_DENIED);
+
+        let mut basic = PUBLIC_OBJECT_BASIC_INFORMATION::default();
+        let mut bytes = 0;
+        // SAFETY: the handle is live and both output buffers fit their documented types.
+        let result = unsafe {
+            NtQueryObject(
+                handle,
+                ObjectBasicInformation,
+                (&raw mut basic).cast(),
+                std::mem::size_of_val(&basic) as u32,
+                &mut bytes,
+            )
+        };
+        assert!(result >= 0, "NtQueryObject status {result:#x}");
+        assert_eq!(basic.GrantedAccess, PROCESS_TERMINATE | PROCESS_SYNCHRONIZE);
+
+        assert!(child.wait()?.success());
+        // SAFETY: the owned process handle remains valid after its child has finished.
+        assert_eq!(unsafe { WaitForSingleObject(handle, 0) }, WAIT_OBJECT_0);
+        Ok(())
+    }
 }

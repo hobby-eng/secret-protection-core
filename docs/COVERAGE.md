@@ -1,23 +1,14 @@
 # Test coverage
 
-On 2026-11-15 UTC the tests covered **97.32%** of the source lines that LLVM reports for the Linux x86-64 build (2,284 of 2,347). The run passed 29 unit tests and 48 checks of the three test programs `isolation`, `secret_memory` and `worker`, the worker's own side included; none was skipped.
+The Linux x86-64 run on 2026-11-15 covered **95.07%** (2,468 of 2,596 measured source lines). All 84 checks passed (33 unit · 20 isolation · 9 secret-memory · 22 worker).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is that of commit `9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6`, and the SHA-256 fingerprint of its inputs is `f49c444300b13258708baedf079b60f57a7d76a257ccfd1f98422418c6473eb9`; the documents changed after it are not part of the measurement.
+Rust 1.99.1 and cargo-llvm-cov measured the uncommitted changes based on `fb2a6d345caf8eb58097f013f12e43985402150f`. The fingerprint of the measured inputs is `89ac61b27cd6a2cb87ad0266a6d97b07b6344540f574ab27d50056bd6f8660ad`. LLVM reported 11 functions have mismatched data. The previous measurement was 97.19% (2,281 of 2,347 lines) on the unmodified base. The two source trees have different denominators. [Verification record](audits/AUD-015-2026-11-15.md)
 
-The tests start child processes that isolate themselves and can then write no file, so a profile written when a process ends would be lost. The counters are therefore synced to the profile file as they change (`%c` in its name, with LLVM's `-runtime-counter-relocation`), and such a child is counted.
+## Scope and exclusions
 
-A worker is counted as well: a build for the measurement (`--cfg coverage`, which cargo-llvm-cov sets) gives it the name of the profile, the one variable of its parent's beside its setting. An ordinary build gives it none.
-
-What the figure leaves out:
-
-- Lines that only a refusal of the system reaches, which no input or setting brings about here: `mmap`, `mprotect` or `madvise` refused for pages the crate maps, `prctl(PR_SET_NO_NEW_PRIVS)` or `pthread_atfork` refused, `dup2` refused when a worker ends its streams, a thread the system starts but cannot join, `posix_spawn` or the setting up of its actions refused, a pipe end that cannot be moved above standard error, a `write` that takes nothing or is interrupted, and standard streams the standard library did not make. A closed secret whose pages the system will not open again ends the process; the unit tests reach that refusal through a fault of the crate's own, and the end itself is left out. They are most of the lines missing in `src/os/unix.rs` and `src/os/linux.rs`.
-- Races and older systems: a thread that ends between the listing of threads and the reading of its status, a descriptor closed between two looks at it, and the mark of a lock of all memory on a kernel before Linux 4.14.
-- A worker that cannot write its profile: under a filter that refuses every opening for writing, the check "without /dev/null a worker that serves no more still ends its streams" runs, and the fallback to an ended pipe is not counted.
-- A request or answer of 4 GiB or more, which a test cannot hold, and a second call of `serve` in one process.
-- The code for Android, macOS, iOS, Windows and WebAssembly, which this build does not compile. The tests run on macOS and Windows as well, at every push, without a measurement of their lines.
-- Files under `tests/`. The count includes the unit tests inside `src/`.
+The run covers unit tests inside the crate, the three Linux integration programs and their workers. Continuous profiling records counters for children that lose permission to open files. Integration test sources themselves are outside the denominator. Linux error returns and alternative libc paths account for some uncovered lines. Windows, Apple, Android and WebAssembly code have no Linux line count.
 
 ## Reproduce on Linux
 
@@ -43,13 +34,14 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | ------------------------- | ------------: | -------------: | -------: |
 | `src/channels.rs`         |            40 |             40 |  100.00% |
 | `src/input.rs`            |           137 |            137 |  100.00% |
-| `src/os.rs`               |            56 |             56 |  100.00% |
-| `src/os/linux.rs`         |           449 |            462 |   97.19% |
-| `src/os/linux/seccomp.rs` |           145 |            145 |  100.00% |
-| `src/os/unix.rs`          |           455 |            493 |   92.29% |
+| `src/os.rs`               |            66 |             66 |  100.00% |
+| `src/os/linux.rs`         |           479 |            492 |   97.36% |
+| `src/os/linux/seccomp.rs` |           156 |            156 |  100.00% |
+| `src/os/unix.rs`          |           491 |            557 |   88.15% |
+| `src/os/unix/child.rs`    |            63 |             97 |   64.95% |
 | `src/os/unix/forks.rs`    |            17 |             17 |  100.00% |
-| `src/protect.rs`          |           404 |            405 |   99.75% |
+| `src/protect.rs`          |           414 |            415 |   99.76% |
 | `src/protect/closed.rs`   |           131 |            132 |   99.24% |
 | `src/protect/options.rs`  |           139 |            139 |  100.00% |
 | `src/stack.rs`            |            98 |             98 |  100.00% |
-| `src/worker.rs`           |           213 |            223 |   95.52% |
+| `src/worker.rs`           |           237 |            250 |   94.80% |

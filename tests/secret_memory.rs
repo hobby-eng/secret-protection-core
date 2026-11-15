@@ -165,6 +165,28 @@ fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
         reports && works
     });
     assert_eq!(status, Ending::Exit(0));
+    // Fork inside the callback, then return normally on both sides. The child never
+    // dereferences a pre-fork borrow. Its scope guard belongs to the old generation.
+    let mut live = ClosedSecret::with_capacity(8);
+    live.push(b"public").unwrap();
+    let child = live.read(|_| {
+        // SAFETY: this test process is single-threaded at the fork.
+        unsafe { libc::fork() }
+    });
+    assert!(child >= 0);
+    if child == 0 {
+        let closed = live.is_closed();
+        drop(live);
+        // SAFETY: finish the child without running the parent's exit handlers.
+        unsafe { libc::_exit(i32::from(closed)) };
+    }
+    let mut status = -1;
+    // SAFETY: child is the positive PID returned by this fork.
+    let waited = unsafe { libc::waitpid(child, &mut status, 0) };
+    assert_eq!(waited, child);
+    assert!(libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0);
+    assert!(live.is_closed());
+    assert_eq!(live.read(|b| b.to_vec()), b"public");
     let status = in_child(|| {
         secret
             .as_ref()

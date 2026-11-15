@@ -139,3 +139,95 @@ fn expect_refused(object: &str, rights: &[u32], open: impl Fn(u32) -> HANDLE) {
         );
     }
 }
+
+/// Run in its own test child. One sibling impersonates itself while the calling thread lowers
+/// the primary token. Only token metadata is read.
+pub(super) fn an_impersonating_sibling_keeps_its_own_integrity() {
+    use secret_protection_core::{Isolation, Protection};
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::mpsc;
+    use windows_sys::Win32::Security::{ImpersonateSelf, RevertToSelf, SecurityImpersonation};
+
+    const LOW_RID: u32 = 4096;
+    let primary = query_own_token(false);
+    if token_label_rid(primary.as_raw_handle().cast()) <= LOW_RID {
+        super::support::skip_role("the test needs a primary token above low integrity");
+    }
+    let (ready, has_token) = mpsc::sync_channel(0);
+    let (finish, may_revert) = mpsc::channel();
+    let sibling = std::thread::spawn(move || {
+        // SAFETY: duplicates this test process's own token on this thread, for this scope.
+        assert_ne!(unsafe { ImpersonateSelf(SecurityImpersonation) }, 0);
+        let token = query_own_token(true);
+        ready
+            .send(token_label_rid(token.as_raw_handle().cast()))
+            .unwrap();
+        may_revert.recv().unwrap();
+        // Query the effective token again instead of assuming it is still the same object.
+        let effective = query_own_token(true);
+        let observed = token_label_rid(effective.as_raw_handle().cast());
+        // SAFETY: this thread established impersonation above.
+        assert_ne!(unsafe { RevertToSelf() }, 0);
+        observed
+    });
+    assert!(has_token.recv().unwrap() > LOW_RID);
+    let report = Isolation::enter();
+    finish.send(()).unwrap();
+    let sibling_rid = sibling.join().unwrap();
+    assert!(token_label_rid(primary.as_raw_handle().cast()) <= LOW_RID);
+    assert!(sibling_rid > LOW_RID);
+    assert!(!report.low_integrity);
+    assert!(report.require(&[Protection::LowIntegrity]).is_err());
+}
+
+fn query_own_token(impersonating: bool) -> std::os::windows::io::OwnedHandle {
+    use std::os::windows::io::{FromRawHandle, OwnedHandle};
+    use windows_sys::Win32::Security::TOKEN_QUERY;
+    use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+
+    let mut handle = ptr::null_mut();
+    // SAFETY: opens the running thread or its process for a metadata-only query and writes
+    // one owned handle on success. The impersonating sibling uses its own effective identity.
+    let opened = unsafe {
+        if impersonating {
+            OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 0, &mut handle)
+        } else {
+            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut handle)
+        }
+    };
+    assert_ne!(opened, 0, "{}", std::io::Error::last_os_error());
+    // SAFETY: token acquisition succeeded and the handle has no other owner.
+    unsafe { OwnedHandle::from_raw_handle(handle.cast()) }
+}
+
+fn token_label_rid(token: HANDLE) -> u32 {
+    use windows_sys::Win32::Security::{
+        GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TOKEN_MANDATORY_LABEL,
+        TokenIntegrityLevel,
+    };
+
+    let mut storage = [0usize; 32];
+    let mut count = 0;
+    // SAFETY: the OS receives a pointer-aligned writable buffer and its exact byte count.
+    let ok = unsafe {
+        GetTokenInformation(
+            token,
+            TokenIntegrityLevel,
+            storage.as_mut_ptr().cast(),
+            std::mem::size_of_val(&storage) as u32,
+            &mut count,
+        )
+    };
+    assert_ne!(ok, 0, "{}", std::io::Error::last_os_error());
+    assert!(count as usize >= size_of::<TOKEN_MANDATORY_LABEL>());
+    // SAFETY: the kernel returned a TOKEN_MANDATORY_LABEL referring to its SID in storage.
+    unsafe {
+        let sid = (*storage.as_ptr().cast::<TOKEN_MANDATORY_LABEL>())
+            .Label
+            .Sid;
+        let last = u32::from(*GetSidSubAuthorityCount(sid))
+            .checked_sub(1)
+            .unwrap();
+        *GetSidSubAuthority(sid, last)
+    }
+}

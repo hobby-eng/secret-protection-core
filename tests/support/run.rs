@@ -66,3 +66,20 @@ pub(crate) fn role_ended(role: &str, status: ExitStatus, stderr: &[u8]) {
         *MARK.lock().unwrap() = Some(Mark::Part(part.to_owned()));
     }
 }
+
+/// A tracer outside a nested Linux PID namespace is invisible to the process.
+#[cfg(target_os = "linux")]
+pub(crate) fn initial_pid_namespace() -> bool {
+    std::fs::read_link("/proc/self/ns/pid").is_ok_and(|link| link.as_os_str() == "pid:[4026531836]")
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn check_memory_reading(isolation: secret_protection_core::Isolation) {
+    use secret_protection_core::{Outcome, Protection};
+    let expected = if initial_pid_namespace() {
+        Outcome::Confirmed
+    } else {
+        Outcome::Unknown
+    };
+    assert_eq!(isolation.outcome(Protection::NoMemoryReading), expected);
+}

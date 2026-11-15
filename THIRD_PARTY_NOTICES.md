@@ -1,5 +1,18 @@
 # Third-party notices
 
-Runtime dependencies: zeroize 1.9.1 (MIT OR Apache-2.0, by the RustCrypto developers), which wipes secret bytes with writes the compiler keeps; on Unix systems libc 0.2.191 (MIT OR Apache-2.0, by the Rust project developers), the declarations of the system calls; on Windows windows-sys 0.61.2 (MIT OR Apache-2.0, by Microsoft), the declarations of the Windows API, and windows-link 0.2.1 (MIT OR Apache-2.0, by Microsoft), which links them.
+The versions below come from the library's [Cargo.lock](Cargo.lock). The fuzz targets have a [separate lockfile](fuzz/Cargo.lock) for development tools.
 
-On Linux, landlock 0.4.7 (MIT OR Apache-2.0, copyright Mickaël Salaün, the author of Landlock, developed by the Landlock project) builds the Landlock layer of `Isolation::enter`. It replaces hand-written system calls and kernel structures: the project that maintains Landlock in the kernel also knows the rights of each new ABI, and its best-effort mode leaves out on an older kernel what that kernel does not know. Linux-only, without a C library. It brings enumflags2 0.7.12 (MIT OR Apache-2.0, by Maik Klein and Maja Kądziołka) and thiserror 2.0.21 (MIT OR Apache-2.0, by David Tolnay), and, at build time only, their macros, enumflags2_derive 0.7.12 (MIT OR Apache-2.0, by Maik Klein and Maja Kądziołka) and thiserror-impl 2.0.21 (MIT OR Apache-2.0, by David Tolnay), with proc-macro2 1.0.107, quote 1.0.47, syn 2.0.119 and 3.0.10 (each MIT OR Apache-2.0, by David Tolnay) and unicode-ident 1.0.27 ((MIT OR Apache-2.0) AND Unicode-3.0, by David Tolnay).
+## Library dependencies
+
+- **zeroize 1.9.1** clears secret bytes using writes the compiler must retain. RustCrypto project developers, MIT OR Apache-2.0.
+- **libc 0.2.191** supplies the Unix C types, constants and OS function declarations. Rust project developers, MIT OR Apache-2.0.
+- **windows-sys 0.61.2** supplies Windows API declarations. **windows-link 0.2.1** links them. Both are by Microsoft, MIT OR Apache-2.0.
+- **landlock 0.4.7** builds the Linux Landlock layer in `Isolation::enter`. It describes the rights supported by each ABI and applies the subset available on older kernels. Developed by the Landlock project, copyright Mickaël Salaün, MIT OR Apache-2.0.
+- Landlock uses **enumflags2 0.7.12**, by Maik Klein and Maja Kądziołka, and **thiserror 2.0.21**, by David Tolnay. Both use MIT OR Apache-2.0.
+
+## Build dependencies
+
+- **enumflags2_derive 0.7.12** provides the macros for enumflags2. Maik Klein and Maja Kądziołka, MIT OR Apache-2.0.
+- **thiserror-impl 2.0.21** provides the macros for thiserror. David Tolnay, MIT OR Apache-2.0.
+- **proc-macro2 1.0.107**, **quote 1.0.47**, and **syn 2.0.119 and 3.0.10** support the macro builds. David Tolnay, MIT OR Apache-2.0.
+- **unicode-ident 1.0.27** supplies Unicode identifier tables. David Tolnay, (MIT OR Apache-2.0) AND Unicode-3.0.
