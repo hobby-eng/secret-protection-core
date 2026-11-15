@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-009",
+  "auditNumber": 9,
+  "date": "2026-11-15",
+  "title": "External review of the worker's descriptors, the Windows pipe and secret pages",
+  "reviewer": {
+    "name": "GitHub Copilot",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": null,
+    "commitComplete": false,
+    "workingTree": "Not recorded by the review. The source of the working tree it read was that of 0b0aa7fd417e0d0c5d126c831bdffaebaa955977 (tree b19e768f11410e7ba325f1d79a70e0295d345b20): no commit changed the source between that one and the fixes."
+  },
+  "scope": {
+    "included": [
+      "Every library module, the systems' backends, the worker and its channel, protected stacks and the wiping of memory, by reading"
+    ],
+    "excluded": [
+      "Any run of the code"
+    ],
+    "environment": null,
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [],
+  "findings": [
+    {
+      "id": "AUD-009-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A worker is called clean without a look at what it holds when it comes to serve",
+      "severity": "high",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-01",
+      "affectedFiles": [
+        "src/os/unix.rs",
+        "src/worker.rs"
+      ],
+      "evidence": "After `close_range` succeeded before `main`, the check returned true without a listing.",
+      "reproduction": "A program opens a file in `main` before it calls `serve`, on a kernel with `close_range`.",
+      "expected": "A worker that holds a descriptor besides its standard streams says its start was not clean and takes no request, as the documentation of `serve` says.",
+      "observed": "The worker reported a clean start.",
+      "impact": "A descriptor opened before `serve` stays usable after the isolation, which refuses only new ones: a way out of the worker that its report does not show.",
+      "recommendedFix": "Always list the open descriptors before the worker is called clean.",
+      "requiredVerification": "A worker with a descriptor of its own must report an unclean start."
+    },
+    {
+      "id": "AUD-009-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Any text in the worker's variable closes the inherited descriptors before main",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-02",
+      "affectedFiles": [
+        "src/os/unix.rs"
+      ],
+      "evidence": "The function tested only whether the variable was set.",
+      "reproduction": "Start a program that links the crate with the variable set to an empty or malformed text and with an inherited descriptor above standard error.",
+      "expected": "A text that `serve` does not take leaves the program as it is.",
+      "observed": "Every descriptor above standard error was closed before `main`, and the program then ran as one that is no worker.",
+      "impact": "A program that got a descriptor from its parent, such as an activation socket, loses it.",
+      "recommendedFix": "Check that the variable holds a well-formed setting before closing.",
+      "requiredVerification": "A malformed text must close nothing; a setting must still close what was inherited."
+    },
+    {
+      "id": "AUD-009-SEC003",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A process of the same user that takes the worker's pipe first stops the start",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-03",
+      "affectedFiles": [
+        "src/os/windows/worker.rs"
+      ],
+      "evidence": "The pipe's access list names the user, and the pipe has one instance.",
+      "reproduction": "Another process of the user opens the pipe between its creation and the worker's own connection.",
+      "expected": "The start of a worker does not depend on other processes of the user.",
+      "observed": "The parent found another process number, sent nothing, and the start failed.",
+      "impact": "Denial of service by a process of the same user. No secret is sent.",
+      "recommendedFix": "Name only the AppContainer in the access list, or use several instances or inherited handles.",
+      "requiredVerification": "On Windows: a client that takes the pipe first must not stop the start."
+    },
+    {
+      "id": "AUD-009-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "The Apple section of the function that runs before main does not name its kind",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-04",
+      "affectedFiles": [
+        "src/os/unix.rs"
+      ],
+      "evidence": "The link section was given as `__DATA,__mod_init_func`.",
+      "reproduction": "Build a worker for macOS with a toolchain that does not take the bare section name for one of that kind.",
+      "expected": "The function runs before `main` on every Apple toolchain.",
+      "observed": "Not observed: the Apple code had not run.",
+      "impact": "A worker that keeps what it inherited. It then lists the descriptors and reports an unclean start, so the failure is a worker that does not start.",
+      "recommendedFix": "Name the section's kind, or close the descriptors when `serve` is called.",
+      "requiredVerification": "On macOS: a worker must hold nothing of a descriptor its parent left open."
+    },
+    {
+      "id": "AUD-009-FUN002",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "Without /dev/null the worker's streams do not end when it serves no more",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-05",
+      "affectedFiles": [
+        "src/os/unix.rs"
+      ],
+      "evidence": "The drop of the streams did nothing when /dev/null had not been opened.",
+      "reproduction": "A worker under a policy that refuses opening /dev/null stops serving and does not end.",
+      "expected": "The parent sees the end of the pipes when `serve` returns.",
+      "observed": "The pipes stayed open for as long as the worker lived.",
+      "impact": "A call of the parent waits for the worker's end.",
+      "recommendedFix": "Close the descriptors when /dev/null is not there.",
+      "requiredVerification": "A call to such a worker must fail at once."
+    },
+    {
+      "id": "AUD-009-SEC004",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Anonymous secret pages may be joined into huge pages",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": null,
+      "legacyId": "SEC-06",
+      "affectedFiles": [
+        "src/os/unix.rs"
+      ],
+      "evidence": "No call marked the pages.",
+      "reproduction": "A kernel that joins small pages into huge ones copies a secret's pages and frees the old ones as they are.",
+      "expected": "A secret's bytes stay on the pages it was given.",
+      "observed": "Not observed; the report reasons from the kernel's behaviour.",
+      "impact": "Copies of secret bytes in freed pages, within reach of whoever reads physical memory.",
+      "recommendedFix": "Mark anonymous secret pages `MADV_NOHUGEPAGE`.",
+      "requiredVerification": "The mapping of a secret on anonymous pages must carry the flag."
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-009-SEC005",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "A closed secret's change of access reaches its pages only",
+      "severity": "low",
+      "status": null,
+      "releaseBlocking": null,
+      "legacyId": "SEC-07",
+      "affectedFiles": [
+        "src/protect/closed.rs"
+      ],
+      "evidence": "Every buffer has whole pages of its own between guard pages, so no two secrets share a page.",
+      "reproduction": "None: the report checked the invariant and found it sound.",
+      "expected": "Changing the access of one closed secret does not reach another.",
+      "observed": "As expected.",
+      "impact": "None.",
+      "recommendedFix": "None.",
+      "requiredVerification": "None."
+    },
+    {
+      "id": "AUD-009-SEC006",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "A secret made before the isolation lies in a process that can still be read",
+      "severity": "info",
+      "status": null,
+      "releaseBlocking": null,
+      "legacyId": "SEC-08",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": "Listed in the report's table as documented, without a section of its own.",
+      "reproduction": "Not given.",
+      "expected": "A program isolates itself before it takes a secret.",
+      "observed": "Not given.",
+      "impact": "Not given.",
+      "recommendedFix": "None.",
+      "requiredVerification": "None."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-009-SEC001",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "The check reads the system's list of open descriptors every time: a worker that holds one above standard error, inherited or opened by the program since, says its start was not clean. `worker`: the program with a file of its own reports a clean byte of zero; seen failing without the fix."
+    },
+    {
+      "id": "AUD-009-SEC002",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "The function that runs before `main` reads the variable by the rule of `serve` and closes nothing for any other text. `worker`: a program started with four texts that are no setting keeps the descriptor its parent left it; seen failing without the fix. That whoever sets the environment decides whether the program is a worker is stated in docs/TECHNICAL.md."
+    },
+    {
+      "id": "AUD-009-SEC003",
+      "status": "accepted",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "Mitigated: the parent puts off a client that is not the worker and listens again, and the worker keeps trying a busy pipe for a second, so that one connection by another program no longer fails the start (`worker`, Windows only: a thread takes the pipe first). Accepted: a process of the same user that takes the pipe again and again for that second still stops the start, and nothing is sent to it; docs/TECHNICAL.md, What is not covered. Such a process may end the worker in any case: the access list of the worker's process leaves that to its user. The user's entry stays in the pipe's list, since Windows checks a process in an AppContainer against the user's entries as well as the container's. Handles passed by inheritance are what AUD-001-SEC004 replaced."
+    },
+    {
+      "id": "AUD-009-FUN001",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "The section is `__DATA,__mod_init_func,mod_init_funcs`: it names its kind, pointers to functions run before `main`, whatever the compiler and linker made before. The static had `#[used]` already, which the report took to be missing. Not run on macOS when this record was filed."
+    },
+    {
+      "id": "AUD-009-FUN002",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "Where /dev/null could not be opened, the two descriptors are closed outright. `worker`: under a filter that refuses opening for reading and writing, a call to a worker that serves no more and lives on fails at once; seen failing without the fix."
+    },
+    {
+      "id": "AUD-009-SEC004",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "A secret's anonymous pages are marked `MADV_NOHUGEPAGE` before they are locked. `secret_memory`: the mapping of such a secret has the flag and a work area's has not; both seen failing when the code is changed. A work area keeps the huge pages the system gives it, on purpose: a large computation is much slower without them; docs/TECHNICAL.md, What is not covered."
+    }
+  ],
+  "limitations": [
+    "The review is a reading of the source: its report records no command, no environment and no commit.",
+    "Its descriptions of the crate's parts, in section 4 of the report, name mechanisms the crate does not have, such as a stack switched in assembly, a `zeroize_bytes` function and a job limit that ends the process with its job; no finding rests on them.",
+    "Its quotations of code are paraphrases: names such as `SHED_POINTER` are not in the source.",
+    "The fixes were run on Linux x86-64 only when this record was filed; the Windows and Apple changes were compiled and linted."
+  ],
+  "normalization": {
+    "origin": "A free-form report, filed in this repository's sequence when it arrived. The metadata, the identifiers, the categories, the statuses and the remediation are this record's; the findings' substance and severities are the report's.",
+    "legacyIds": {
+      "SEC-01": "AUD-009-SEC001",
+      "SEC-02": "AUD-009-SEC002",
+      "SEC-03": "AUD-009-SEC003",
+      "SEC-04": "AUD-009-FUN001",
+      "SEC-05": "AUD-009-FUN002",
+      "SEC-06": "AUD-009-SEC004",
+      "SEC-07": "AUD-009-SEC005",
+      "SEC-08": "AUD-009-SEC006"
+    }
+  },
+  "historicalEvidence": {
+    "reportSha256AsReceived": "0e925b8a17b93fb787fcf8693ee81f47d0681400a2a721028bafe389f2b5ff17",
+    "reportSha256AsPublished": "00f370cff02b54b4a83611b91f1ccadb1c5d3114e865f282bddd9d8ec386e709",
+    "redaction": "One home-directory path is anonymized as /home/user."
+  }
+}
