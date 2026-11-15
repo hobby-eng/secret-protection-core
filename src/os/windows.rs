@@ -1,7 +1,6 @@
-//! Secret pages on Windows: committed with `VirtualAlloc`, locked with `VirtualLock` once the
-//! working set has room for them, and left out of Windows Error Reporting dumps. The work area of
-//! a computation is such a region too. Also the protections of [`crate::protect::Isolation::enter`],
-//! each for the whole process, and the secret writer.
+//! Windows allocations use `VirtualAlloc`. Each region records whether `VirtualLock` and
+//! registration with Windows Error Reporting succeeded. This module also implements process
+//! isolation and console output.
 #![allow(
     unsafe_code,
     reason = "the memory, error-reporting, security, thread and console calls of Windows are \
@@ -102,10 +101,9 @@ impl Pages {
         }
     }
 
-    /// The work area of a computation: committed pages, or `None` when Windows refuses them. They are
-    /// locked after the working set grew by their size, which a refusal, such as
-    /// `ERROR_NO_SYSTEM_RESOURCES`, leaves unlocked; they are left out of error reports in blocks
-    /// below 4 GiB, as far as the 512 registrations of a process reach.
+    /// Commits pages and attempts to grow the working set. `VirtualLock` determines whether
+    /// the pages are locked, even if the working set could not grow. Dump exclusion is checked
+    /// separately through Windows Error Reporting registrations.
     pub(crate) fn work_area(bytes: usize) -> Option<Self> {
         let start = commit(bytes)?;
         let raised = if move_working_set(bytes.cast_signed()) {
@@ -401,9 +399,8 @@ const DYNAMIC_CODE_WAYS_OUT: u32 = 0b110;
 /// `MicrosoftSignedOnly` of PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY.
 const MICROSOFT_SIGNED_ONLY: u32 = 1;
 
-/// Whether the token is an AppContainer's without capabilities, as [`crate::Worker`] starts its
-/// worker: Windows then refuses it the network, the loopback address included, and the user's
-/// files.
+/// Checks for an AppContainer token with an empty capability list. The check neither
+/// attempts a connection nor inspects loopback exemptions or filesystem ACLs.
 fn without_network(token: HANDLE) -> bool {
     let read_word = |class| {
         let mut value = 0_u32;
@@ -484,9 +481,9 @@ fn holds(policy: PROCESS_MITIGATION_POLICY, flags: u32, ways_out: u32) -> bool {
     got && read & flags == flags && read & ways_out == 0
 }
 
-/// Loads later DLLs only from the program's folder and System32, never from the current folder or
-/// `PATH`, where another program could have planted one of the same name. Returns whether Windows
-/// took the setting, which it offers no way to read back.
+/// Sets the default DLL search to the application directory and System32. Explicit paths
+/// and caller-supplied search flags can select other locations. Windows reports whether
+/// it accepted the change.
 fn load_libraries_from_known_places() -> bool {
     // SAFETY: changes only where this process looks for the DLLs it loads afterwards.
     unsafe {
@@ -992,15 +989,17 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         }
         (P::NoMemoryReading, O::Unknown) => "the live thread inventory was unavailable",
         (P::NoMemoryReading, O::Refused) => {
-            "an access list did not read back, or a debugger is present"
+            "access checks failed or the debugger check did not confirm an untraced process"
         }
         (P::NoNewSockets, O::Confirmed) => {
             "the token is an AppContainer's without capabilities (its policy, not a connection tried)"
         }
-        (P::NoNewSockets, O::Refused) => "the process is in no AppContainer without capabilities",
+        (P::NoNewSockets, O::Refused) => {
+            "the token check did not confirm an AppContainer with an empty capability list"
+        }
         (P::SpeculationLimited, O::Confirmed) => "the side-channel policy reads back",
         (P::SpeculationLimited, O::Refused) => "the side-channel policy did not read back",
-        (P::WholeProcess, O::Confirmed) => "everything here holds for the process",
+        (P::WholeProcess, O::Confirmed) => "this platform applies isolation at process scope",
         (P::NoNewPrograms, O::Confirmed) => {
             "the child-process policy reads back, with no exception for secure processes"
         }

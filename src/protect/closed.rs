@@ -1,4 +1,4 @@
-//! [`ClosedSecret`]: a secret whose pages refuse every access between uses.
+//! [`ClosedSecret`] requests page protection between uses and reports whether the OS granted it.
 
 use std::fmt;
 
@@ -8,7 +8,7 @@ use crate::os::{Access, Region};
 /// A [`Secret`] that asks the OS to deny access to its pages between uses. Check
 /// [`ClosedSecret::is_closed`] after each use if closing is required. WebAssembly has no
 /// per-buffer page permissions. On Unix a continuing child must leave pre-fork byte references
-/// unused. Returning or unwinding from a callback skips the parent’s permission change.
+/// unused. If the callback returns or unwinds in that child, its guard skips the permission change.
 pub struct ClosedSecret {
     secret: Secret,
     /// What the pages allow now, as the system last confirmed.
@@ -16,7 +16,8 @@ pub struct ClosedSecret {
 }
 
 impl ClosedSecret {
-    /// An empty buffer that holds up to `bytes` bytes, as [`Secret::with_capacity`], closed.
+    /// Creates an empty [`Secret`] and asks the OS to close its pages. Check [`Self::is_closed`]
+    /// if the application requires closure.
     pub fn with_capacity(bytes: usize) -> Self {
         Self::closing(Secret::with_capacity(bytes))
     }
@@ -57,15 +58,13 @@ impl ClosedSecret {
         self.secret.truncate(len);
     }
 
-    /// Opens the pages for reading, hands the bytes pushed so far to `use_bytes`, and closes them
-    /// again.
+    /// Passes the stored bytes to `use_bytes` for reading and requests closure when it returns.
     pub fn read<R>(&mut self, use_bytes: impl FnOnce(&[u8]) -> R) -> R {
         let _open = Open::new(self.secret.pages.region(), Access::Read, &mut self.access);
         use_bytes(self.secret.as_bytes())
     }
 
-    /// Opens the pages for reading and writing, hands the bytes pushed so far to `change`, and
-    /// closes them again.
+    /// Passes the stored bytes to `change` for writing and requests closure when it returns.
     pub fn write<R>(&mut self, change: impl FnOnce(&mut [u8]) -> R) -> R {
         let _open = Open::new(
             self.secret.pages.region(),

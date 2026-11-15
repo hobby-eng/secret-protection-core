@@ -11,8 +11,7 @@ pub enum ChannelKind {
     File,
     /// A pipe or a FIFO.
     Pipe,
-    /// A terminal. One opened after the isolation shows as another device from Linux 6.10 on,
-    /// where it answers no request.
+    /// A terminal recognized by `isatty`. A terminal whose ioctls are denied can appear as a device.
     Terminal,
     /// Another device, such as /dev/null.
     Device,

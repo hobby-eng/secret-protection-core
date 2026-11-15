@@ -1,5 +1,5 @@
-//! The bytes a parent reads as its worker's report. A worker that fails, or one that someone else
-//! controls, can write any; only bytes a report can be are taken, and they read back as written.
+//! Round-trips the isolation portion of a worker report. The clean-start flag and the
+//! parent's admission decision are checked separately by worker tests.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;

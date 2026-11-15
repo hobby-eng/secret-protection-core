@@ -246,27 +246,28 @@ pub struct Isolation {
     /// The platform confirmed its restrictions on new access to the process's memory. On
     /// Windows the check covers current process and thread access controls and debugger status.
     /// Access already granted to an existing handle can remain usable. On Linux the answer is
-    /// unknown if the PID namespace can hide an outside tracer.
+    /// unknown when an outside tracer could be hidden and no observed tracer or dumpable flag
+    /// already warrants refusal.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it. On Windows
     /// it is the policy of the worker's AppContainer token, which has no network capability: what
     /// is confirmed is that token, not a socket refused or a connection tried.
     pub no_new_sockets: bool,
-    /// The process runs in network and IPC namespaces of its own, with only a loopback interface,
-    /// which stays down, and no route (Linux).
+    /// Linux recorded namespace setup, saw no listed interface other than loopback, and found
+    /// no IPv4 routes. The check does not read interface flags or the IPv6 routing table.
     pub empty_network: bool,
     /// Files cannot be opened for writing, created, renamed or removed, apart from the exceptions
     /// docs/TECHNICAL.md names for each system. Not offered on Windows, whose low integrity level
     /// still writes where a low label allows it; refused on Linux without the seccomp filter,
     /// whose Landlock layer alone leaves modes, owners, extended attributes and times.
     pub no_file_changes: bool,
-    /// The processor's speculation that leaks across programs is limited for the calling thread
-    /// and what it starts (Spectre variants 4 and 2): off for good, kept off by the system, or the
-    /// processor is not affected. Unknown where the kernel gives a program no control of one of
-    /// them, as on AArch64. On Windows, side-channel isolation.
+    /// Linux and Android require both mitigation states to be permanently disabled or unnecessary.
+    /// A reversible or enabled state gives `Refused`. Otherwise an unreadable state gives `Unknown`.
+    /// Windows checks its side-channel mitigation policy.
     pub speculation_limited: bool,
-    /// The protections above cover every thread of the process, not only the calling one.
+    /// Whether isolation has process scope. Check the outcome and reach of each protection
+    /// an application needs.
     pub whole_process: bool,
     /// File locks are refused (Linux and Android, with [`Options::refuse_file_locks`]).
     pub file_locks_refused: bool,
@@ -288,7 +289,7 @@ pub struct Isolation {
     pub memory_locked: bool,
     /// No other program can be started, which would carry a secret out in its command line or
     /// input: on Linux and Android the filter refuses `execve`, on Windows the child-process
-    /// policy holds. Unknown on macOS, whose sandbox allows it to no one but is not probed.
+    /// policy holds. macOS reports unknown after sandbox entry and refused if entry failed.
     pub no_new_programs: bool,
     /// Windows confirmed its extension-point and image-load policies, and the crate set the
     /// default DLL search to the application directory and System32. The application directory
@@ -308,11 +309,9 @@ pub struct Isolation {
 }
 
 impl Isolation {
-    /// Closes the process against a secret leaving it, for good, and returns what took effect.
-    /// Call it before reading a secret. Refusals show up in the answer, never as errors, and
-    /// descriptors opened earlier stay usable. Protections that can break programs are in
-    /// [`Isolation::enter_with`]; [`Isolation::enter_requiring`] stops if a required one is
-    /// missing. What each system applies is listed in docs/TECHNICAL.md.
+    /// Applies the default isolation measures and reports the outcomes observed at entry.
+    /// Call this before reading a secret. Existing descriptors may remain usable. To require
+    /// particular outcomes, use [`Isolation::enter_requiring`] and handle its result.
     pub fn enter() -> Self {
         crate::os::enter(Options::new())
     }

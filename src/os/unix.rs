@@ -102,8 +102,8 @@ impl Pages {
     }
 }
 
-/// What anonymous pages are for: a secret's are always locked and stay small pages; a work
-/// area's are locked when the limit holds all of them.
+/// What anonymous pages are for: secrets request small pages and a lock. Work areas request a lock
+/// when the limit can cover them. Either lock request can fail.
 #[derive(Clone, Copy)]
 enum Purpose {
     Secret,
@@ -113,7 +113,7 @@ enum Purpose {
 impl Drop for Pages {
     fn drop(&mut self) {
         // Unmapping the pages also unlocks them. A child of `fork` leaves its parent's alone:
-        // gone there, their addresses may hold what the child mapped since.
+        // an excluded mapping's address can already belong to a new allocation.
         if self.here() {
             release(self.start, self.bytes);
         }
@@ -253,11 +253,9 @@ pub(crate) struct WorkerProcess {
 }
 
 impl WorkerProcess {
-    /// Starts this program again with the worker's variable alone in its environment, set to
-    /// `setting`, and its standard input and output piped; without `terminal` its standard error
-    /// goes nowhere. Android and iOS start no worker. The start runs on a thread of its own: an
-    /// old C library starts a program with `fork`, whose child runs on a copy of the calling
-    /// stack, and a protected one would be empty there.
+    /// Spawns this program with piped input and output on Linux and macOS. It receives the
+    /// worker setting and, in an instrumented build, the profile output path. A dedicated
+    /// launcher thread uses an ordinary stack for spawn implementations that fork.
     pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         if cfg!(any(target_os = "android", target_os = "ios")) {
             return Err(io::ErrorKind::Unsupported.into());
@@ -741,10 +739,9 @@ unsafe extern "C" {
     ) -> libc::c_int;
 }
 
-/// Runs `work` on a new thread whose stack is a work area of at least `bytes` (guard pages, out of
-/// dumps and children, locked where the limit allows), wiped after the thread ends. The work runs
-/// only when the stack has every property in `required`. glibc also puts the thread's own data and
-/// static TLS at the top of a stack it is given.
+/// Runs `work` on a new Unix thread with a guarded stack of at least `bytes` and wipes it
+/// after joining. Lock, dump and fork protections depend on the allocation. The callback
+/// runs only if the stack has every property in `required`.
 pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
     bytes: usize,
     required: crate::StackProperties,

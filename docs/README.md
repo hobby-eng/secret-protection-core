@@ -1,11 +1,20 @@
 # secret-protection-core documentation
 
-Start with the [library README](../README.md) to choose a buffer or a worker. The technical guide describes what the operating system can confirm before an application accepts a secret.
+For a summary of the crate and its supported targets, see the [library overview](../README.md).
 
-| Guide                                            | What it covers                                                                               |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| [How it works](TECHNICAL.md)                     | Buffer ownership, isolation, worker startup, platform limits and testing.                    |
-| [Test coverage](COVERAGE.md)                     | The measured source revision, Linux test suites, coverage by file and reproduction commands. |
-| [Security audits](audits/README.md)              | Findings and remediation records for specific revisions.                                     |
-| [Changelog](../CHANGELOG.md)                     | Changes to the public API, protections and tests.                                            |
-| [Third-party notices](../THIRD_PARTY_NOTICES.md) | Runtime and build dependencies and their licenses.                                           |
+## Using the library
+
+| Guide                                   | What to use it for                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [API description](API.md)               | Public Rust functions and methods by type, arguments, results, errors and code examples.    |
+| [Platform implementation](TECHNICAL.md) | Check what each platform can confirm about memory, process restrictions and worker startup. |
+| [Security](../SECURITY.md)              | Decide which threats the library covers and where the application takes responsibility.     |
+
+## Testing and project records
+
+| Document                                         | What to use it for                                                                      |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| [Test coverage](COVERAGE.md)                     | Read the per-file Linux results or reproduce the measurement for a particular revision. |
+| [Audit reports](audits/README.md)                | Trace a finding to the reviewed source, its fix and the evidence for that fix.          |
+| [Changelog](../CHANGELOG.md)                     | Check which protections and API behavior changed.                                       |
+| [Third-party notices](../THIRD_PARTY_NOTICES.md) | Look up dependency licenses.                                                            |

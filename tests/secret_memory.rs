@@ -450,10 +450,8 @@ mod linux {
         std::path::Path::new("/sys/kernel/mm/transparent_hugepage/enabled").exists()
     }
 
-    /// The `late` role. A `fork` that another thread has begun runs no handler registered after
-    /// it started, so a process that already has threads cannot keep `fork` out any more: its
-    /// secrets lie on locked anonymous pages, never in secret memory, and stay there once it is
-    /// alone again.
+    /// Checks the anonymous fallback when another thread exists at the first allocation,
+    /// including its dump, fork and page-size properties.
     pub(super) fn first_secret_among_threads() {
         let other = std::thread::spawn(std::thread::park);
         let first = Secret::with_capacity(16);
@@ -608,8 +606,8 @@ mod linux {
         crate::support::role_ended("child", output.status, &output.stderr);
     }
 
-    /// Child process: a two-page secret is written and read under every lock limit down to 0, and must
-    /// be locked exactly when the limit allows. Needs a process without CAP_IPC_LOCK.
+    /// Exercises a two-page secret at page-aligned limits from the smaller of the test cap
+    /// and the process limit down to zero. Requires a process without CAP_IPC_LOCK.
     pub(super) fn secrets_under_every_lock_limit() {
         // SAFETY: sysconf takes an integer and touches no memory of this process.
         let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;

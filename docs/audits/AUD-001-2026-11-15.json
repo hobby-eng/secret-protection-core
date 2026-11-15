@@ -866,6 +866,6 @@
     "Native runtime evidence is limited to Linux x86_64 on kernel 7.0.0-43-generic. Clippy type-checked other targets. No native Windows, macOS, iOS, Android or WASM runtime, installer, link test or end-to-end consuming application was exercised.",
     "The ordinary suite, diagnostic and code review do not certify complete memory erasure, impossibility of disclosure, or resistance to privileged OS access. No secret transfer or exploit was demonstrated. No formal proof, sanitizer or disassembly campaign was performed.",
     "The host used a fresh target directory and offline locked dependencies. Upstream dependency internals and current transitive advisories were not audited.",
-    "Terminal password input integration in MHFE, actual StegoCode integration, browser UI, suspend images, VM snapshots and device-wide crash collectors are outside the library tests."
+    "The library tests did not cover terminal password entry in a consuming application, integration with a steganography application, browser interfaces, suspend images, VM snapshots or device-wide crash collectors."
   ]
 }

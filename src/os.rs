@@ -167,8 +167,8 @@ impl Pages {
         self.locked && self.here()
     }
 
-    /// Whether the pages are this process's own. In a child of `fork` those its parent made are
-    /// gone, or zeros without a lock; Windows starts a process without a copy of any.
+    /// Whether this process allocated the pages. Ordinary Unix `fork` advances the child's
+    /// generation even when the OS could not exclude the contents.
     pub(crate) fn here(&self) -> bool {
         #[cfg(unix)]
         let here = self.generation == unix::forks::generation();

@@ -1,30 +1,43 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-15 covered **95.18%** (2,471 of 2,596 measured source lines). All 84 checks passed (33 unit · 20 isolation · 9 secret-memory · 22 worker).
+The Linux x86-64 run on 2026-11-15 covered **95.18%** (2,471 of 2,596 measured source lines). All 84 checks passed (33 unit tests, 20 isolation checks, 9 secret-memory checks and 22 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov measured revision `3d914c82e0e5921f0c89dbfb4beb842e87662445`. The measured inputs have SHA-256 `5b126b808dbee3fdeaf228fd8b4155f4f5ebff87c64f4a1fe9189b881a645121`. LLVM reported mismatched profile data for 13 functions. The preceding measurement at `a4fd4c5` covered 2,468 of 2,596 lines (95.07%). [Earlier verification record](audits/AUD-015-2026-11-15.md)
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the working tree based on `e7b0d38fba46e45994cd8e7ecbdda185de9cee70`. The SHA-256 of its measured input manifest is `9503292b73ab2a39ede6083f838ff2715f464c539263a058e7d852b8ba46efc9`. An independent clean run of that commit before the local documentation and diagnostic wording changes also covered 2,471 of 2,596 lines. The current run reported no profile mismatches.
 
 ## Scope and exclusions
 
-The run covers unit tests inside the crate, the three Linux integration programs and their workers. Continuous profiling records counters for children that lose permission to open files. Integration test sources themselves are outside the denominator. Linux error returns and alternative libc paths account for some uncovered lines. Windows, Apple, Android and WebAssembly code have no Linux line count.
+The Linux x86-64 measurement includes unit tests for buffer bounds, guard pages, wiping, page permissions, protected stacks and isolation reports. It also includes child processes started by three integration suites.
+
+| Suite                                      | What it checks                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| [Isolation](../tests/isolation/main.rs)    | OS restrictions, thread scope and the effects of entering isolation more than once.                     |
+| [Secret memory](../tests/secret_memory.rs) | Page locking, dump exclusion, fork behavior and allocation failures.                                    |
+| [Worker](../tests/worker.rs)               | Process identity, startup checks, request and reply limits, and collection of the child after shutdown. |
+
+The nested PID-namespace check can report a skip if the host refuses `mlockall` or creation of a second PID namespace. A pass for the enclosing test alone does not establish that this branch ran. [Skip conditions](../tests/isolation/linux/roles.rs)
+
+The percentage counts library source lines compiled for Linux x86-64. Integration test source files and code specific to other platforms are outside the denominator. Some uncovered lines handle Linux errors or alternative C library implementations.
+
+CI also runs tests on Linux ARM64, macOS and Windows. Android, iOS and WebAssembly receive compile-time checks. The native macOS run at `e7b0d38` verified that the library collected a worker after the shutdown deadline. [CI configuration](../.github/workflows/ci.yml) · [Native run](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745920704)
 
 ## Reproduce on Linux
 
 From the repository root, in bash, with the pinned toolchain. The workspace laptop runs each Cargo command through `run-capped --`.
 
 ```sh
-export CARGO_TARGET_DIR="$PWD/target/coverage"
+mkdir -p target
+export CARGO_TARGET_DIR="$(mktemp -d "$PWD/target/coverage.XXXXXXXX")"
+export CARGO_LLVM_COV_TARGET_DIR="$CARGO_TARGET_DIR"
 source <(cargo llvm-cov show-env --sh)
 export RUSTFLAGS="-C llvm-args=-runtime-counter-relocation"
 export LLVM_PROFILE_FILE="$CARGO_TARGET_DIR/spc-%p%c.profraw"
-cargo llvm-cov clean --workspace
 cargo test --locked --offline
 cargo llvm-cov report --summary-only
 ```
 
-The `%c` in the name of the profile is what counts the processes that isolate themselves: without it each one is refused the writing of its profile when it ends (`LLVM Profile Error: … Permission denied`), and the figure comes out several points lower.
+`%p` gives each process its own profile. `%c` enables continuous profiling, so child processes can record counters after isolation removes their permission to open files. An exit-only profile can miss those executions.
 
 For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`. Sort by repository-relative path in byte order. Hash the resulting manifest of lowercase SHA-256 digests, two spaces, the path, and a newline per entry.
 

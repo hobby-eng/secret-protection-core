@@ -76,10 +76,9 @@ impl Options {
         self
     }
 
-    /// Linux and Android: every page of the process, now and later, stays out of swap
-    /// (`mlockall`), so copies the program makes of a secret never reach the disk either. Works
-    /// only when the lock limit covers the whole process, which usually takes raising it; under
-    /// the default limit the call is refused and [`Isolation::memory_locked`] says so.
+    /// Requests Linux or Android `mlockall` for current and future mappings. Check
+    /// [`Isolation::memory_locked`]. The lock quota can prevent success. Unlocking memory later
+    /// can leave the crate's record of an earlier successful lock in place.
     #[must_use]
     pub const fn lock_all_memory(mut self) -> Self {
         self.lock_all = true;
@@ -219,9 +218,9 @@ impl fmt::Display for Protection {
 pub enum Outcome {
     /// In effect, and the call observed it.
     Confirmed,
-    /// Tried or checked, and not in effect.
+    /// The attempt or its check failed.
     Refused,
-    /// An option the call did not turn on, and that was not in effect before.
+    /// The call did not request this option and did not confirm it was already active.
     NotRequested,
     /// Not offered on this system.
     #[default]
@@ -251,12 +250,11 @@ impl Outcome {
     }
 }
 
-/// The protections a program required that did not read back, with everything that did: the
-/// error of [`Isolation::enter_requiring`] and [`crate::Worker::start`]. What was applied stays
-/// applied, for good: the program stops before it reads a secret.
+/// A required protection lacked confirmation in the required scope. The caller receives
+/// the isolation report and can stop before reading a secret.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Missing {
-    /// The required protections that do not hold, in the order of [`Protection::ALL`].
+    /// The required protections that lacked confirmation, in the order of [`Protection::ALL`].
     pub missing: Vec<Protection>,
     /// What reads back as holding.
     pub isolation: Isolation,
@@ -264,7 +262,7 @@ pub struct Missing {
 
 impl fmt::Display for Missing {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("required protections do not hold:")?;
+        f.write_str("required protections not confirmed in scope:")?;
         for (index, protection) in self.missing.iter().enumerate() {
             let separator = if index == 0 { " " } else { ", " };
             write!(f, "{separator}{protection}")?;
@@ -313,7 +311,7 @@ mod tests {
         let text = missing.to_string();
         assert_eq!(
             text,
-            "required protections do not hold: no core dumps, low integrity"
+            "required protections not confirmed in scope: no core dumps, low integrity"
         );
         // What this system says of a protection that holds and of one refused differs; some, such
         // as a whole process on Windows, it never refuses.

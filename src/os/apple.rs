@@ -1,6 +1,5 @@
-//! macOS and iOS: the protections of [`crate::protect::Isolation::enter`], each for the whole
-//! process. macOS refuses a debugger and enters a sandbox without network or file writes; iOS offers
-//! an app neither, so there only the core-dump limit applies.
+//! macOS attempts debugger restrictions and a sandbox with limited terminal and `/dev/null`
+//! writes. Both macOS and iOS check the process core-dump limit.
 #![allow(
     unsafe_code,
     reason = "sysctl, ptrace and sandbox_init are foreign functions"
@@ -156,10 +155,8 @@ mod macos {
         (outcome(network_refused()), outcome(file_writes_refused()))
     }
 
-    /// Whether the sandbox refuses a new file in the temporary folder. The probe only ever makes
-    /// a new file: a file or a link already at its path is never opened, so nothing of anyone's
-    /// is truncated, and only a file this call made is removed. A path that is taken counts as
-    /// not refused, which never overstates the isolation.
+    /// Probes exclusive creation in the temporary directory. An existing file is never opened
+    /// or truncated. After successful creation, cleanup attempts to unlink the probe path.
     fn file_writes_refused() -> bool {
         let path =
             std::env::temp_dir().join(format!("secret-protection-core-{}", std::process::id()));
@@ -213,7 +210,7 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::NoFileChanges, O::Unknown) => {
             "a new file was refused, but this crate's sandbox profile is not in"
         }
-        (P::WholeProcess, O::Confirmed) => "everything here holds for the process",
+        (P::WholeProcess, O::Confirmed) => "this platform applies isolation at process scope",
         _ => return None,
     })
 }

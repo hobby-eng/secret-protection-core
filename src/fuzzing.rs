@@ -13,12 +13,12 @@ pub fn options_again(bits: u32) -> u32 {
     Options::from_bits(bits).to_bits()
 }
 
-/// The parent's reading of its worker's report.
+/// Parses the isolation bytes in a startup report, excluding the separate clean-start flag.
 pub fn report(bytes: &[u8]) -> Option<Isolation> {
     Isolation::from_bytes(bytes)
 }
 
-/// The report a worker writes.
+/// Encodes the isolation outcomes and their scope, the first part of a startup report.
 pub fn report_bytes(isolation: Isolation) -> Vec<u8> {
     isolation.to_bytes().to_vec()
 }

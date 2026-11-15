@@ -358,8 +358,8 @@ fn isolated() {
     waiting_thread();
     let isolation = Isolation::enter();
     expect_whole_process(isolation);
-    // A second call reads back the same, what the first one set included: on Linux the namespace,
-    // on Windows the access lists and the integrity level.
+    // Linux reads back the earlier setup. On Windows a repeated standalone check can lose
+    // visibility of the threads needed to confirm access control and integrity.
     #[cfg(target_os = "linux")]
     assert_eq!(Isolation::enter(), isolation);
     #[cfg(windows)]

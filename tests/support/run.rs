@@ -1,6 +1,5 @@
-//! The runner of the test programs with a `main` of their own: each check is reported as the
-//! standard harness reports it, and one that could not be made on this system as skipped, with
-//! its reason, never as passed.
+//! Reports each integration check, including why a whole check was skipped or a subcase
+//! could not run. A partially exercised check prints its reason alongside the result.
 #![allow(dead_code, reason = "each test program uses a part of the runner")]
 
 use std::process::ExitStatus;

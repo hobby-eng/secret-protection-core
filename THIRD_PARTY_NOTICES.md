@@ -14,5 +14,6 @@ The versions below come from the library's [Cargo.lock](Cargo.lock). The fuzz ta
 
 - **enumflags2_derive 0.7.12** provides the macros for enumflags2. Maik Klein and Maja Kądziołka, MIT OR Apache-2.0.
 - **thiserror-impl 2.0.21** provides the macros for thiserror. David Tolnay, MIT OR Apache-2.0.
-- **proc-macro2 1.0.107**, **quote 1.0.47**, and **syn 2.0.119 and 3.0.10** support the macro builds. David Tolnay, MIT OR Apache-2.0.
+- **proc-macro2 1.0.107** supplies token streams for procedural macros. David Tolnay and Alex Crichton, MIT OR Apache-2.0.
+- **quote 1.0.47** and **syn 2.0.119 and 3.0.10** generate and parse Rust tokens for those macros. David Tolnay, MIT OR Apache-2.0.
 - **unicode-ident 1.0.27** supplies Unicode identifier tables. David Tolnay, (MIT OR Apache-2.0) AND Unicode-3.0.

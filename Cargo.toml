@@ -3,7 +3,7 @@ name = "secret-protection-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
-description = "Memory pages for secrets that stay out of swap, core dumps and child processes, wiped when dropped, and the isolation of a process against a secret leaving it"
+description = "Wipe-on-drop buffers, platform-specific memory protection and isolated worker processes for handling secrets"
 license = "MIT OR Apache-2.0"
 # Not published to crates.io.
 publish = false

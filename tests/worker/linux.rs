@@ -170,9 +170,8 @@ pub(super) fn without_listing() {
     assert!(!open.complete, "{open:?}");
 }
 
-/// Where /dev/null cannot be opened, a worker that serves no more points its streams at an
-/// ended pipe: the parent's call fails long before the worker ends by itself, and the
-/// worker, whose numbers are still taken, lives on until it is killed after a second.
+/// Without a writable `/dev/null`, refusing an oversized request still closes the channel.
+/// Later calls on the same worker return `BrokenPipe`.
 pub(super) fn without_null() {
     refuse_read_write_opens();
     let mut worker = Worker::start(Options::new(), &[]).unwrap();

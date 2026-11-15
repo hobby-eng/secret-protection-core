@@ -2585,7 +2585,7 @@
       }
     },
     "downstreamSpotCheck": {
-      "repository": "reed-solomon-core",
+      "repository": "downstream Rust library (name omitted)",
       "purpose": "Pin and WorkArea wrapper only",
       "paths": {
         "Cargo.toml": "107375249e97ad238e83fea323c6fc51e1c2215c6a84aaadae526bc234100d8c",
@@ -3524,7 +3524,7 @@
     }
   },
   "limitations": [
-    "The exact pinned Rust 1.99.1 was used. Rust 1.99.0 was not separately exercised. No runtime test on an Android or iOS device, no browser UI/runtime integration acceptance and no downstream Reed–Solomon algorithm audit. The WebAssembly exercise uses V8/Node. A Windows/macOS native runtime was available through published CI, not on the Linux audit host.",
+    "The exact pinned Rust 1.99.1 was used. Rust 1.99.0 was not separately exercised. No runtime test on an Android or iOS device, no browser UI/runtime integration acceptance and no audit of the downstream library’s error-correction algorithm. The WebAssembly exercise uses V8/Node. A Windows/macOS native runtime was available through published CI, not on the Linux audit host.",
     "The points about post-fork mapping ownership, loader constructor order and platform guarantees are supported by source and primary platform contracts. No secret disclosure or attack execution was observed. The high finding concerns continuing Unix children; ordinary spawn with immediate exec has a different lifetime.",
     "Historical mutation, performance trials and earlier adversarial harnesses were not replayed. The exact source trees, reports and individual earlier evidence remain identifiable. Native sanitizer/Miri scopes, excluded tests and target-specific limitations are recorded per job.",
     "There is no release tag, published binary, registry package or canonical bit-for-bit artifact acceptance procedure in this Git-only draft. The native library has a local SHA-256; binary reproducibility against an independent build was not established. A remote signature and branch identity apply to source, not a registry artifact.",

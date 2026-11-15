@@ -1,8 +1,5 @@
-//! Typing a secret in a window without the window keeping it.
-//!
-//! An ordinary text field keeps copies in its toolkit's buffers, which nobody can wipe. So the
-//! window sends each key to the worker as a [`Keystroke`] and keeps only the count for the dots,
-//! and the worker builds the text in a [`SecretLine`].
+//! A GUI can forward individual keystrokes to a worker that holds the text in a [`SecretLine`].
+//! The GUI sees each key event. Its toolkit and the application control any copies they retain.
 
 use zeroize::Zeroize;
 

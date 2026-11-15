@@ -1,7 +1,6 @@
-//! The keys a window sends to the worker for a secret field: a window someone else controls can
-//! send any bytes. A line takes only keystrokes, never holds more than its capacity, and holds
-//! what the keystrokes it took spell. The first byte is the capacity; then each frame is a length
-//! byte and that many bytes.
+//! Models a worker's secret line while decoding public fuzz input. The first byte sets the
+//! capacity. Each subsequent length byte selects zero to six frame bytes (length modulo seven),
+//! limited by how many input bytes remain.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;

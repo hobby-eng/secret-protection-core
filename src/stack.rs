@@ -60,11 +60,11 @@ pub struct StackRun<R> {
     pub properties: StackProperties,
 }
 
-/// Runs `work` on a new thread whose stack (at least `stack_bytes`) lies in protected pages, wiped
-/// after the thread ends, so the work's local variables go with it. The work runs only when the
-/// stack has every property in `required`. With unwinding enabled, a panic in `work` comes back to the caller. A panic-abort build exits. The work
-/// must not `fork`, nor another thread while it runs: the child would find this stack empty.
-/// Registers, the caller's stack and heap copies are not covered.
+/// Runs `work` on a new thread only when its stack has every property in `required`.
+/// After the thread exits the library wipes the supplied stack. With unwinding enabled,
+/// a panic propagates to the caller. A panic-abort build exits immediately. Avoid `fork`
+/// anywhere in the process while this stack is active. Registers and heap copies have
+/// separate lifetimes.
 pub fn run_on_protected_stack<R: Send>(
     stack_bytes: usize,
     required: StackProperties,

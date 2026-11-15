@@ -1,6 +1,5 @@
-//! The forks of this process, counted in each child, so that pages made before a `fork` are known
-//! there: the system took them away (secret memory, macOS) or left zeros without a lock (Linux's
-//! anonymous pages), and their owner must not touch them.
+//! Unix buffers record their fork generation. A continuing child must leave an inherited owner
+//! alone. Depending on the mapping and the OS, the child may receive no pages, zeros or a copy.
 #![allow(unsafe_code, reason = "pthread_atfork and write are foreign functions")]
 
 use std::sync::Once;
@@ -40,8 +39,7 @@ pub(crate) fn generation() -> usize {
     GENERATION.load(Ordering::Relaxed)
 }
 
-/// Ends a child that reaches the bytes of pages its parent made: they are gone or zeros there,
-/// and a reference to them would be undefined behaviour.
+/// Aborts before a continuing child can borrow its parent's mapping.
 pub(crate) fn foreign() -> ! {
     const TEXT: &[u8] =
         b"secret-protection-core: a buffer made before fork was used in the child\n";

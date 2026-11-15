@@ -34,7 +34,7 @@ pub struct Worker {
 /// process it started.
 #[derive(Debug)]
 pub enum WorkerError {
-    /// The process did not start, or ended before it said what read back.
+    /// Launch, transport or startup protocol failed before admission.
     Start(io::Error),
     /// The worker's start was not clean: it holds a descriptor besides its standard streams,
     /// inherited or opened by the program before `serve`, could not list its descriptors, or
@@ -65,11 +65,10 @@ impl Worker {
         Self::starting(options, required, false)
     }
 
-    /// As [`Worker::start`], but the worker keeps the terminal (Linux and macOS): its standard
-    /// error and the terminal the program runs on, so that the program's code there can read a
-    /// password and the parent never holds it. This crate reads none and changes no terminal
-    /// setting: the echo is the program's to turn off, through standard error, since a terminal
-    /// opened after the isolation takes no settings (Linux 6.10).
+    /// Starts a Linux or macOS worker with access to the controlling terminal and standard
+    /// error. The application can read input there without routing it through the parent.
+    /// The application must disable and restore terminal echo. On Linux a Landlock restriction
+    /// can prevent changing settings on a terminal opened later.
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],

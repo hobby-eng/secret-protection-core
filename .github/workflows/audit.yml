@@ -1,7 +1,6 @@
 name: RustSec audit
 
-# Cargo.lock against the RustSec advisory database, on a change of the dependencies and once a
-# week. Follows mhfe_core's .github/workflows/audit.yml: a change goes to both.
+# Check both the library and fuzz lockfiles against RustSec when dependencies change and once a week.
 on:
   # Branches only, as for CI: a release tag adds nothing to check.
   push:

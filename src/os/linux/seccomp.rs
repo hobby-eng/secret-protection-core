@@ -339,9 +339,8 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
     program
 }
 
-/// The bits of this crate's filter that the calling thread holds, from its own call or from
-/// the thread that started it, or `None` for none: only this filter answers [`MARK_OPTION`]
-/// with [`MARK`]. Of two such filters, the newer answers.
+/// Reads the rules marked on the calling thread or inherited from its creator. The marker
+/// assumes other policies do not deliberately return this crate's response.
 pub(super) fn held() -> Option<u32> {
     // SAFETY: prctl takes integers; with an option that no kernel has it changes nothing and
     // touches no memory of this process.

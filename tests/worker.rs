@@ -1,8 +1,6 @@
-//! The worker process: started, cleaned up and isolated before it gets anything, answering
-//! requests, with no environment, descriptor or terminal of its parent's but its pipes; stopped
-//! before any request when it is not clean or lacks a required protection; and ended at once when
-//! a call fails. The program is both sides: its `main` calls `serve` first, as a program using the
-//! crate does.
+//! Exercises worker admission, request limits, transport failure and shutdown. The parent
+//! and worker use the same executable. The outcomes depend on the platform and on whether
+//! the launcher acquired a stable handle for termination.
 #![allow(
     unsafe_code,
     reason = "the checks look at descriptors and sessions with the system's calls"
@@ -46,9 +44,7 @@ static EXIT_GATE: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new(
 /// How long such a worker stays, at most: long past every wait of its parent, so that within a
 /// check it ends only when it is killed.
 const LINGER_SECONDS: u32 = 30;
-/// The inodes of the pipes above standard error that were open when this program's first code
-/// ran, before `main`, as the start-up code of a library linked to it would find them; zeros
-/// after the last.
+/// Inodes of up to 16 FIFOs found at descriptors 3 through 255 before `main`.
 #[cfg(unix)]
 static PIPES_BEFORE_MAIN: [std::sync::atomic::AtomicU64; 16] =
     [const { std::sync::atomic::AtomicU64::new(0) }; 16];

@@ -538,7 +538,7 @@ enum Speculation {
     Off,
     /// On, or off in a way the program could undo.
     On,
-    /// The kernel has no such control here: ENODEV, as AArch64 answers for indirect branches.
+    /// The query failed, for example with ENODEV on a CPU without this control.
     Unknown,
 }
 
@@ -554,9 +554,8 @@ fn speculation_state(answer: Option<libc::c_int>) -> Speculation {
     }
 }
 
-/// Turns off speculative store bypass and indirect branch speculation for good (Spectre v4 and v2).
-/// The kernel leaves both to each program because they cost speed. Confirmed when both are off
-/// for good or not needed; unknown when the kernel gives no control of one of them.
+/// Requests permanent disabling of both speculation mechanisms. A state that is enabled
+/// or can be re-enabled gives `Refused`; otherwise a failed query gives `Unknown`.
 fn limit_speculation() -> Outcome {
     let states = SPECULATIONS.map(|which| {
         // SAFETY: prctl takes integers and touches no memory of this process.
@@ -814,13 +813,19 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
             "the threads could not be read, or a PID namespace of its own hides outside tracers"
         }
         (P::NoNewSockets, O::Confirmed) => "the filter answers its mark, and a socket was refused",
-        (P::NoNewSockets, O::Refused) => "a new socket was not refused",
+        (P::NoNewSockets, O::Refused) => {
+            "the socket checks did not confirm the expected restriction"
+        }
         (P::NoNewSockets, O::Unknown) => "a socket was refused, but not by this crate's filter",
         (P::NoNewPrograms, O::Confirmed) => "the filter answers its mark, and execve was refused",
         (P::NoNewPrograms, O::Refused) => "execve was not refused",
         (P::NoNewPrograms, O::Unknown) => "execve was refused, but not by this crate's filter",
-        (P::EmptyNetwork, O::Confirmed) => "namespaces of its own: only loopback, down, no route",
-        (P::EmptyNetwork, O::Refused) => "no network namespace of its own",
+        (P::EmptyNetwork, O::Confirmed) => {
+            "namespace setup recorded, no interface besides loopback listed, no IPv4 routes"
+        }
+        (P::EmptyNetwork, O::Refused) => {
+            "namespace setup or the interface and IPv4 route checks failed"
+        }
         (P::NoFileChanges, O::Confirmed) => {
             "the filter answers its mark, and opening for writing was refused"
         }
@@ -831,9 +836,13 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
             "both kinds read back off for good, or the processor is not affected"
         }
         (P::SpeculationLimited, O::Refused) => "a kind did not read back off for good",
-        (P::SpeculationLimited, O::Unknown) => "the kernel gives no control of a kind here",
+        (P::SpeculationLimited, O::Unknown) => {
+            "the kernel did not return a state for at least one mechanism"
+        }
         (P::WholeProcess, O::Confirmed) => "the process had one thread at the call",
-        (P::WholeProcess, O::Refused) => "the process had other threads at the call",
+        (P::WholeProcess, O::Refused) => {
+            "the call could not establish that the process had exactly one thread"
+        }
         (P::FileLocksRefused, O::Confirmed) => {
             "the filter has the rule, and a lock on /dev/null was refused"
         }
