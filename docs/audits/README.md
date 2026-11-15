@@ -58,6 +58,8 @@ The reports AUD-001 to AUD-008 name commits by the hashes these had in the draft
 
 AUD-008 gives the state of every finding at `2f28cb3`: 24 verified, 13 fixed with their verification outstanding, 9 open, and 3 new. The table has the 25 that are not verified, as they stand at `0b0aa7f`. `fixed` means a fix exists at the commit named and no later review has verified it yet; none is open. A review of `960647c` kept outside the numbered reports found four more points, fixed in `c57018a`. The six findings of AUD-009 follow them, as they stand at `bebf3ff`: five fixed, and one mitigated with its rest accepted.
 
+Where a row says that the fix was not run on Windows or macOS, that was so when it was written. Since `f89d0bf` the crate's tests run on Linux for AArch64, macOS and Windows at every push, first in GitHub's run 43694705738: the code of those fixes runs there and its tests pass. That is not the verification of a review, and the statuses stand.
+
 | Finding ID | Status | Fix commit | Verification commit | Evidence |
 | --- | --- | --- | --- | --- |
 | AUD-001-API001 | fixed | `0b0aa7fd417e0d0c5d126c831bdffaebaa955977` | none | A lock taken where no mark can be made reads as unknown in later calls. Unit test of the answers. |
