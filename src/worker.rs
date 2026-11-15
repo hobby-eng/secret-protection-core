@@ -200,11 +200,13 @@ impl fmt::Debug for Worker {
     }
 }
 
-/// The options and whether to keep the terminal, as the parent wrote them into [`WORKER`].
-fn setting() -> Option<(u32, bool)> {
-    let setting = std::env::var(WORKER).ok()?;
-    let (options, terminal) = setting.split_once(',')?;
-    Some((options.parse().ok()?, terminal == "1"))
+/// What the parent wrote into [`WORKER`]: the options, whether to keep the terminal, and on
+/// Windows the name of the pipe. `None` for any other text.
+fn setting(text: &str) -> Option<(u32, bool, &str)> {
+    let mut parts = text.splitn(3, ',');
+    let options = parts.next()?.parse().ok()?;
+    let terminal = parts.next()? == "1";
+    Some((options, terminal, parts.next().unwrap_or_default()))
 }
 
 /// The worker side. If this process was started by [`Worker::start`], it sheds what it inherited,
@@ -212,7 +214,8 @@ fn setting() -> Option<(u32, bool)> {
 /// parent closes the pipe, and returns `true`; otherwise it returns `false` at once. Call it first
 /// in `main`, before any thread starts. A worker whose start was not clean takes no request.
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
-    let Some((options, terminal)) = setting() else {
+    let text = std::env::var(WORKER).unwrap_or_default();
+    let Some((options, terminal, channel)) = setting(&text) else {
         return false;
     };
     let mut clean = crate::os::close_inherited();
@@ -220,7 +223,9 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
         clean &= crate::os::leave_terminal();
     }
     let isolation = Isolation::enter_with(Options::from_bits(options));
-    let (mut input, mut output) = crate::os::worker_streams();
+    let Ok((mut input, mut output)) = crate::os::worker_streams(channel) else {
+        return true;
+    };
     let mut report = [0; REPORT_BYTES];
     report[..Protection::COUNT].copy_from_slice(&isolation.to_bytes());
     report[Protection::COUNT] = u8::from(clean);
@@ -258,6 +263,17 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The worker's setting: options, the terminal, and the name of a pipe where there is one.
+    #[test]
+    fn a_setting_is_read_as_the_parent_writes_it() {
+        assert_eq!(setting("5,1"), Some((5, true, "")));
+        let named = setting("0,0,//./pipe/name,with,commas");
+        assert_eq!(named, Some((0, false, "//./pipe/name,with,commas")));
+        for other in ["", "none", "x,1", "7"] {
+            assert_eq!(setting(other), None, "{other}");
+        }
+    }
 
     /// A report is taken only as a worker of this crate writes it.
     #[test]

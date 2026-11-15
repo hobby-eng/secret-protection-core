@@ -240,8 +240,8 @@ mod unsupported {
         Err(crate::StackError::Unsupported)
     }
 
-    pub(crate) fn worker_streams() -> (io::Empty, io::Sink) {
-        (io::empty(), io::sink())
+    pub(crate) fn worker_streams(_channel: &str) -> io::Result<(io::Empty, io::Sink)> {
+        Ok((io::empty(), io::sink()))
     }
 }
 

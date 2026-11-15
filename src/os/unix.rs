@@ -505,15 +505,17 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
 
 /// The worker's standard input and output, unbuffered, so that no copy of a secret stays in a
 /// buffer of the standard library; they stay open when dropped.
-pub(crate) fn worker_streams() -> (ManuallyDrop<File>, ManuallyDrop<File>) {
+pub(crate) fn worker_streams(
+    _channel: &str,
+) -> io::Result<(ManuallyDrop<File>, ManuallyDrop<File>)> {
     // SAFETY: descriptors 0 and 1 are the pipes the parent made, open for the whole process;
     // `ManuallyDrop` never closes them.
-    unsafe {
+    Ok(unsafe {
         (
             ManuallyDrop::new(File::from_raw_fd(libc::STDIN_FILENO)),
             ManuallyDrop::new(File::from_raw_fd(libc::STDOUT_FILENO)),
         )
-    }
+    })
 }
 
 /// Sets both limits of RLIMIT_CORE to 0, so that a crash writes no core file and the limit cannot

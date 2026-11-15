@@ -1,26 +1,38 @@
-//! The worker process on Windows: started in an AppContainer without capabilities, with its
-//! two pipes as the only handles it inherits.
+//! The worker process on Windows: started in an AppContainer without capabilities, and without
+//! one handle of its parent's. The two talk through a named pipe that the worker opens by name.
 
+use std::fs::File;
 use std::io;
-use std::mem::size_of;
+use std::mem::{ManuallyDrop, size_of};
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::ptr;
+use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::System::Console::{GetStdHandle, STD_OUTPUT_HANDLE};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, LocalFree};
+use windows_sys::Win32::Security::PSID;
+use windows_sys::Win32::Storage::FileSystem::{FILE_GENERIC_READ, FILE_WRITE_DATA};
 
-/// The parent's end of a worker: pipes to its standard input and from its standard output, and
+/// What a worker may do with its pipe: read it and write to it, and no more, such as making a
+/// further instance of it.
+const CLIENT_ACCESS: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
+/// The name of every worker's pipe, before its 32 random hexadecimal digits.
+const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
+/// The pipe's buffers, each way.
+const PIPE_BUFFER: u32 = 64 << 10;
+
+/// The parent's end of a worker: its pipe, as one handle to write to and one to read from, and
 /// the process.
 pub(crate) struct WorkerProcess {
-    pub(crate) to: Option<std::fs::File>,
-    pub(crate) from: Option<std::fs::File>,
-    process: std::os::windows::io::OwnedHandle,
+    pub(crate) to: Option<File>,
+    pub(crate) from: Option<File>,
+    process: OwnedHandle,
 }
 
 impl WorkerProcess {
-    /// Starts this program again in its own AppContainer: no capabilities, no console, an environment
-    /// with only the worker variable, set to `setting`, and only its two pipes inherited. The
-    /// program file must be readable by app containers (Program Files is), or Windows refuses to
-    /// start it. A worker on the terminal is not offered here.
+    /// Starts this program again in its own AppContainer: no capabilities, no console, no handle
+    /// inherited, and an environment with only the worker variable, set to `setting` and the
+    /// name of its pipe. The program file must be readable by app containers (Program Files
+    /// is), or Windows refuses to start it. A worker on the terminal is not offered here.
     pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         use std::os::windows::ffi::OsStrExt;
         if terminal {
@@ -29,13 +41,26 @@ impl WorkerProcess {
         let program = std::env::current_exe()?;
         let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
         let container = Container::of(&path)?;
-        let pipes = Pipes::new()?;
-        let process = container.start(&path, &pipes, setting)?;
-        Ok(Self {
-            to: Some(std::fs::File::from(pipes.parent_in)),
-            from: Some(std::fs::File::from(pipes.parent_out)),
+        let (pipe, name) = listen(&container)?;
+        let (process, id) = container.start(&path, &format!("{setting},{name}"))?;
+        let mut worker = Self {
+            to: None,
+            from: None,
             process,
-        })
+        };
+        let process: HANDLE = worker.process.as_raw_handle().cast();
+        match accept(&pipe, process, id).and_then(|()| pipe.try_clone()) {
+            Ok(second) => {
+                worker.to = Some(File::from(pipe));
+                worker.from = Some(File::from(second));
+                Ok(worker)
+            }
+            Err(error) => {
+                drop(pipe);
+                worker.finish();
+                Err(error)
+            }
+        }
     }
 
     /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
@@ -63,13 +88,181 @@ impl WorkerProcess {
     }
 }
 
-/// The SID of the program's AppContainer, freed when dropped.
-struct Container(windows_sys::Win32::Security::PSID);
+/// Makes the pipe of one worker and returns it with its name. Only a process of this user in
+/// `container` passes its access list, only one process ever opens it, and none inherits it.
+fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::Cryptography::{
+        BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+    };
+    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
+        PIPE_TYPE_BYTE,
+    };
+    let mut random = [0_u8; 16];
+    // SAFETY: the call fills the sixteen bytes it is given.
+    let filled = unsafe {
+        BCryptGenRandom(
+            ptr::null_mut(),
+            random.as_mut_ptr(),
+            random.len() as u32,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    } == 0;
+    if !filled {
+        return Err(io::Error::other("Windows gave no random name for the pipe"));
+    }
+    let name = format!("{PIPE_PREFIX}{:032x}", u128::from_le_bytes(random));
+    // The user and the container may read and write; the owner's own rights end at reading
+    // this list; the low label lets a process of low integrity write.
+    let access = format!(
+        "D:P(A;;{CLIENT_ACCESS:#x};;;{})(A;;{CLIENT_ACCESS:#x};;;{})(A;;RC;;;OW)S:(ML;;NW;;;LW)",
+        user()?,
+        sid_text(container.0)?
+    );
+    let access: Vec<u16> = access.encode_utf16().chain([0]).collect();
+    let mut descriptor = ptr::null_mut();
+    // SAFETY: the string is NUL-terminated; the call allocates the descriptor, freed below.
+    let made = unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            access.as_ptr(),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            ptr::null_mut(),
+        )
+    } != 0;
+    if !made {
+        return Err(io::Error::last_os_error());
+    }
+    let attributes = SECURITY_ATTRIBUTES {
+        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor,
+        bInheritHandle: 0,
+    };
+    let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
+    // SAFETY: the name is NUL-terminated and the attributes live for the call, which returns a
+    // new handle or INVALID_HANDLE_VALUE. A name that is taken is refused: one instance only.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            wide.as_ptr(),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            PIPE_BUFFER,
+            PIPE_BUFFER,
+            0,
+            &attributes,
+        )
+    };
+    let error = io::Error::last_os_error();
+    // SAFETY: frees the descriptor the conversion allocated, once, after its last use.
+    unsafe { LocalFree(descriptor) };
+    if pipe == INVALID_HANDLE_VALUE {
+        return Err(error);
+    }
+    // SAFETY: the handle was just made and nothing else owns it.
+    Ok((unsafe { OwnedHandle::from_raw_handle(pipe.cast()) }, name))
+}
 
-/// Held while the worker's ends of the pipes can be inherited, so that two workers starting at
-/// once never get each other's ends. Other code of the program that starts a process with
-/// handle inheritance in that moment is beyond this lock.
-static LAUNCHING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// Waits for the worker to open `pipe` and takes no one else: the process at the other end must
+/// be number `id`. An error when the worker ends first. From then on the pipe waits for reads
+/// and writes.
+fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
+    use windows_sys::Win32::Foundation::{
+        ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, WAIT_OBJECT_0,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        ConnectNamedPipe, GetNamedPipeClientProcessId, PIPE_READMODE_BYTE, PIPE_WAIT,
+        SetNamedPipeHandleState,
+    };
+    use windows_sys::Win32::System::Threading::WaitForSingleObject;
+    let pipe: HANDLE = pipe.as_raw_handle().cast();
+    loop {
+        // SAFETY: the pipe does not wait, so the call returns at once; the error is its own.
+        let (connected, error) =
+            unsafe { (ConnectNamedPipe(pipe, ptr::null_mut()) != 0, GetLastError()) };
+        if connected || error == ERROR_PIPE_CONNECTED {
+            break;
+        }
+        // SAFETY: asks, without waiting, whether the worker has ended.
+        let ended = unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0;
+        if ended || error != ERROR_PIPE_LISTENING {
+            return Err(io::Error::other("the worker did not open its pipe"));
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let mut client = 0;
+    // SAFETY: the call writes the number of the process at the other end.
+    let known = unsafe { GetNamedPipeClientProcessId(pipe, &mut client) } != 0;
+    if !known || client != id {
+        return Err(io::Error::other("another process opened the worker's pipe"));
+    }
+    let waits = PIPE_READMODE_BYTE | PIPE_WAIT;
+    // SAFETY: the call reads one mode word, which lives for the call.
+    if unsafe { SetNamedPipeHandleState(pipe, &waits, ptr::null(), ptr::null()) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// The SID of the user this process runs as, as text.
+fn user() -> io::Result<String> {
+    use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    let mut token = ptr::null_mut();
+    // SAFETY: opens the token of this process for reading; closed below.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // TOKEN_USER and the SID it points to: well within 128 bytes, in words aligned for the
+    // pointer.
+    let mut buffer = [0_u64; 16];
+    let mut length = 0;
+    // SAFETY: the call writes at most the buffer's length into it, and the length it needed.
+    let read = unsafe {
+        GetTokenInformation(
+            token,
+            TokenUser,
+            buffer.as_mut_ptr().cast(),
+            size_of::<[u64; 16]>() as u32,
+            &mut length,
+        )
+    } != 0;
+    let error = io::Error::last_os_error();
+    // SAFETY: closes the token opened above, once.
+    unsafe { CloseHandle(token) };
+    if !read {
+        return Err(error);
+    }
+    // SAFETY: the call filled the buffer with a TOKEN_USER whose SID lies inside it.
+    sid_text(unsafe { (*buffer.as_ptr().cast::<TOKEN_USER>()).User.Sid })
+}
+
+/// A SID as the text an access list names it by.
+fn sid_text(sid: PSID) -> io::Result<String> {
+    use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
+    let mut text: *mut u16 = ptr::null_mut();
+    // SAFETY: the SID is valid; the call allocates a NUL-terminated string, freed below.
+    if unsafe { ConvertSidToStringSidW(sid, &mut text) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the string ends with a NUL and lives until it is freed, once, after its last use.
+    unsafe {
+        let length = (0..).take_while(|&at| *text.add(at) != 0).count();
+        let sid = String::from_utf16_lossy(std::slice::from_raw_parts(text, length));
+        LocalFree(text.cast());
+        Ok(sid)
+    }
+}
+
+/// The SID of the program's AppContainer, freed when dropped.
+struct Container(PSID);
 
 impl Container {
     /// The AppContainer of the program at `path` (NUL-terminated UTF-16), made at its first start:
@@ -111,32 +304,17 @@ impl Container {
         }
     }
 
-    /// Starts the program at `path` in this AppContainer, without capabilities, its standard input
-    /// and output the child's ends of `pipes`, which are the only handles it inherits, and with the
-    /// worker's variable alone in its environment. The child's ends can be inherited only for the
-    /// length of this call, under [`LAUNCHING`].
-    fn start(
-        &self,
-        path: &[u16],
-        pipes: &Pipes,
-        setting: &str,
-    ) -> io::Result<std::os::windows::io::OwnedHandle> {
-        use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+    /// Starts the program at `path` in this AppContainer, without capabilities, without one
+    /// handle of this process's and without standard streams, the worker's variable alone in
+    /// its environment. Returns the process and its number.
+    fn start(&self, path: &[u16], setting: &str) -> io::Result<(OwnedHandle, u32)> {
         use windows_sys::Win32::System::Threading::{
             CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
-            EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-            STARTUPINFOEXW,
+            EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTUPINFOEXW,
         };
-        let handles: [HANDLE; 2] = [
-            pipes.child_in.as_raw_handle().cast(),
-            pipes.child_out.as_raw_handle().cast(),
-        ];
-        let attributes = Attributes::new(self.0, &handles)?;
+        let attributes = Attributes::new(self.0)?;
         let mut startup = STARTUPINFOEXW::default();
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        startup.StartupInfo.hStdInput = handles[0];
-        startup.StartupInfo.hStdOutput = handles[1];
         startup.lpAttributeList = attributes.list;
         let mut environment: Vec<u16> = format!("{}={setting}", crate::worker::WORKER)
             .encode_utf16()
@@ -148,38 +326,33 @@ impl Container {
             .chain([u16::from(b'"'), 0])
             .collect();
         let mut information = PROCESS_INFORMATION::default();
-        let _launching = LAUNCHING
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let inheritable = pipes.inherit(true);
         // SAFETY: every pointer is valid for the call: the NUL-terminated path, the command line,
         // which the call may change, the environment block ending in two NULs, and the startup
-        // information with its attribute list.
-        let started = inheritable.is_ok()
-            && unsafe {
-                CreateProcessW(
-                    path.as_ptr(),
-                    command.as_mut_ptr(),
-                    ptr::null(),
-                    ptr::null(),
-                    1,
-                    EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
-                    environment.as_mut_ptr().cast(),
-                    ptr::null(),
-                    &startup.StartupInfo,
-                    &mut information,
-                )
-            } != 0;
-        let error = io::Error::last_os_error();
-        let _ = pipes.inherit(false);
-        inheritable?;
+        // information with its attribute list. No handle is inherited.
+        let started = unsafe {
+            CreateProcessW(
+                path.as_ptr(),
+                command.as_mut_ptr(),
+                ptr::null(),
+                ptr::null(),
+                0,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
+                environment.as_mut_ptr().cast(),
+                ptr::null(),
+                &startup.StartupInfo,
+                &mut information,
+            )
+        } != 0;
         if !started {
-            return Err(error);
+            return Err(io::Error::last_os_error());
         }
         // SAFETY: the process and thread handles were just made and nothing else owns them.
         unsafe {
             CloseHandle(information.hThread);
-            Ok(OwnedHandle::from_raw_handle(information.hProcess.cast()))
+            Ok((
+                OwnedHandle::from_raw_handle(information.hProcess.cast()),
+                information.dwProcessId,
+            ))
         }
     }
 }
@@ -191,8 +364,8 @@ impl Drop for Container {
     }
 }
 
-/// The attribute list of a worker's start: its AppContainer, and the two handles it may inherit.
-/// Deleted when dropped, which happens only for a list that was initialized.
+/// The attribute list of a worker's start: its AppContainer. Deleted when dropped, which
+/// happens only for a list that was initialized.
 struct Attributes {
     list: windows_sys::Win32::System::Threading::LPPROC_THREAD_ATTRIBUTE_LIST,
     _memory: Vec<u64>,
@@ -200,14 +373,11 @@ struct Attributes {
 }
 
 impl Attributes {
-    fn new(
-        container: windows_sys::Win32::Security::PSID,
-        handles: &[HANDLE; 2],
-    ) -> io::Result<Self> {
+    fn new(container: PSID) -> io::Result<Self> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
-            InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, UpdateProcThreadAttribute,
+            InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+            UpdateProcThreadAttribute,
         };
         let capabilities = Box::new(SECURITY_CAPABILITIES {
             AppContainerSid: container,
@@ -216,12 +386,12 @@ impl Attributes {
             Reserved: 0,
         });
         let mut size = 0;
-        // SAFETY: with no list, the call only answers the size of a list of two attributes.
-        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), 2, 0, &mut size) };
+        // SAFETY: with no list, the call only answers the size of a list of one attribute.
+        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut size) };
         let mut memory = vec![0_u64; size.div_ceil(8)];
         let list = memory.as_mut_ptr().cast();
         // SAFETY: the memory has the size the first call asked for.
-        if unsafe { InitializeProcThreadAttributeList(list, 2, 0, &mut size) } == 0 {
+        if unsafe { InitializeProcThreadAttributeList(list, 1, 0, &mut size) } == 0 {
             // Not initialized: there is nothing to delete.
             return Err(io::Error::last_os_error());
         }
@@ -230,8 +400,8 @@ impl Attributes {
             _memory: memory,
             _capabilities: capabilities,
         };
-        // SAFETY: the list is initialized with room for two attributes; each points to a value
-        // that lives as long as the list: the boxed capabilities, and the caller's handles.
+        // SAFETY: the list is initialized with room for one attribute, which points to the boxed
+        // capabilities: they live as long as the list.
         let updated = unsafe {
             UpdateProcThreadAttribute(
                 list,
@@ -241,17 +411,8 @@ impl Attributes {
                 size_of::<SECURITY_CAPABILITIES>(),
                 ptr::null_mut(),
                 ptr::null(),
-            ) != 0
-                && UpdateProcThreadAttribute(
-                    list,
-                    0,
-                    PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                    handles.as_ptr().cast(),
-                    size_of::<[HANDLE; 2]>(),
-                    ptr::null_mut(),
-                    ptr::null(),
-                ) != 0
-        };
+            )
+        } != 0;
         if updated {
             Ok(attributes)
         } else {
@@ -268,63 +429,7 @@ impl Drop for Attributes {
     }
 }
 
-/// The two pipes of a worker. No end can be inherited, except the child's two for the length of
-/// the worker's own start.
-struct Pipes {
-    child_in: std::os::windows::io::OwnedHandle,
-    parent_in: std::os::windows::io::OwnedHandle,
-    parent_out: std::os::windows::io::OwnedHandle,
-    child_out: std::os::windows::io::OwnedHandle,
-}
-
-impl Pipes {
-    fn new() -> io::Result<Self> {
-        use std::os::windows::io::{FromRawHandle, OwnedHandle};
-        use windows_sys::Win32::System::Pipes::CreatePipe;
-        let pipe = || -> io::Result<(OwnedHandle, OwnedHandle)> {
-            let (mut read, mut write) = (ptr::null_mut(), ptr::null_mut());
-            // SAFETY: the call writes two new handles, which nothing else owns; without security
-            // attributes no process inherits them.
-            if unsafe { CreatePipe(&mut read, &mut write, ptr::null(), 0) } == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            // SAFETY: as above; the owners close them when dropped.
-            Ok(unsafe {
-                (
-                    OwnedHandle::from_raw_handle(read.cast()),
-                    OwnedHandle::from_raw_handle(write.cast()),
-                )
-            })
-        };
-        let (child_in, parent_in) = pipe()?;
-        let (parent_out, child_out) = pipe()?;
-        Ok(Self {
-            child_in,
-            parent_in,
-            parent_out,
-            child_out,
-        })
-    }
-
-    /// Lets the child's two ends be inherited, or not.
-    fn inherit(&self, inherit: bool) -> io::Result<()> {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation};
-        let flag = if inherit { HANDLE_FLAG_INHERIT } else { 0 };
-        for end in [&self.child_in, &self.child_out] {
-            // SAFETY: changes only whether a child inherits the handle.
-            if unsafe {
-                SetHandleInformation(end.as_raw_handle().cast(), HANDLE_FLAG_INHERIT, flag)
-            } == 0
-            {
-                return Err(io::Error::last_os_error());
-            }
-        }
-        Ok(())
-    }
-}
-
-/// A worker inherits no handle but its pipes: nothing to close.
+/// A worker inherits no handle: nothing to close.
 pub(crate) fn close_inherited() -> bool {
     true
 }
@@ -334,23 +439,40 @@ pub(crate) fn leave_terminal() -> bool {
     true
 }
 
-/// The worker's standard input and output, unbuffered; they stay open when dropped.
-pub(crate) fn worker_streams() -> (
-    std::mem::ManuallyDrop<std::fs::File>,
-    std::mem::ManuallyDrop<std::fs::File>,
-) {
-    use std::os::windows::io::FromRawHandle;
-    use windows_sys::Win32::System::Console::STD_INPUT_HANDLE;
-    // SAFETY: the standard handles are the pipes the parent made, open for the whole process;
-    // `ManuallyDrop` never closes them.
-    unsafe {
-        (
-            std::mem::ManuallyDrop::new(std::fs::File::from_raw_handle(
-                GetStdHandle(STD_INPUT_HANDLE).cast(),
-            )),
-            std::mem::ManuallyDrop::new(std::fs::File::from_raw_handle(
-                GetStdHandle(STD_OUTPUT_HANDLE).cast(),
-            )),
-        )
+/// The worker's pipe, opened by the name its parent gave it, as its input and its output; it
+/// stays open when they are dropped. A name that is no worker's pipe is refused.
+pub(crate) fn worker_streams(
+    channel: &str,
+) -> io::Result<(ManuallyDrop<File>, ManuallyDrop<File>)> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        CreateFileW, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
+    };
+    let digits = channel.strip_prefix(PIPE_PREFIX).unwrap_or_default();
+    if digits.len() != 32 || !digits.bytes().all(|digit| digit.is_ascii_hexdigit()) {
+        return Err(io::ErrorKind::InvalidInput.into());
     }
+    let name: Vec<u16> = channel.encode_utf16().chain([0]).collect();
+    // SAFETY: the name is NUL-terminated; the call returns a new handle or
+    // INVALID_HANDLE_VALUE. The other end may learn who this process is, and no more.
+    let pipe = unsafe {
+        CreateFileW(
+            name.as_ptr(),
+            CLIENT_ACCESS,
+            0,
+            ptr::null(),
+            OPEN_EXISTING,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+            ptr::null_mut(),
+        )
+    };
+    if pipe == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: both files are the one handle just opened; `ManuallyDrop` never closes it.
+    Ok(unsafe {
+        (
+            ManuallyDrop::new(File::from_raw_handle(pipe.cast())),
+            ManuallyDrop::new(File::from_raw_handle(pipe.cast())),
+        )
+    })
 }
