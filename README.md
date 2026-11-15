@@ -9,7 +9,7 @@ secret-protection-core keeps secrets in memory out of the places they leak to: s
 
 The [documentation index](docs/README.md) lists the guides; [How it works](docs/TECHNICAL.md) says what each system applies and what it does not cover.
 
-Line coverage on Linux x86-64, measured on 2026-11-15, is **88.96%** for the unit tests and the three test programs (source fingerprint `8b161caa`). [Test scope and per-file results](docs/COVERAGE.md).
+Line coverage on Linux x86-64, measured on 2026-11-15, is **90.41%** for the unit tests and the three test programs (source fingerprint `d42704b9`). [Test scope and per-file results](docs/COVERAGE.md).
 
 ## Contents
 
@@ -78,7 +78,7 @@ let isolation = Isolation::enter_requiring(options, &required).expect("isolation
 
 ## A worker process
 
-A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again. Before it reads anything, the worker closes every descriptor it inherited but its pipes, leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
+A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again. What the worker inherited beyond its pipes is closed before its `main` starts. Before it reads anything, the worker leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
 
 The worker shares no memory with the parent, inherits no descriptor but its pipes, gets an empty environment and no terminal (`Worker::start_on_terminal` keeps the terminal, for a password read in the worker). On Windows it runs in an AppContainer without capabilities, which keeps it from the network, and inherits no handle at all: it opens its pipe by name. The program's `main` calls `serve(most, answer)` first, where `most` is the longest request the worker takes; a program that reaches `Worker::start` in a worker is refused, so it never starts itself without end. An answer should hold what the parent shows or saves, never the password or the key.
 

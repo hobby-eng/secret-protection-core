@@ -283,10 +283,11 @@ pub struct Isolation {
     /// input: on Linux and Android the filter refuses `execve`, on Windows the child-process
     /// policy holds. Unknown on macOS, whose sandbox allows it to no one but is not probed.
     pub no_new_programs: bool,
-    /// No library that another program planted loads (Windows): one named without a path is
-    /// looked for only in the program's folder and System32, none loads from a remote share or
-    /// from where a low-integrity process could write, and none comes in through AppInit DLLs,
-    /// window hooks or input methods. A path the program itself names still loads.
+    /// No library that another program planted loads (Windows): the default search for one
+    /// covers only the program's folder and System32, none loads from a remote share or from
+    /// where a low-integrity process could write, and none comes in through AppInit DLLs,
+    /// window hooks or input methods. A call with a path or search flags of its own still
+    /// loads from where it says.
     pub no_planted_libraries: bool,
     /// A job keeps the process from writing the clipboard, from global atoms, from other
     /// programs' windows and from changing the desktop, and allows it one process (Windows).

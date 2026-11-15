@@ -52,8 +52,9 @@ pub(crate) fn locked_role() {
 }
 
 /// The `forked` role: the signal rule names the process that asked for it. A child made by
-/// `fork` inherits the rule with its parent's number: it must not report the protection,
-/// asked for again or not.
+/// `fork` inherits the rule with its parent's number: it must not report the protection until
+/// it asks and gets a rule of its own, and a thread that did not ask never reports another
+/// thread's.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub(crate) fn forked_role() {
     use secret_protection_core::{Options, Outcome, Protection};
@@ -65,7 +66,9 @@ pub(crate) fn forked_role() {
     if child == 0 {
         let silent = Isolation::enter().outcome(Protection::SignalsToSelfOnly);
         let asked = Isolation::enter_with(options).outcome(Protection::SignalsToSelfOnly);
-        let wrong = silent == Outcome::Confirmed || asked != Outcome::Refused;
+        // SAFETY: signal 0 only asks whether a signal could be sent; getppid takes nothing.
+        let reaches_parent = unsafe { libc::kill(libc::getppid(), 0) } == 0;
+        let wrong = silent == Outcome::Confirmed || asked != Outcome::Confirmed || reaches_parent;
         // SAFETY: ends the child at once, without the parent's exit handlers.
         unsafe { libc::_exit(i32::from(wrong)) };
     }
@@ -73,6 +76,25 @@ pub(crate) fn forked_role() {
     // SAFETY: waits for the child just made and writes its status.
     assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
     assert_eq!(status, 0, "the child took its parent's rule for its own");
+    // A second thread of a child gets a rule of the child's own. The first thread still holds
+    // the parent's alone, and says nothing of the second thread's.
+    // SAFETY: as above.
+    let child = unsafe { libc::fork() };
+    if child == 0 {
+        let more = options.refuse_sendmsg();
+        let other = std::thread::spawn(move || {
+            Isolation::enter_with(more).outcome(Protection::SignalsToSelfOnly)
+        });
+        let others = other.join().unwrap_or(Outcome::Refused);
+        let own = Isolation::enter().outcome(Protection::SignalsToSelfOnly);
+        let wrong = others != Outcome::Confirmed || own == Outcome::Confirmed;
+        // SAFETY: as above.
+        unsafe { libc::_exit(i32::from(wrong)) };
+    }
+    let mut status = 0;
+    // SAFETY: as above.
+    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+    assert_eq!(status, 0, "a thread took another thread's rule for its own");
     // Nor after an update of the filter that failed: from here on no further filter goes in.
     install_a_filter_refusing_filters();
     // SAFETY: as above.
@@ -90,6 +112,16 @@ pub(crate) fn forked_role() {
         status, 0,
         "a refused filter left the parent's rule read as the child's"
     );
+}
+
+/// The `unmasked` role: the system refuses to block signals, so a handler could fork on the
+/// thread that holds the gate of secret memory. No secret memory is taken then.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+pub(crate) fn unmasked_role() {
+    install_a_filter_answering(libc::SYS_rt_sigprocmask, None, libc::EPERM);
+    let secret = Secret::with_capacity(16);
+    assert!(!is_secret_memory(&secret));
+    assert!(secret.is_out_of_dumps() && secret.is_out_of_children());
 }
 
 /// The `policed` role: someone else's policy refuses just what the probes try, a socket, an
@@ -151,9 +183,11 @@ pub(crate) fn own_pids_role() {
                 if grandchild == 0 {
                     libc::_exit(i32::from(Isolation::enter().memory_locked));
                 }
-                let mut status = 0;
-                libc::waitpid(grandchild, &mut status, 0);
-                wrong |= status != 0;
+                // A grandchild that was not made, or not waited for, proves nothing.
+                let mut status = -1;
+                let waited =
+                    grandchild > 0 && libc::waitpid(grandchild, &mut status, 0) == grandchild;
+                wrong |= !waited || status != 0;
             }
             // Ends the child at once, without the parent's exit handlers.
             libc::_exit(i32::from(wrong));

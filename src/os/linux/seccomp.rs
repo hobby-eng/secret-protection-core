@@ -155,14 +155,25 @@ pub(super) const SIGNALS: u32 = 4;
 pub(super) const LAYER: u32 = 8;
 pub(super) const SCOPE: u32 = 16;
 
-/// The process the signal rule names: the one whose filter went in last. A child made by
-/// `fork` inherits the rule and this number, which is then not its own.
-static SIGNAL_OWNER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+/// A second option that no kernel has, asked with a process number: a filter with the signal
+/// rule answers whether the rule names that process. The four bytes read "SPC2".
+const OWNER_OPTION: u32 = 0x5350_4332;
+/// The error numbers of its two answers, which no kernel gives.
+const NAMED: u32 = 0xD01;
+const NOT_NAMED: u32 = 0xD00;
 
-/// Whether the signal rule this process's filters carry names this very process.
+/// Whether the signal rule of the filter this thread holds names this very process. The filter
+/// itself answers, the newest of this crate's on the thread: a rule that another thread holds,
+/// or one inherited from the process this one was forked from, is never taken for it.
 pub(super) fn names_this_process() -> bool {
-    // SAFETY: getpid takes nothing and touches no memory.
-    SIGNAL_OWNER.load(std::sync::atomic::Ordering::Relaxed) == unsafe { libc::getpid() }
+    // SAFETY: getpid takes nothing; prctl takes integers, and with an option that no kernel
+    // has it changes nothing and touches no memory of this process.
+    let answer = unsafe {
+        let own = libc::getpid() as libc::c_ulong;
+        libc::prctl(OWNER_OPTION as libc::c_int, own, 0, 0, 0)
+    };
+    let named = i32::try_from(NAMED).ok();
+    answer == -1 && std::io::Error::last_os_error().raw_os_error() == named
 }
 /// The lock commands of `fcntl`: F_SETLK, F_SETLKW, F_OFD_SETLK and F_OFD_SETLKW.
 const LOCK_COMMANDS: [u32; 4] = [6, 7, 37, 38];
@@ -268,6 +279,16 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
     let marked = libc::SECCOMP_RET_ERRNO | MARK | options;
     let mut prctl = vec![instruction(LOAD_WORD, 0, 0, argument(0))];
     prctl.extend(answer_if(IF_EQUAL, MARK_OPTION, marked));
+    if options & SIGNALS != 0 {
+        // Whom the rule above names: the process number comes as the second argument.
+        prctl.extend([
+            instruction(IF_EQUAL, 0, 4, OWNER_OPTION),
+            instruction(LOAD_WORD, 0, 0, argument(1)),
+            instruction(IF_EQUAL, 0, 1, own as u32),
+            instruction(RETURN, 0, 0, libc::SECCOMP_RET_ERRNO | NAMED),
+            instruction(RETURN, 0, 0, libc::SECCOMP_RET_ERRNO | NOT_NAMED),
+        ]);
+    }
     prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_DUMPABLE as u32, REFUSE));
     prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_PTRACER as u32, REFUSE));
     prctl.push(instruction(RETURN, 0, 0, ALLOW));
@@ -345,13 +366,5 @@ pub(super) fn install(options: u32) -> Option<u32> {
             0,
         )
     } == 0;
-    if !installed {
-        return None;
-    }
-    // Only now does a signal rule name this process: a refused filter leaves the one
-    // before it, with the number it was built with.
-    if options & SIGNALS != 0 {
-        SIGNAL_OWNER.store(own, std::sync::atomic::Ordering::Relaxed);
-    }
-    held()
+    if installed { held() } else { None }
 }

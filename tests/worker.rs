@@ -63,6 +63,8 @@ fn answer(request: &[u8]) -> Secret {
             LINGERS.store(true, Ordering::Relaxed);
             "lingers".to_owned()
         }
+        // A second call of `serve` in a worker: it returns at once and serves nothing.
+        b"again" => serve(MOST, answer).to_string(),
         [1, ..] | [2] | [3] => {
             // A password typed in a window, one keystroke per request, would be collected in a
             // `SecretLine` kept by the worker; here each request stands alone.
@@ -94,13 +96,39 @@ fn descriptors() -> String {
     numbers.pop();
     numbers
         .iter()
-        .map(i32::to_string)
+        .map(|&number| {
+            // Where a descriptor above the standard streams leads, where the system says.
+            match std::fs::read_link(format!("/proc/self/fd/{number}")) {
+                Ok(target) if number > 2 => format!("{number}={}", target.display()),
+                _ => number.to_string(),
+            }
+        })
         .collect::<Vec<_>>()
         .join(",")
 }
 
+/// What a worker has open while it serves: its standard streams, and /dev/null, which takes
+/// the place of its pipes once it serves no more.
+#[cfg(unix)]
+fn its_own() -> &'static [u8] {
+    if cfg!(target_os = "linux") {
+        b"0,1,2,3=/dev/null"
+    } else {
+        b"0,1,2,3"
+    }
+}
+
 fn main() {
+    // The `late` role opens a file of its own before it comes to `serve`.
+    #[cfg(unix)]
+    let early = (std::env::var(ROLE).as_deref() == Ok("late"))
+        .then(|| std::fs::File::open("/dev/null").unwrap());
     if serve(MOST, answer) {
+        // `serve` closed nothing: the file the program opened first is still its own.
+        #[cfg(unix)]
+        if let Some(file) = early {
+            std::process::exit(i32::from(file.metadata().is_err()));
+        }
         // A worker that was asked to linger does not end when its pipes close.
         if LINGERS.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_secs(LINGER_SECONDS.into()));
@@ -166,6 +194,11 @@ fn main() {
     run(
         "a program that reaches the start of a worker before serve starts none",
         a_worker_starts_no_worker,
+    );
+    #[cfg(unix)]
+    run(
+        "a program that comes to serve with a file of its own keeps it",
+        a_late_serve_closes_nothing,
     );
     #[cfg(unix)]
     run(
@@ -250,6 +283,8 @@ fn a_worker_answers_isolated() {
     let key = Keystroke::Char('ж').to_bytes();
     assert_eq!(worker.call(key.as_bytes(), 10).unwrap().as_bytes(), b"1");
     assert_eq!(worker.call(b"", 10).unwrap().as_bytes(), b"");
+    // A worker serves once.
+    assert_eq!(worker.call(b"again", 10).unwrap().as_bytes(), b"false");
     // An answer as long as allowed passes.
     assert_eq!(worker.call(b"large", 100).unwrap().as_bytes().len(), 100);
 }
@@ -268,7 +303,7 @@ fn a_worker_gets_nothing_but_its_pipes() {
     {
         assert_eq!(
             worker.call(b"descriptors", 100).unwrap().as_bytes(),
-            b"0,1,2"
+            its_own()
         );
         assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
         // SAFETY: closes the descriptor opened above, once.
@@ -364,6 +399,14 @@ fn a_request_beyond_the_limit_ends_the_worker() {
     assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
     assert!(worker.call(b"public", 100).is_err());
     within(Duration::from_secs(20), move || drop(worker));
+    // A worker that lives on after it stopped serving does not keep its parent waiting: its
+    // streams ended with `serve`, so the request it left unread fails at once.
+    let mut worker = Worker::start(Options::new(), &[]).unwrap();
+    assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+    let started = Instant::now();
+    assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
+    let taken = started.elapsed();
+    assert!(taken < Duration::from_millis(2500), "{taken:?}");
 }
 
 /// A program whose `main` reached `Worker::start` before `serve` would start itself without
@@ -380,6 +423,21 @@ fn a_worker_starts_no_worker() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+/// `serve` closes no descriptor: what a worker inherited was closed before its `main`. A
+/// program that opened a file before it called `serve` keeps the file. The test stands in for
+/// the parent, takes the report and sends no request.
+#[cfg(unix)]
+fn a_late_serve_closes_nothing() {
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(ROLE, "late")
+        .env("SECRET_PROTECTION_CORE_WORKER", "0,0")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "the file was closed: {output:?}");
+    assert_eq!(output.stdout.len(), Protection::ALL.len() + 1);
 }
 
 /// The `unserved` role: the worker's variable is set, and the program is past `serve`.
@@ -406,7 +464,7 @@ fn a_worker_that_lingers_is_killed() {
     assert!(worker.end(), "the worker was not ended");
     let taken = started.elapsed();
     assert!(
-        taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
+        taken >= Duration::from_millis(900) && taken < Duration::from_millis(1900),
         "{taken:?}"
     );
     #[cfg(all(
@@ -473,8 +531,9 @@ mod linux {
             !ended,
             "a process that signals only itself ended its worker"
         );
+        // One second of grace and no second wait, in `end` or in the drop that follows.
         assert!(
-            taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
+            taken >= Duration::from_millis(900) && taken < Duration::from_millis(1900),
             "{taken:?}"
         );
     }
@@ -530,7 +589,8 @@ mod linux {
         }
     }
 
-    /// As on a kernel before Linux 5.9: the worker closes each descriptor it lists, and checks.
+    /// As on a kernel before Linux 5.9: before its `main` the worker closes each descriptor the
+    /// system lists, and then sees that none is left.
     pub(super) fn without_close_range() {
         // SAFETY: dup takes an integer and returns a new descriptor, which the worker inherits.
         let leaked = unsafe { libc::dup(0) };
@@ -539,7 +599,7 @@ mod linux {
         let mut worker = Worker::start(Options::new(), &required()).unwrap();
         assert_eq!(
             worker.call(b"descriptors", 100).unwrap().as_bytes(),
-            b"0,1,2"
+            its_own()
         );
     }
 

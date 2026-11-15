@@ -85,6 +85,11 @@ fn main() {
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
+        Ok("unmasked") => linux::unmasked_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
         Ok("speculating") => linux::speculation_role(true),
         #[cfg(all(
             target_os = "linux",
@@ -187,6 +192,14 @@ fn checks() {
     run(
         "a Landlock layer the kernel refused once is tried again",
         || linux::role_ends_well("relayered"),
+    );
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
+    run(
+        "a secret made where signals cannot be blocked takes no secret memory",
+        || linux::role_ends_well("unmasked"),
     );
     #[cfg(all(
         target_os = "linux",

@@ -63,8 +63,8 @@ pub struct StackRun<R> {
 /// Runs `work` on a new thread whose stack (at least `stack_bytes`) lies in protected pages, wiped
 /// after the thread ends, so the work's local variables go with it. The work runs only when the
 /// stack has every property in `required`. A panic in `work` comes back to the caller. The work
-/// must not `fork`: the child would find its stack empty. Registers, the caller's stack and heap
-/// copies are not covered.
+/// must not `fork`, nor another thread while it runs: the child would find this stack empty.
+/// Registers, the caller's stack and heap copies are not covered.
 pub fn run_on_protected_stack<R: Send>(
     stack_bytes: usize,
     required: StackProperties,

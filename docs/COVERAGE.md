@@ -1,10 +1,10 @@
 # Test coverage
 
-On 2026-11-15 UTC the tests covered **88.96%** of the source lines that LLVM reports for the Linux x86-64 build (1,765 of 1,984). The run passed 21 unit tests and 36 checks of the three test programs `isolation`, `secret_memory` and `worker`. One more worker check passes in an ordinary run and cannot run under the measurement.
+On 2026-11-15 UTC the tests covered **90.41%** of the source lines that LLVM reports for the Linux x86-64 build (1,885 of 2,085). The run passed 22 unit tests and 38 checks of the three test programs `isolation`, `secret_memory` and `worker`. One more worker check passes in an ordinary run and cannot run under the measurement.
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `bd7506328244970891fc230a4abca03824a1bd94`; the SHA-256 fingerprint of its inputs is `8b161caa23d15172eb9155752a5d8a66a21a013f941a2efa9764ed10a1d47a50`.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `f855148fadb9e0aa80b0ff7bc88fb923f0cc9ac0`; the SHA-256 fingerprint of its inputs is `d42704b948ab2d6007666ce488300f14374a0b36f19907494fd5768484634e21`.
 
 The tests start child processes that isolate themselves and can then write no file, so a profile written when a process ends would be lost. The counters are therefore synced to the profile file as they change (`%c` in its name, with LLVM's `-runtime-counter-relocation`), and such a child is counted.
 
@@ -38,11 +38,11 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/channels.rs`         |            40 |             40 |  100.00% |
 | `src/input.rs`            |           117 |            120 |   97.50% |
 | `src/os.rs`               |            38 |             41 |   92.68% |
-| `src/os/linux.rs`         |           396 |            431 |   91.88% |
-| `src/os/linux/seccomp.rs` |           137 |            137 |  100.00% |
-| `src/os/unix.rs`          |           257 |            330 |   77.88% |
+| `src/os/linux.rs`         |           428 |            462 |   92.64% |
+| `src/os/linux/seccomp.rs` |           145 |            145 |  100.00% |
+| `src/os/unix.rs`          |           307 |            375 |   81.87% |
 | `src/protect.rs`          |           368 |            378 |   97.35% |
 | `src/protect/closed.rs`   |           116 |            129 |   89.92% |
 | `src/protect/options.rs`  |            76 |            101 |   75.25% |
 | `src/stack.rs`            |            81 |             88 |   92.05% |
-| `src/worker.rs`           |           139 |            189 |   73.54% |
+| `src/worker.rs`           |           169 |            206 |   82.04% |

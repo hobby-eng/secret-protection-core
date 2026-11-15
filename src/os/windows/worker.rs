@@ -3,7 +3,7 @@
 
 use std::fs::File;
 use std::io;
-use std::mem::{ManuallyDrop, size_of};
+use std::mem::size_of;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::ptr;
 use std::time::Duration;
@@ -209,6 +209,11 @@ fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
     Ok(())
+}
+
+impl WorkerProcess {
+    /// The handle of a worker left behind is closed with this value: nothing to take off a list.
+    pub(crate) fn reap(&mut self) {}
 }
 
 /// The SID of the user this process runs as, as text.
@@ -429,8 +434,8 @@ impl Drop for Attributes {
     }
 }
 
-/// A worker inherits no handle: nothing to close.
-pub(crate) fn close_inherited() -> bool {
+/// A worker is started without one handle of its parent's.
+pub(crate) fn inherits_nothing() -> bool {
     true
 }
 
@@ -439,11 +444,29 @@ pub(crate) fn leave_terminal() -> bool {
     true
 }
 
-/// The worker's pipe, opened by the name its parent gave it, as its input and its output; it
-/// stays open when they are dropped. A name that is no worker's pipe is refused.
-pub(crate) fn worker_streams(
-    channel: &str,
-) -> io::Result<(ManuallyDrop<File>, ManuallyDrop<File>)> {
+/// The worker's pipe, its input and its output in one. Dropping it closes the pipe: the parent
+/// sees the end at once, however long the worker lives on.
+pub(crate) struct WorkerStreams(File);
+
+impl io::Read for WorkerStreams {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buffer)
+    }
+}
+
+impl io::Write for WorkerStreams {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.0.write(buffer)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
+/// Opens the worker's pipe by the name its parent gave it. A name that is no worker's pipe is
+/// refused.
+pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
     };
@@ -468,11 +491,6 @@ pub(crate) fn worker_streams(
     if pipe == INVALID_HANDLE_VALUE {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: both files are the one handle just opened; `ManuallyDrop` never closes it.
-    Ok(unsafe {
-        (
-            ManuallyDrop::new(File::from_raw_handle(pipe.cast())),
-            ManuallyDrop::new(File::from_raw_handle(pipe.cast())),
-        )
-    })
+    // SAFETY: the handle was just opened and nothing else owns it.
+    Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))
 }

@@ -16,8 +16,8 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::ptr::NonNull;
 use std::sync::OnceLock;
 #[cfg(target_os = "linux")]
-use std::sync::atomic::{AtomicBool, AtomicU32};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use crate::protect::{Findings, Isolation, Options};
 use crate::{Outcome, Protection};
@@ -155,7 +155,11 @@ mod fork_gate {
                 let mut all: libc::sigset_t = std::mem::zeroed();
                 let mut before: libc::sigset_t = std::mem::zeroed();
                 libc::sigfillset(&mut all);
-                libc::pthread_sigmask(libc::SIG_SETMASK, &all, &mut before);
+                // A handler that forked on this thread would wait for the gate it holds: where
+                // signals cannot be blocked, no secret memory is taken.
+                if libc::pthread_sigmask(libc::SIG_SETMASK, &all, &mut before) != 0 {
+                    return None;
+                }
                 before
             };
             if !registered() {
@@ -371,19 +375,35 @@ fn lock_mark() -> Option<&'static AtomicU8> {
 /// the process holds such a lock, from this call or an earlier one. Pages are locked as they are
 /// first touched (`MCL_ONFAULT`), so a large reservation costs nothing until it is used.
 fn lock_memory(asked: bool) -> Outcome {
+    /// Set when all memory was locked where no mark could be made.
+    static UNMARKED: AtomicBool = AtomicBool::new(false);
     let mark = lock_mark();
     // SAFETY: mlockall takes flags and touches no memory of this process.
     let locked = asked
         && unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | libc::MCL_ONFAULT) } == 0;
-    if let (true, Some(mark)) = (locked, mark) {
-        mark.store(1, Ordering::Relaxed);
+    if locked {
+        match mark {
+            Some(mark) => mark.store(1, Ordering::Relaxed),
+            None => UNMARKED.store(true, Ordering::Relaxed),
+        }
     }
-    // A refused call leaves an earlier lock as it was.
-    let held = locked || mark.is_some_and(|mark| mark.load(Ordering::Relaxed) == 1);
-    match (held, asked) {
-        (true, _) => Outcome::Confirmed,
-        (false, true) => Outcome::Refused,
-        (false, false) => Outcome::NotRequested,
+    let marked = mark.map(|mark| mark.load(Ordering::Relaxed) == 1);
+    lock_outcome(asked, locked, marked, UNMARKED.load(Ordering::Relaxed))
+}
+
+/// What a call says of the lock of all memory. `locked` is this call's own lock; `marked` is
+/// the mark's answer where there is a mark; `unmarked` says that a lock was once taken without
+/// one, in this process or in the one it was forked from, which nothing here can tell apart.
+/// A refused call leaves an earlier lock as it was.
+fn lock_outcome(asked: bool, locked: bool, marked: Option<bool>, unmarked: bool) -> Outcome {
+    if locked || marked == Some(true) {
+        Outcome::Confirmed
+    } else if marked.is_none() && unmarked {
+        Outcome::Unknown
+    } else if asked {
+        Outcome::Refused
+    } else {
+        Outcome::NotRequested
     }
 }
 
@@ -455,7 +475,12 @@ fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
     #[cfg(target_os = "android")]
     let _ = whole_process;
     let rules = held.unwrap_or(0) | wanted | layer;
-    if held == Some(rules) {
+    // A signal rule inherited from the process this one was forked from names that process:
+    // a call that asks for the protection gets a filter of this process's own.
+    let inherited = wanted & seccomp::SIGNALS != 0
+        && held.is_some_and(|rules| rules & seccomp::SIGNALS != 0)
+        && !seccomp::names_this_process();
+    if held == Some(rules) && !inherited {
         return held;
     }
     seccomp::install(rules).or(held)
@@ -792,6 +817,9 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         }
         (P::MemoryLocked, O::Confirmed) => "mlockall was accepted in this process",
         (P::MemoryLocked, O::Refused) => "mlockall was refused",
+        (P::MemoryLocked, O::Unknown) => {
+            "all memory was locked once, here or in the process this one was forked from"
+        }
         _ => return None,
     })
 }
@@ -801,6 +829,36 @@ mod tests {
     use super::*;
 
     /// Every answer of PR_GET_SPECULATION_CTRL, by the kernel's spec_ctrl documentation.
+    #[test]
+    fn a_lock_without_a_mark_is_not_taken_for_this_process() {
+        // With a mark: this call's lock, or the mark's word, and nothing else.
+        assert_eq!(
+            lock_outcome(true, true, Some(true), false),
+            Outcome::Confirmed
+        );
+        assert_eq!(
+            lock_outcome(false, false, Some(true), false),
+            Outcome::Confirmed
+        );
+        assert_eq!(
+            lock_outcome(true, false, Some(false), false),
+            Outcome::Refused
+        );
+        assert_eq!(
+            lock_outcome(false, false, Some(false), false),
+            Outcome::NotRequested
+        );
+        // Without one: this call's own lock is certain, a lock taken before is not.
+        assert_eq!(lock_outcome(true, true, None, true), Outcome::Confirmed);
+        assert_eq!(lock_outcome(false, false, None, true), Outcome::Unknown);
+        assert_eq!(lock_outcome(true, false, None, true), Outcome::Unknown);
+        assert_eq!(lock_outcome(true, false, None, false), Outcome::Refused);
+        assert_eq!(
+            lock_outcome(false, false, None, false),
+            Outcome::NotRequested
+        );
+    }
+
     #[test]
     fn a_refusal_confirms_only_with_this_crates_filter() {
         assert_eq!(probed(true, true), Outcome::Confirmed);

@@ -10,6 +10,10 @@ use crate::protect::{Isolation, Missing, Options, Protection, Secret};
 /// The variable through which a worker learns that it is one: the options its parent chose, and
 /// whether it keeps the terminal.
 pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
+/// Deliberate copy of [`WORKER`] for the C library, which reads it before `main` on Unix, where
+/// no Rust string helps; a test keeps the two in step.
+#[cfg(any(unix, test))]
+pub(crate) const WORKER_NAME: &std::ffi::CStr = c"SECRET_PROTECTION_CORE_WORKER";
 
 /// What a worker sends before anything else: one byte for each protection, then whether its
 /// start left it clean.
@@ -23,6 +27,8 @@ pub struct Worker {
     process: crate::os::WorkerProcess,
     isolation: Isolation,
     broken: bool,
+    /// Whether the worker ended, once it was ended.
+    ended: Option<bool>,
 }
 
 /// Why a worker did not start. It was ended before any request reached it.
@@ -58,10 +64,10 @@ impl Worker {
     }
 
     /// As [`Worker::start`], but the worker keeps the terminal (Linux and macOS): its standard
-    /// error and the terminal the program runs on, so that it can read a password from the
-    /// terminal itself, opened only for reading, and the parent never holds it. It turns the
-    /// echo off through its standard error: a terminal opened after the isolation takes no
-    /// settings (Linux 6.10).
+    /// error and the terminal the program runs on, so that the program's code there can read a
+    /// password and the parent never holds it. This crate reads none and changes no terminal
+    /// setting: the echo is the program's to turn off, through standard error, since a terminal
+    /// opened after the isolation takes no settings (Linux 6.10).
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],
@@ -94,6 +100,7 @@ impl Worker {
                 process,
                 isolation,
                 broken: false,
+                ended: None,
             }),
             Err(error) => {
                 process.finish();
@@ -138,9 +145,18 @@ impl Worker {
         let answer = self.exchange(length, request, most);
         if answer.is_err() {
             self.broken = true;
-            self.process.finish();
+            self.finish();
         }
         answer
+    }
+
+    /// Ends the worker, once, and returns whether it ended: a later call waits no second time
+    /// and gives the first answer again.
+    fn finish(&mut self) -> bool {
+        if self.ended.is_none() {
+            self.ended = Some(self.process.finish());
+        }
+        self.ended == Some(true)
     }
 
     /// Ends the worker and says whether it ended: its pipes are closed, it gets a second to end
@@ -148,7 +164,7 @@ impl Worker {
     /// the program may no longer signal other processes; dropping a worker does the same and
     /// cannot say so.
     pub fn end(mut self) -> bool {
-        self.process.finish()
+        self.finish()
     }
 
     fn exchange(&mut self, length: u32, request: &[u8], most: usize) -> io::Result<Secret> {
@@ -186,9 +202,12 @@ fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
 }
 
 impl Drop for Worker {
-    /// Ends the worker as [`Worker::end`] does.
+    /// Ends the worker as [`Worker::end`] does, unless it was ended already. A worker that was
+    /// left behind is taken off the system's list if it has ended since, without waiting.
     fn drop(&mut self) {
-        self.process.finish();
+        if !self.finish() {
+            self.process.reap();
+        }
     }
 }
 
@@ -201,40 +220,52 @@ impl fmt::Debug for Worker {
 }
 
 /// What the parent wrote into [`WORKER`]: the options, whether to keep the terminal, and on
-/// Windows the name of the pipe. `None` for any other text.
+/// Windows the name of the pipe. `None` for any other text, an unknown option or flag included.
 fn setting(text: &str) -> Option<(u32, bool, &str)> {
     let mut parts = text.splitn(3, ',');
-    let options = parts.next()?.parse().ok()?;
-    let terminal = parts.next()? == "1";
-    Some((options, terminal, parts.next().unwrap_or_default()))
+    let options: u32 = parts.next()?.parse().ok()?;
+    let terminal = match parts.next()? {
+        "0" => false,
+        "1" => true,
+        _ => return None,
+    };
+    let known = Options::from_bits(options).to_bits() == options;
+    known.then_some((options, terminal, parts.next().unwrap_or_default()))
 }
 
-/// The worker side. If this process was started by [`Worker::start`], it sheds what it inherited,
+/// The worker side. If this process was started by [`Worker::start`], it leaves the terminal,
 /// isolates itself, reports, then answers requests of up to `most` bytes with `answer` until the
-/// parent closes the pipe, and returns `true`; otherwise it returns `false` at once. Call it first
-/// in `main`, before any thread starts. A worker whose start was not clean takes no request.
+/// parent closes the pipe, and returns `true`; otherwise, and at any later call, it returns
+/// `false` at once. Call it first in `main`: it closes nothing, so a worker that already holds
+/// a descriptor of its own, or inherited one, says its start was not clean and takes no request.
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
+    static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
     let Some((options, terminal, channel)) = setting(&text) else {
         return false;
     };
-    let mut clean = crate::os::close_inherited();
+    if SERVED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return false;
+    }
+    // Whatever a wrong setting makes fail comes before the isolation, which cannot be undone.
+    // The streams end when this returns: the parent then sees that the worker serves no more.
+    let mut clean = crate::os::inherits_nothing();
+    let Ok(mut streams) = crate::os::worker_streams(channel) else {
+        return true;
+    };
     if !terminal {
         clean &= crate::os::leave_terminal();
     }
     let isolation = Isolation::enter_with(Options::from_bits(options));
-    let Ok((mut input, mut output)) = crate::os::worker_streams(channel) else {
-        return true;
-    };
     let mut report = [0; REPORT_BYTES];
     report[..Protection::COUNT].copy_from_slice(&isolation.to_bytes());
     report[Protection::COUNT] = u8::from(clean);
-    if output.write_all(&report).is_err() || !clean {
+    if streams.write_all(&report).is_err() || !clean {
         return true;
     }
     loop {
         let mut length = [0; 4];
-        if input.read_exact(&mut length).is_err() {
+        if streams.read_exact(&mut length).is_err() {
             return true;
         }
         let length = u32::from_le_bytes(length) as usize;
@@ -242,7 +273,7 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
             return true;
         }
         let mut request = Secret::zeroed(length);
-        if input.read_exact(request.as_mut_bytes()).is_err() {
+        if streams.read_exact(request.as_mut_bytes()).is_err() {
             return true;
         }
         let reply = answer(request.as_bytes());
@@ -250,10 +281,10 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
         let Ok(length) = u32::try_from(reply.as_bytes().len()) else {
             return true;
         };
-        let sent = output
+        let sent = streams
             .write_all(&length.to_le_bytes())
-            .and_then(|()| output.write_all(reply.as_bytes()))
-            .and_then(|()| output.flush());
+            .and_then(|()| streams.write_all(reply.as_bytes()))
+            .and_then(|()| streams.flush());
         if sent.is_err() {
             return true;
         }
@@ -270,9 +301,11 @@ mod tests {
         assert_eq!(setting("5,1"), Some((5, true, "")));
         let named = setting("0,0,//./pipe/name,with,commas");
         assert_eq!(named, Some((0, false, "//./pipe/name,with,commas")));
-        for other in ["", "none", "x,1", "7"] {
+        // No other text: a flag that is neither 0 nor 1, or an option this crate does not have.
+        for other in ["", "none", "x,1", "7", "0,2", "0,true", "64,0"] {
             assert_eq!(setting(other), None, "{other}");
         }
+        assert_eq!(WORKER_NAME.to_str(), Ok(WORKER));
     }
 
     /// A report is taken only as a worker of this crate writes it.

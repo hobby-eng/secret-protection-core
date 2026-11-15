@@ -18,16 +18,16 @@ pub(crate) use heap::Pages;
 pub(crate) use linux::{enter, evidence};
 #[cfg(unix)]
 pub(crate) use unix::{
-    WorkerProcess, close_inherited, leave_terminal, open_channels, run_on_stack, worker_streams,
+    WorkerProcess, inherits_nothing, leave_terminal, open_channels, run_on_stack, worker_streams,
     write_secret,
 };
 #[cfg(not(any(unix, windows)))]
 pub(crate) use unsupported::{
-    WorkerProcess, close_inherited, leave_terminal, open_channels, run_on_stack, worker_streams,
+    WorkerProcess, inherits_nothing, leave_terminal, open_channels, run_on_stack, worker_streams,
 };
 #[cfg(windows)]
 pub(crate) use windows::{
-    WorkerProcess, close_inherited, enter, evidence, leave_terminal, open_channels, run_on_stack,
+    WorkerProcess, enter, evidence, inherits_nothing, leave_terminal, open_channels, run_on_stack,
     worker_streams, write_secret,
 };
 
@@ -218,9 +218,11 @@ mod unsupported {
             self.close();
             true
         }
+
+        pub(crate) fn reap(&mut self) {}
     }
 
-    pub(crate) fn close_inherited() -> bool {
+    pub(crate) fn inherits_nothing() -> bool {
         true
     }
 
@@ -240,8 +242,27 @@ mod unsupported {
         Err(crate::StackError::Unsupported)
     }
 
-    pub(crate) fn worker_streams(_channel: &str) -> io::Result<(io::Empty, io::Sink)> {
-        Ok((io::empty(), io::sink()))
+    /// No worker starts here: its streams give nothing and take nothing.
+    pub(crate) struct WorkerStreams;
+
+    impl io::Read for WorkerStreams {
+        fn read(&mut self, _buffer: &mut [u8]) -> io::Result<usize> {
+            Ok(0)
+        }
+    }
+
+    impl io::Write for WorkerStreams {
+        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    pub(crate) fn worker_streams(_channel: &str) -> io::Result<WorkerStreams> {
+        Ok(WorkerStreams)
     }
 }
 
