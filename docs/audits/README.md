@@ -123,3 +123,12 @@ Where a row says that the fix was not run on Windows or macOS, that was so when 
 | AUD-010-DOC004 | fixed | `b5408a5860f47f907c6022a6258845209541fefe` | none | The errata above give the old links with the commit they belong to, and what the two AUD-009 rows describe now. |
 
 AUD-010 found AUD-009-SEC002 and AUD-009-FUN002 open in part. At `b5408a5860f47f907c6022a6258845209541fefe` a Unix setting holds only numbers of descriptors above standard error, so any other text closes nothing before `main`; and a worker that can point its streams at neither /dev/null nor an ended pipe refuses to start, while a refused `dup2` closes the stream outright.
+
+## Final release audits of 2747028
+
+| Audit | Completed (UTC) | Reviewed commit | Result |
+| --- | --- | --- | --- |
+| [AUD-011](AUD-011-2026-11-15.md) · [JSON](AUD-011-2026-11-15.json) | 2026-11-15 | `2747028f4452c3e36f2a500eabdbc795010bf295` | Conditional pass: the findings of AUD-010, and the two of AUD-009 that it found open in part, are fixed. Four new low findings and one observation. The documented coverage was reproduced. |
+| [AUD-012](AUD-012-2026-11-15.md) · [JSON](AUD-012-2026-11-15.json) | 2026-11-15 | `2747028f4452c3e36f2a500eabdbc795010bf295` | One new medium finding: the worker's cleanup before `main` closes a descriptor that a library linked to the program closed and opened again under the same number. Blocked for native integrations that allow that until it is fixed. Every other check passed; a coverage run of its own measured 91.21%. |
+
+Both reviews read the same commit at the same time and were first given the same number; the second became AUD-012 before it was filed. The first was written outside the repository under other file names and is filed here byte for byte.

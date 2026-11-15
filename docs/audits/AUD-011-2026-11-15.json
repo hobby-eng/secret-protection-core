@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-011",
+  "auditNumber": 11,
+  "date": "2026-11-15",
+  "title": "Final pre-release security and verification audit of secret-protection-core",
+  "reviewer": {
+    "name": "GitHub Copilot",
+    "model": "gemini-4-hydrogen",
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "2747028f4452c3e36f2a500eabdbc795010bf295",
+    "commitComplete": true,
+    "workingTree": "clean",
+    "sourceFingerprint": "db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808",
+    "tree": "901913bbc261b1ecfb7b9c668bd0e3ef6555cd52",
+    "githubSignatureVerified": true
+  },
+  "scope": {
+    "repository": "hobby-eng/secret-protection-core",
+    "packageVersion": "0.1.0",
+    "platformsCompiled": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-linux-android",
+      "aarch64-apple-darwin",
+      "aarch64-apple-ios",
+      "x86_64-pc-windows-gnu",
+      "wasm32-unknown-unknown"
+    ],
+    "platformsExecuted": [
+      "x86_64-unknown-linux-gnu (local)",
+      "aarch64-unknown-linux-gnu (GitHub CI)",
+      "aarch64-apple-darwin (GitHub CI)",
+      "x86_64-pc-windows-msvc (GitHub CI)",
+      "wasm32-unknown-unknown (Node.js V8 local)"
+    ],
+    "procedureHashes": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo fmt --check",
+      "outcome": "passed",
+      "exitCode": 0
+    },
+    {
+      "command": "dprint check",
+      "outcome": "passed",
+      "exitCode": 0
+    },
+    {
+      "command": "node /home/user/Documents/bip_tools/.github/scripts/verify-action-pins.mjs /home/user/Documents/bip_tools/secret-protection-core",
+      "outcome": "passed",
+      "exitCode": 0,
+      "summary": "8/8 action pins match"
+    },
+    {
+      "command": "cargo doc --no-deps --locked --offline",
+      "outcome": "passed",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo audit --no-fetch --db /home/user/Documents/bip_tools/workingspace/cargo/advisory-db --no-yanked",
+      "outcome": "passed",
+      "exitCode": 0,
+      "summary": "1509 advisories, 15 dependencies, 0 vulnerabilities"
+    },
+    {
+      "command": "cargo clippy --all-targets --locked --offline --target <6 targets> -- -D warnings",
+      "outcome": "passed",
+      "exitCode": 0,
+      "targets": 6
+    },
+    {
+      "command": "cargo test --locked --offline",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "unit": 29, "isolation": 20, "secret_memory": 9, "worker": 18, "doc": 0 }
+    },
+    {
+      "command": "cargo test --release --locked --offline",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "unit": 29, "isolation": 20, "secret_memory": 9, "worker": 18, "doc": 0 }
+    },
+    {
+      "command": "cargo llvm-cov (with -C llvm-args=-runtime-counter-relocation and spc-%p%c.profraw)",
+      "outcome": "passed",
+      "exitCode": 0,
+      "coverage": {
+        "linesCovered": 2217,
+        "linesTotal": 2276,
+        "linePercent": 97.41,
+        "regionsCovered": 3599,
+        "regionsTotal": 3731,
+        "functionsCovered": 306,
+        "functionsTotal": 316
+      }
+    },
+    {
+      "command": "cargo +nightly miri test --locked --offline --lib -- <14 syscall-free unit tests>",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "passed": 14, "failed": 0 }
+    },
+    {
+      "command": "RUSTFLAGS=-Zsanitizer=address cargo +nightly test --offline --locked --target x86_64-unknown-linux-gnu -- <4 mlock skips>",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "passed": 72, "ignored": 4, "failed": 0 }
+    },
+    {
+      "command": "cargo +nightly fuzz build && setting/report/keystrokes (15s each)",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "settingRuns": 872494, "reportRuns": 3569527, "keystrokesRuns": 353007 }
+    },
+    {
+      "command": "wasm32-unknown-unknown build + node docs/audits/AUD-006-harnesses/fallback.mjs",
+      "outcome": "passed",
+      "exitCode": 0,
+      "counts": { "passed": 4 }
+    },
+    {
+      "command": "cargo build --release --locked --offline --lib && llvm-objdump-21",
+      "outcome": "passed",
+      "exitCode": 0,
+      "artifactSha256": "9756f863a79839f00e052f95250fef0aa0f7c6b0abf15bc473b2c65d92c2acdd"
+    },
+    {
+      "command": "gh run view 43718908771 -R hobby-eng/secret-protection-core",
+      "outcome": "passed",
+      "exitCode": 0,
+      "jobs": ["checks", "native (ubuntu-24.04-arm)", "native (macos-latest)", "native (windows-latest)"]
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-011-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "ClosedSecret::is_closed does not check pages.here() after fork",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": ["src/protect/closed.rs:94-97"],
+      "reproduction": "Create a ClosedSecret, call fork(), and inspect closed.is_closed() in the continuing child.",
+      "expected": "Return false when the buffer belongs to a pre-fork parent, matching is_locked(), is_out_of_dumps(), and is_out_of_children().",
+      "observed": "is_closed() checks only self.access == Access::Nothing and returns true in a child whose parent pages were unmapped or wiped.",
+      "impact": "Minor post-fork status inconsistency; calling read/write/push/truncate in the child still aborts before dereferencing.",
+      "evidence": "src/protect/closed.rs:94-97 and src/os.rs:163-185",
+      "recommendedFix": "Check self.secret.pages.here() && self.access == Access::Nothing in ClosedSecret::is_closed().",
+      "requiredVerification": "Extend secret_memory fork check and run cargo test --test secret_memory on Linux and macOS."
+    },
+    {
+      "id": "AUD-011-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "docs/COVERAGE.md references pre-commit working tree instead of 2747028f",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": ["docs/COVERAGE.md:7"],
+      "reproduction": "Compare docs/COVERAGE.md:7 against git rev-parse HEAD (2747028f4452c3e36f2a500eabdbc795010bf295).",
+      "expected": "Name the committed snapshot 2747028f4452c3e36f2a500eabdbc795010bf295 directly.",
+      "observed": "References the working tree following c0c472af2327cc55a561881201db9830613bd3fc even though fingerprint db750b50... matches 2747028f.",
+      "impact": "Minor traceability lag in coverage documentation.",
+      "evidence": "Recomputed fingerprint db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808 on 2747028f.",
+      "recommendedFix": "Update docs/COVERAGE.md:7 to reference commit 2747028f4452c3e36f2a500eabdbc795010bf295.",
+      "requiredVerification": "Verify source fingerprint remains db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808."
+    },
+    {
+      "id": "AUD-011-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "THIRD_PARTY_NOTICES.md omits explicit crate names for enumflags2_derive and thiserror-impl",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": ["THIRD_PARTY_NOTICES.md:5", "Cargo.lock"],
+      "reproduction": "Cross-check all 14 third-party packages in Cargo.lock against THIRD_PARTY_NOTICES.md.",
+      "expected": "List every locked package name and version explicitly.",
+      "observed": "enumflags2_derive 0.7.12 and thiserror-impl 2.0.21 are referred to collectively as the macros of enumflags2 and thiserror.",
+      "impact": "Minor completeness gap in notice inventory.",
+      "evidence": "Cargo.lock vs THIRD_PARTY_NOTICES.md inspection.",
+      "recommendedFix": "Add enumflags2_derive 0.7.12 and thiserror-impl 2.0.21 explicitly to THIRD_PARTY_NOTICES.md.",
+      "requiredVerification": "Compare Cargo.lock package list against THIRD_PARTY_NOTICES.md."
+    },
+    {
+      "id": "AUD-011-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Release metadata (publish = false, draft notice, Unreleased changelog) remains in draft state",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": ["Cargo.toml:7", "README.md:3-4", "CHANGELOG.md:3"],
+      "reproduction": "Inspect Cargo.toml, README.md, CHANGELOG.md, and run cargo package --list.",
+      "expected": "Versioned changelog heading, accurate review/status notice, and package metadata if publishing to crates.io.",
+      "observed": "Cargo.toml sets publish = false without documentation/repository metadata; README.md keeps the pre-review draft banner; CHANGELOG.md lists changes under Unreleased.",
+      "impact": "Non-blocking for Git tag/workspace use; required before crates.io publication.",
+      "evidence": "Cargo.toml:7, README.md:3-4, CHANGELOG.md:3",
+      "recommendedFix": "Promote Unreleased changelog items under the release version and UTC date when tagging, and update README/Cargo.toml as appropriate.",
+      "requiredVerification": "cargo package --list --locked --offline"
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-011-ARC001",
+      "category": "ARC",
+      "kind": "observation",
+      "title": "tests/worker.rs is at 790 LOC, 10 lines below CORE-15's 800-line file limit",
+      "severity": "info",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": "Line count analysis excluding blank and comment-only lines: 790 LOC (977 raw lines).",
+      "reproduction": "Count non-blank, non-comment lines in tests/worker.rs.",
+      "expected": "Files remain within CORE-15's 800 LOC limit.",
+      "observed": "790 LOC leaves 10 lines before hitting the 800 LOC limit.",
+      "impact": "Next addition to tests/worker.rs will likely require splitting into tests/worker/main.rs and submodules.",
+      "recommendedFix": "Split tests/worker.rs into submodules when adding further worker tests.",
+      "requiredVerification": "cargo clippy --all-targets -- -D warnings"
+    }
+  ],
+  "remediation": [
+    { "id": "AUD-009-SEC002", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "a_program_without_a_setting_keeps_what_it_inherited passed on Linux, AArch64, macOS; setting fuzzer 872,494 runs." },
+    { "id": "AUD-009-SEC003", "status": "accepted", "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "Accepted in docs/TECHNICAL.md; a_stray_client_does_not_stop_the_start passed on Windows CI." },
+    { "id": "AUD-009-FUN002", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "without_null passed on Linux x86-64 and AArch64." },
+    { "id": "AUD-010-SEC001", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "a_child_of_fork_leaves_the_buffers_of_its_parent_alone passed on Linux x86-64, AArch64, and macOS." },
+    { "id": "AUD-010-SEC002", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "a_worker_closes_what_its_parent_names_and_nothing_else passed on Linux x86-64, AArch64, and macOS." },
+    { "id": "AUD-010-API001", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "src/protect.rs and src/os/windows.rs clarify AppContainer token policy evidence." },
+    { "id": "AUD-010-BLD001", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "secret_memory verifies child PID, waitpid, WIFEXITED, and fd range 3..=255." },
+    { "id": "AUD-010-BLD002", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "tests/support/run.rs propagates skips and partial checks." },
+    { "id": "AUD-010-BLD003", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "served_here checks GetNamedPipeServerProcessId; passed on windows-latest CI." },
+    { "id": "AUD-010-BLD004", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "30s worker linger and bounded retries passed across all local and CI runs." },
+    { "id": "AUD-010-DOC001", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "README.md, src/protect.rs, and src/os.rs state WebAssembly lacks guard pages." },
+    { "id": "AUD-010-DOC002", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "src/protect.rs and docs/TECHNICAL.md state WerSetFlags(NOHEAP) is not read back." },
+    { "id": "AUD-010-DOC003", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "THIRD_PARTY_NOTICES.md explicitly lists windows-link 0.2.1." },
+    { "id": "AUD-010-DOC004", "status": "verified", "fixCommit": "b5408a5860f47f907c6022a6258845209541fefe", "verificationCommit": "2747028f4452c3e36f2a500eabdbc795010bf295", "evidence": "docs/audits/README.md errata link old snapshots and document current behavior." }
+  ],
+  "limitations": [
+    "Android (aarch64-linux-android) and iOS (aarch64-apple-ios) targets are compiled and Clippy-checked with -D warnings, but not executed at runtime.",
+    "59 lines (2.59%) uncovered in Linux x86-64 llvm-cov are OS allocation/syscall failure branches, 4 GiB+ frame guards, and the second in-process serve() return.",
+    "Raw clone(2) bypassing pthread_atfork, pre-fork borrowed slices used in a continuing child, pre-isolation attached debuggers, external PID namespaces, and microarchitectural side channels remain outside the documented threat model in docs/TECHNICAL.md."
+  ]
+}

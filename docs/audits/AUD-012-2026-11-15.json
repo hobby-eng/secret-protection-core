@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-012",
+  "auditNumber": 12,
+  "date": "2026-11-15",
+  "title": "Final release audit of secret-protection-core",
+  "reviewer": {
+    "name": "Kimi Code",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "2747028f4452c3e36f2a500eabdbc795010bf295",
+    "commitComplete": true,
+    "workingTree": "Production source clean at capture and after checks; only audit records and harness added",
+    "sourceFingerprint": "1f7666e09f0510c13b1fb4728cde530909ffcb93c932621b5058b3cd66c33b14"
+  },
+  "scope": {
+    "included": [
+      "All source, tests, fuzz targets, manifests and workflows",
+      "Secret ownership, wiping, fork continuation and protected stacks",
+      "Process isolation, strict outcomes and worker IPC",
+      "Linux, Windows, Apple and WebAssembly implementations",
+      "Dependencies, CI, documentation and release evidence",
+      "All 32 procedure checks"
+    ],
+    "excluded": [
+      "Android and iOS device runtime",
+      "Browser application integration",
+      "Canonical release artifacts, which the project does not define"
+    ],
+    "environment": "Linux 7.0.0-43-generic x86-64; Rust 1.99.1",
+    "tree": "901913bbc261b1ecfb7b9c668bd0e3ef6555cd52",
+    "sourceManifestFiles": 84,
+    "coverageSourceFingerprint": "db750b5041779ce841332935b6fbbb5067be931c62b5dbeda41ba67fb31a5808",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {"command": "cargo fmt --check", "outcome": "passed", "exitCode": 0},
+    {"command": "cargo test --locked --offline", "outcome": "passed", "exitCode": 0, "result": "29 unit, 17 isolation, 7 secret-memory and 13 worker checks; 0 doc-tests"},
+    {"command": "cargo test --release --locked --offline", "outcome": "passed", "exitCode": 0, "result": "Full release-profile suite passed"},
+    {"command": "clippy for host and all five configured targets", "outcome": "passed", "exitCode": 0},
+    {"command": "cargo doc --no-deps --locked --offline", "outcome": "passed", "exitCode": 0},
+    {"command": "cargo audit for root and fuzz lockfiles", "outcome": "passed", "exitCode": 0, "result": "No vulnerabilities; 1,509 advisories; 25 fuzz dependencies"},
+    {"command": "cargo metadata and cargo package --list", "outcome": "passed", "exitCode": 0},
+    {"command": "three cargo-fuzz campaigns with max_total_time=90", "outcome": "passed", "exitCode": 0, "result": "setting, report and keystrokes completed without crashes"},
+    {"command": "ASan with four documented exclusions", "outcome": "passed", "exitCode": 0, "result": "No sanitizer diagnostic"},
+    {"command": "Miri exact unwritten-wipe test", "outcome": "passed", "exitCode": 0},
+    {"command": "WebAssembly fallback in Node/V8", "outcome": "passed", "exitCode": 0, "result": "Four checks passed"},
+    {"command": "coverage", "outcome": "passed with limitation", "exitCode": 0, "result": "91.21% lines; two profile-write refusals; documented 97.41% not reproduced"},
+    {"command": "release library build and disassembly", "outcome": "passed", "exitCode": 0, "result": "Sampled zero stores retained; not exhaustive erasure proof"},
+    {"command": "git verify-commit", "outcome": "passed", "exitCode": 0, "result": "Good ED25519 signature; GitHub also reports verified"},
+    {"command": "CI run 43718908771", "outcome": "passed", "exitCode": 0, "result": "All four jobs passed on the exact SHA"},
+    {"command": "constructor-reuse harness", "outcome": "failed", "exitCode": 1, "evidence": "local constructor-reuse.log; SHA-256 84550457ed04d9698891b9fd586f4357047584a4f9690e1cfb1e2b8ef0dd4877"}
+  ],
+  "findings": [
+    {
+      "id": "AUD-012-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Worker pre-main cleanup closes a descriptor reused by a linked library",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/unix.rs:352-390",
+        "src/worker.rs:254-259",
+        "docs/TECHNICAL.md:160",
+        "tests/worker.rs:566-604"
+      ],
+      "relatedFindings": ["AUD-010-SEC002"],
+      "evidence": "A real shared-library initializer closed and reused the inherited number for its own /dev/null; the crate's before_main then closed it. Final harness log SHA-256 84550457ed04d9698891b9fd586f4357047584a4f9690e1cfb1e2b8ef0dd4877.",
+      "reproduction": "Run the retained AUD-012 two-crate harness. Its linked-library constructor reuses the inherited descriptor, then the worker initializer runs and the child verifies the descriptor.",
+      "expected": "Only descriptors inherited from the parent are closed; a descriptor opened by a linked library remains open.",
+      "observed": "The linked library's reused descriptor was closed and the harness exited 1.",
+      "impact": "A native dependency loses its descriptor and may malfunction or use the wrong resource later; cleanup can make the worker appear clean. No direct secret disclosure was observed.",
+      "recommendedFix": "Clean inherited descriptors at the spawn/exec boundary before library constructors, using the ordinary-stack launcher, or use a design that does not rely on numeric identity after constructors.",
+      "requiredVerification": "The retained harness must pass after the fix, followed by the full Linux/macOS worker suites and ordinary/malformed/protected-stack launch regressions."
+    }
+  ],
+  "observations": [],
+  "confirmations": [
+    {
+      "topic": "Previous findings",
+      "status": "reviewed",
+      "evidence": "No additional defect confirmed; accepted and platform-pending limitations remain documented."
+    },
+    {
+      "topic": "Release artifacts",
+      "status": "not-present",
+      "evidence": "No tags or GitHub releases; Cargo publish=false; no canonical release binary procedure."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-012-SEC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Original constructor-reuse reproduction"
+    }
+  ],
+  "limitations": [
+    "One Medium finding blocks affected native integrations.",
+    "Android and iOS were not run; macOS and Windows evidence is exact-SHA CI rather than local execution.",
+    "The independent coverage run measured 91.21% and recorded two profile-write refusals; 97.41% is not independently confirmed.",
+    "No exhaustive compiler-level erasure proof or canonical binary reproducibility claim is made.",
+    "This is not a security certification or release acceptance."
+  ]
+}
