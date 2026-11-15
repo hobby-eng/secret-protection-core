@@ -26,7 +26,7 @@ What was open or new at `6aa7e56`, and where it stands. `fixed` means a fix exis
 | Finding ID | Status | Fix commit | Verification commit | Evidence |
 | --- | --- | --- | --- | --- |
 | AUD-001-SEC001 | fixed | `f3c2401d1b5b2ee5dfd98eaec298d74da53b765f` | none | A process takes secret memory only if it had one thread when the gate was registered, and a secret does not wait for a `fork` for ever. `secret_memory`: the first secret among threads, the secret under a fork handler's lock, the 2,000 forks. |
-| AUD-001-SEC004 | open | none | none | Unchanged. The worker's pipe ends can be inherited during its own start; docs/TECHNICAL.md says so. A start without inheritance is planned and needs a run on Windows. |
+| AUD-001-SEC004 | fixed | `4c3de34eed462c7a85f875467a7bfcdb421e082b` | none | The worker inherits no handle: its parent makes a named pipe that takes one client and admits only this user's processes in the worker's AppContainer, the worker opens it by name, and the parent takes the connection only from the process it started. Compiled for Windows, not run there. |
 | AUD-001-FUN002 | fixed | `f3c2401d1b5b2ee5dfd98eaec298d74da53b765f` | none | The worker is started from a thread with an ordinary stack. `worker`: a worker starts from a protected stack. The `fork` path of an old C library was not run. |
 | AUD-003-SEC001 | fixed | `f3c2401d1b5b2ee5dfd98eaec298d74da53b765f` | none | A refused probe confirms only with this crate's filter and its rule. `isolation`: a refusal by someone else's policy. |
 | AUD-003-SEC002 | fixed | `f3c2401d1b5b2ee5dfd98eaec298d74da53b765f` | none | In a PID namespace of its own the reading of memory is unknown. `isolation`: a PID namespace of its own. |
