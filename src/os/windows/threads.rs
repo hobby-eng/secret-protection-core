@@ -1,4 +1,4 @@
-//! Read the calling process's thread records from the kernel's process inventory.
+//! Read one process's thread records from the kernel's process inventory.
 //! Opening a diagnostic handle to a thread is a separate access check and cannot establish
 //! whether that thread exists.
 
@@ -19,10 +19,33 @@ use windows_sys::core::w;
 const PROCESS_INFORMATION: i32 = 5;
 // The inventory includes all system records; refuse an oversized reply before allocating it.
 const MAX_BYTES: usize = 64 * 1024 * 1024;
+pub(super) const MAX_THREADS: usize = 65_536;
+#[derive(Clone, Copy)]
+pub(super) enum Phase {
+    Access,
+    Integrity,
+}
+
+impl Phase {
+    pub(super) fn tag(self) -> [u8; 4] {
+        match self {
+            Self::Access => *b"ACL1",
+            Self::Integrity => *b"LOW1",
+        }
+    }
+}
+
 type Query = unsafe extern "system" fn(i32, *mut c_void, u32, *mut u32) -> i32;
 
 /// A missing API, a filtered inventory, or an incomplete record cannot confirm isolation.
 pub(super) fn current_ids() -> io::Result<Vec<u32>> {
+    // SAFETY: these are the IDs of the current process and thread.
+    let (process, caller) = unsafe { (GetCurrentProcessId(), GetCurrentThreadId()) };
+    inventory(process, Some(caller))
+}
+
+/// Query the target in the observer's security context. A worker checks its own caller ID.
+pub(super) fn inventory(process: u32, caller: Option<u32>) -> io::Result<Vec<u32>> {
     // SAFETY: ntdll is already loaded for the lifetime of the process. A lookup neither
     // searches for a DLL nor takes ownership of the module.
     let module = unsafe { GetModuleHandleW(w!("ntdll.dll")) };
@@ -71,17 +94,7 @@ pub(super) fn current_ids() -> io::Result<Vec<u32>> {
         // SAFETY: used fits the initialized allocation. Treat it as bytes without following
         // any pointer advertised in a system record.
         let bytes = unsafe { slice::from_raw_parts(words.as_ptr().cast::<u8>(), used as usize) };
-        // SAFETY: these are the caller's process and thread IDs.
-        let (process, caller) = unsafe { (GetCurrentProcessId(), GetCurrentThreadId()) };
-        return own_threads(bytes, process, caller).ok_or_else(|| {
-            #[cfg(test)]
-            return io::Error::new(
-                io::ErrorKind::InvalidData,
-                inventory_failure(bytes, process),
-            );
-            #[cfg(not(test))]
-            io::Error::from(io::ErrorKind::InvalidData)
-        });
+        return own_threads(bytes, process, caller).ok_or(io::ErrorKind::InvalidData.into());
     }
     Err(io::ErrorKind::FileTooLarge.into())
 }
@@ -90,52 +103,7 @@ fn field<const N: usize>(record: &[u8], offset: usize) -> Option<[u8; N]> {
     record.get(offset..)?.first_chunk::<N>().copied()
 }
 
-/// Describe why a rejected process list cannot attest this process, without exposing
-/// names, handles, or identifiers of other processes.
-#[cfg(test)]
-fn inventory_failure(mut bytes: &[u8], process: u32) -> String {
-    type P = SYSTEM_PROCESS_INFORMATION;
-    type T = SYSTEM_THREAD_INFORMATION;
-    let mut records = 0;
-    let length = bytes.len();
-    while let Some(header) = bytes.get(..size_of::<P>()) {
-        let Some(pid) = field(header, offset_of!(P, UniqueProcessId)).map(usize::from_ne_bytes)
-        else {
-            break;
-        };
-        let Some(next) = field(header, offset_of!(P, NextEntryOffset)).map(u32::from_ne_bytes)
-        else {
-            break;
-        };
-        records += 1;
-        if pid == process as usize {
-            let count = field(header, offset_of!(P, NumberOfThreads)).map(u32::from_ne_bytes);
-            let thread = bytes.get(size_of::<P>()..);
-            let first_owner = thread
-                .and_then(|t| {
-                    field(
-                        t,
-                        offset_of!(T, ClientId) + offset_of!(CLIENT_ID, UniqueProcess),
-                    )
-                })
-                .map(usize::from_ne_bytes);
-            return format!(
-                "incomplete own-process thread list: count={count:?}, own first entry={}, record bytes={next}, total bytes={length}",
-                first_owner == Some(pid)
-            );
-        }
-        if next == 0 || (next as usize) < size_of::<P>() {
-            break;
-        }
-        let Some(rest) = bytes.get(next as usize..) else {
-            break;
-        };
-        bytes = rest;
-    }
-    format!("own process missing from kernel inventory ({records} process records, {length} bytes)")
-}
-
-fn own_threads(mut remaining: &[u8], process: u32, caller: u32) -> Option<Vec<u32>> {
+fn own_threads(mut remaining: &[u8], process: u32, caller: Option<u32>) -> Option<Vec<u32>> {
     type Process = SYSTEM_PROCESS_INFORMATION;
     type Thread = SYSTEM_THREAD_INFORMATION;
     const CLIENT: usize = offset_of!(Thread, ClientId);
@@ -150,6 +118,9 @@ fn own_threads(mut remaining: &[u8], process: u32, caller: u32) -> Option<Vec<u3
         if pid == process as usize {
             let count =
                 u32::from_ne_bytes(field(header, offset_of!(Process, NumberOfThreads))?) as usize;
+            if count == 0 || count > MAX_THREADS {
+                return None;
+            }
             let entries = payload.get(..count.checked_mul(size_of::<Thread>())?)?;
             let mut ids = Vec::new();
             ids.try_reserve_exact(count).ok()?;
@@ -168,7 +139,7 @@ fn own_threads(mut remaining: &[u8], process: u32, caller: u32) -> Option<Vec<u3
                 ids.push(u32::try_from(id).ok()?);
             }
             ids.sort_unstable();
-            return (ids.binary_search(&caller).is_ok()
+            return (caller.is_none_or(|id| ids.binary_search(&id).is_ok())
                 && !ids.windows(2).any(|pair| pair[0] == pair[1]))
             .then_some(ids);
         }
@@ -184,11 +155,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn live_threads_are_visible_after_lowering_integrity() {
+    fn standalone_integrity_requires_a_complete_thread_list() {
         // Isolate a fresh test process: the primary token change affects every thread.
         const ROLE: &str = "SPC_TEST_THREAD_INVENTORY";
         const TEST: &str =
-            "os::windows::threads::tests::live_threads_are_visible_after_lowering_integrity";
+            "os::windows::threads::tests::standalone_integrity_requires_a_complete_thread_list";
         if std::env::var_os(ROLE).is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args(["--exact", TEST, "--nocapture"])
@@ -213,10 +184,112 @@ mod tests {
         let id = ids.recv().unwrap();
         assert!(current_ids().unwrap().contains(&id));
         let report = crate::Isolation::enter();
-        let observed = current_ids().expect("read process and thread records after isolation");
-        assert!(observed.contains(&id) && report.low_integrity, "{report:?}");
+        match current_ids() {
+            Ok(observed) => {
+                assert!(observed.contains(&id));
+                assert!(report.low_integrity, "{report:?}");
+            }
+            Err(_) => {
+                assert_eq!(
+                    report.outcome(crate::Protection::LowIntegrity),
+                    crate::Outcome::Unknown
+                );
+                assert!(report.require(&[crate::Protection::LowIntegrity]).is_err());
+            }
+        }
         finish.send(()).unwrap();
         sibling.join().unwrap();
+    }
+
+    /// Keep a genuine above-low impersonation token active across both snapshots.
+    /// The unconfined parent reads each roster using the same kernel query as Worker.
+    #[test]
+    fn parent_observation_detects_an_impersonating_sibling() {
+        use crate::{Options, Outcome, Protection};
+        use std::io::{BufRead, Write};
+        use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+        use std::process::{Command, Stdio};
+        use windows_sys::Win32::Security::TOKEN_QUERY;
+        use windows_sys::Win32::Security::{ImpersonateSelf, RevertToSelf, SecurityImpersonation};
+        use windows_sys::Win32::System::Threading::{
+            GetCurrentProcess, GetCurrentThread, OpenProcessToken,
+        };
+        const ROLE: &str = "SPC_TEST_PARENT_CENSUS";
+        const TEST: &str =
+            "os::windows::threads::tests::parent_observation_detects_an_impersonating_sibling";
+        if std::env::var_os(ROLE).is_none() {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", TEST, "--nocapture"])
+                .env(ROLE, "1")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut input = child.stdin.take().unwrap();
+            let mut passes = 0;
+            for line in io::BufReader::new(child.stdout.take().unwrap()).lines() {
+                if line.unwrap().contains("SPC_REQUEST_THREAD_LIST") {
+                    let ids = inventory(child.id(), None).unwrap();
+                    assert!(ids.len() >= 2);
+                    for id in ids {
+                        write!(input, "{id} ").unwrap();
+                    }
+                    writeln!(input).unwrap();
+                    input.flush().unwrap();
+                    passes += 1;
+                }
+            }
+            assert!(child.wait().unwrap().success());
+            assert_eq!(passes, 2);
+            return;
+        }
+        let mut token = std::ptr::null_mut();
+        // SAFETY: open this process's primary token for metadata before lowering it.
+        let opened = unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) };
+        assert_ne!(opened, 0);
+        // SAFETY: OpenProcessToken returned a new owned handle.
+        let primary = unsafe { OwnedHandle::from_raw_handle(token.cast()) };
+        let (ready, running) = std::sync::mpsc::sync_channel(0);
+        let (finish, wait) = std::sync::mpsc::channel();
+        let sibling = std::thread::spawn(move || {
+            // SAFETY: this thread borrows its own identity and reads its effective level.
+            unsafe {
+                assert_ne!(ImpersonateSelf(SecurityImpersonation), 0);
+                assert_eq!(
+                    super::super::thread_integrity(GetCurrentThread()),
+                    Outcome::Refused
+                );
+            }
+            ready.send(()).unwrap();
+            wait.recv().unwrap();
+            // SAFETY: the calling thread still holds the impersonation token checked above.
+            let level = unsafe { super::super::thread_integrity(GetCurrentThread()) };
+            assert_eq!(level, Outcome::Refused);
+            // SAFETY: restore the identity on the same thread which set it.
+            assert_ne!(unsafe { RevertToSelf() }, 0);
+        });
+        running.recv().unwrap();
+        let report = super::super::enter_with_census(Options::new(), |_| {
+            writeln!(io::stdout(), "SPC_REQUEST_THREAD_LIST")?;
+            io::stdout().flush()?;
+            let mut reply = String::new();
+            io::stdin().read_line(&mut reply)?;
+            let ids = reply
+                .split_whitespace()
+                .map(str::parse)
+                .collect::<Result<Vec<u32>, _>>()
+                .unwrap();
+            Ok::<_, io::Error>(Some(ids))
+        })
+        .unwrap();
+        assert!(
+            super::super::integrity_of(primary.as_raw_handle().cast())
+                .is_some_and(|rid| rid <= super::super::LOW_INTEGRITY_RID)
+        );
+        finish.send(()).unwrap();
+        sibling.join().unwrap();
+        assert_eq!(report.outcome(Protection::LowIntegrity), Outcome::Refused);
+        assert!(report.require(&[Protection::LowIntegrity]).is_err());
     }
 
     #[test]
@@ -235,16 +308,16 @@ mod tests {
             data[client + offset_of!(CLIENT_ID, UniqueThread)..][..size_of::<usize>()]
                 .copy_from_slice(&tid.to_ne_bytes());
         }
-        assert_eq!(own_threads(&data, 45, 82), Some(vec![81, 82]));
-        assert_eq!(own_threads(&data[..data.len() - 1], 45, 82), None);
-        assert_eq!(own_threads(&data, 45, 83), None);
+        assert_eq!(own_threads(&data, 45, Some(82)), Some(vec![81, 82]));
+        assert_eq!(own_threads(&data[..data.len() - 1], 45, Some(82)), None);
+        assert_eq!(own_threads(&data, 45, Some(83)), None);
         let second = size_of::<P>()
             + size_of::<T>()
             + offset_of!(T, ClientId)
             + offset_of!(CLIENT_ID, UniqueThread);
         data[second..][..size_of::<usize>()].copy_from_slice(&81usize.to_ne_bytes());
-        assert_eq!(own_threads(&data, 45, 81), None);
+        assert_eq!(own_threads(&data, 45, Some(81)), None);
         data[offset_of!(P, NextEntryOffset)..][..4].copy_from_slice(&1u32.to_ne_bytes());
-        assert_eq!(own_threads(&data, 99, 81), None);
+        assert_eq!(own_threads(&data, 99, Some(81)), None);
     }
 }

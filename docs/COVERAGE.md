@@ -4,7 +4,7 @@ The Linux x86-64 run on 2026-11-15 covered **95.07%** (2,468 of 2,596 measured s
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov measured the uncommitted changes based on `fb2a6d345caf8eb58097f013f12e43985402150f`. The fingerprint of the measured inputs is `89ac61b27cd6a2cb87ad0266a6d97b07b6344540f574ab27d50056bd6f8660ad`. LLVM reported 11 functions have mismatched data. The previous measurement was 97.19% (2,281 of 2,347 lines) on the unmodified base. The two source trees have different denominators. [Verification record](audits/AUD-015-2026-11-15.md)
+Rust 1.99.1 and cargo-llvm-cov measured the source later committed as `a4fd4c5eed7d762018310bc18969dc6aa11b29c3`, before the Windows thread-list changes. The fingerprint of the measured inputs is `89ac61b27cd6a2cb87ad0266a6d97b07b6344540f574ab27d50056bd6f8660ad`. LLVM reported 11 functions have mismatched data. The previous measurement was 97.19% (2,281 of 2,347 lines) at `fb2a6d345caf8eb58097f013f12e43985402150f`. The two source trees have different denominators. [Verification record](audits/AUD-015-2026-11-15.md)
 
 ## Scope and exclusions
 

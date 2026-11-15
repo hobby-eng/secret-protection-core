@@ -360,8 +360,23 @@ fn isolated() {
     expect_whole_process(isolation);
     // A second call reads back the same, what the first one set included: on Linux the namespace,
     // on Windows the access lists and the integrity level.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(target_os = "linux")]
     assert_eq!(Isolation::enter(), isolation);
+    #[cfg(windows)]
+    {
+        use secret_protection_core::{Outcome, Protection};
+        let again = Isolation::enter();
+        for measure in isolation.measures() {
+            let p = measure.protection;
+            if matches!(p, Protection::LowIntegrity | Protection::NoMemoryReading)
+                && again.outcome(p) == Outcome::Unknown
+            {
+                assert!(again.require(&[p]).is_err());
+            } else {
+                assert_eq!(again.outcome(p), measure.outcome, "{p:?}");
+            }
+        }
+    }
     // Further calls add no filter: the kernel counts the seccomp filters of the thread, and a
     // layer each time would soon use up its limits.
     #[cfg(target_os = "linux")]
@@ -564,9 +579,19 @@ fn expect_whole_process(isolation: Isolation) {
         assert!(
             isolation.no_new_programs
                 && isolation.no_planted_libraries
-                && isolation.desktop_restricted
-                && isolation.low_integrity,
+                && isolation.desktop_restricted,
             "{isolation:?}"
+        );
+        use secret_protection_core::{Outcome, Protection};
+        assert!(windows::primary_is_low());
+        let level = isolation.outcome(Protection::LowIntegrity);
+        assert!(
+            matches!(level, Outcome::Confirmed | Outcome::Unknown),
+            "{level:?}"
+        );
+        assert_eq!(
+            isolation.require(&[Protection::LowIntegrity]).is_ok(),
+            level == Outcome::Confirmed
         );
         let started = Command::new(std::env::current_exe().unwrap())
             .env(ROLE, "idle")

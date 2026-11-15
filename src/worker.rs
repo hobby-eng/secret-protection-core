@@ -13,8 +13,8 @@ pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
 #[cfg(windows)]
 pub(crate) const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
 
-/// What a worker sends before anything else: one byte for each protection, then whether its
-/// start left it clean.
+/// The startup report sent after the platform checks and before application requests.
+/// It contains one byte per protection followed by the clean-start flag.
 const REPORT_BYTES: usize = Protection::COUNT + 1;
 
 /// A separate process running the same executable on Linux, macOS or Windows.
@@ -109,6 +109,8 @@ impl Worker {
 
     /// Reads what the worker says of itself: its isolation, and whether its start left it clean.
     fn report(process: &mut crate::os::WorkerProcess) -> Result<(Isolation, bool), WorkerError> {
+        #[cfg(windows)]
+        process.observe_threads().map_err(WorkerError::Start)?;
         let unreadable = || io::Error::new(io::ErrorKind::InvalidData, "no report of a worker");
         let mut report = [0; REPORT_BYTES];
         process
@@ -229,7 +231,7 @@ impl fmt::Debug for Worker {
 }
 
 /// Parses known option bits and a terminal flag. Unix accepts no trailing field. On Windows
-/// the terminal flag must be zero and the named pipe must have its generated spelling.
+/// the terminal flag must be zero, followed by the generated pipe name and launch nonce.
 pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     let mut parts = text.splitn(3, ',');
     let digits = parts.next()?;
@@ -249,12 +251,15 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     #[cfg(windows)]
     let fits = !terminal
         && rest
-            .and_then(|name| name.strip_prefix(PIPE_PREFIX))
-            .is_some_and(|digits| {
-                digits.len() == 32
-                    && digits
-                        .bytes()
-                        .all(|d| d.is_ascii_digit() || (b'a'..=b'f').contains(&d))
+            .and_then(|channel| channel.split_once(','))
+            .is_some_and(|(name, nonce)| {
+                let hex128 = |text: &str| {
+                    text.len() == 32
+                        && text
+                            .bytes()
+                            .all(|d| d.is_ascii_digit() || (b'a'..=b'f').contains(&d))
+                };
+                name.strip_prefix(PIPE_PREFIX).is_some_and(hex128) && hex128(nonce)
             });
     let known = Options::from_bits(options).to_bits() == options;
     (known && fits).then_some((options, terminal, rest.unwrap_or_default()))
@@ -284,6 +289,11 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     if !terminal {
         clean &= crate::os::leave_terminal();
     }
+    #[cfg(windows)]
+    let Ok(isolation) = streams.enter(Options::from_bits(options)) else {
+        return true;
+    };
+    #[cfg(not(windows))]
     let isolation = Isolation::enter_with(Options::from_bits(options));
     let mut report = [0; REPORT_BYTES];
     report[..Protection::COUNT].copy_from_slice(&isolation.to_bytes());
@@ -369,13 +379,17 @@ mod tests {
         assert_eq!(setting("5,1"), Some((5, true, "")));
         #[cfg(windows)]
         {
-            let name = format!("{PIPE_PREFIX}0123456789abcdef0123456789abcdef");
+            let pipe = format!("{PIPE_PREFIX}0123456789abcdef0123456789abcdef");
+            let name = format!("{pipe},fedcba9876543210fedcba9876543210");
             assert_eq!(
                 setting(&format!("5,0,{name}")),
                 Some((5, false, name.as_str()))
             );
             for bad in [
                 format!("0,1,{name}"),
+                format!("0,0,{pipe}"),
+                format!("0,0,{pipe},"),
+                format!("0,0,{name},extra"),
                 format!("0,0,{name}0"),
                 format!("0,0,{}", name.to_uppercase()),
                 "5,1".into(),

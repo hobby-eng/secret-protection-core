@@ -180,6 +180,11 @@ pub(super) fn an_impersonating_sibling_keeps_its_own_integrity() {
     assert!(report.require(&[Protection::LowIntegrity]).is_err());
 }
 
+pub(super) fn primary_is_low() -> bool {
+    use std::os::windows::io::AsRawHandle;
+    token_label_rid(query_own_token(false).as_raw_handle().cast()) <= 4096
+}
+
 fn query_own_token(impersonating: bool) -> std::os::windows::io::OwnedHandle {
     use std::os::windows::io::{FromRawHandle, OwnedHandle};
     use windows_sys::Win32::Security::TOKEN_QUERY;

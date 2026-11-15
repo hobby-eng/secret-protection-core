@@ -277,6 +277,18 @@ const LOW_INTEGRITY_RID: u32 = 0x1000;
 const GROUP_INTEGRITY: u32 = 0x20;
 
 pub(crate) fn enter(options: Options) -> Isolation {
+    let Ok(report) = enter_with_census(options, |_| {
+        Ok::<_, std::convert::Infallible>(threads::current_ids().ok())
+    });
+    report
+}
+
+/// Each census is requested at the point it is needed. Only the worker protocol can
+/// substitute the launcher's view for the one available to a standalone process.
+fn enter_with_census<E>(
+    options: Options,
+    mut census: impl FnMut(threads::Phase) -> Result<Option<Vec<u32>>, E>,
+) -> Result<Isolation, E> {
     // SAFETY: changes only what Windows Error Reporting collects when this process fails.
     unsafe { WerSetFlags(WER_FAULT_REPORTING_FLAG_NOHEAP) };
     if options.dynamic_code {
@@ -319,8 +331,11 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // WRITE_DAC included.
     let process = restrict_access(unsafe { GetCurrentProcess() }, PROCESS_ACCESS);
     let default_list = opened && restrict_default(token);
+    // SAFETY: only a successful token open transfers ownership. Keep the token owned
+    // across protocol errors so an interrupted startup cannot leak it.
+    let _token_owner = opened.then(|| unsafe { OwnedHandle::from_raw_handle(token.cast()) });
     let mut pinned = BTreeMap::new();
-    let (threads, _) = inspect_threads(true, &mut pinned);
+    let (threads, _) = inspect_threads(census(threads::Phase::Access)?, true, &mut pinned);
     // Low integrity keeps the process from writing up, but not where a low label allows it, such
     // as AppData\LocalLow: it is applied, and file changes stay unreported. An AppContainer
     // token is lower still and refuses the change.
@@ -328,17 +343,19 @@ pub(crate) fn enter(options: Options) -> Isolation {
     if opened {
         low = lower_integrity(token);
         contained = without_network(token);
-        // SAFETY: closes the token opened above, once.
-        unsafe { CloseHandle(token) };
     }
     let mut debugger = 0;
     // SAFETY: the pseudo handle of this process needs no closing; the call writes one BOOL.
     let debugged = unsafe { CheckRemoteDebuggerPresent(GetCurrentProcess(), &mut debugger) } == 0
         || debugger != 0;
     let mut found = Findings::new();
-    found.check(
+    found.set(
         Protection::NoMemoryReading,
-        process && default_list && threads && !debugged,
+        if process && default_list && !debugged {
+            threads
+        } else {
+            Outcome::Refused
+        },
         true,
     );
     found.check(Protection::NoNewSockets, contained, true);
@@ -351,8 +368,9 @@ pub(crate) fn enter(options: Options) -> Isolation {
         true,
     );
     found.check(Protection::DesktopRestricted, desktop_restricted, true);
+    let effective_threads = census(threads::Phase::Integrity)?;
     let integrity = match low {
-        Outcome::Confirmed => inspect_threads(false, &mut pinned).1,
+        Outcome::Confirmed => inspect_threads(effective_threads, false, &mut pinned).1,
         outcome => outcome,
     };
     found.set(Protection::LowIntegrity, integrity, true);
@@ -372,7 +390,7 @@ pub(crate) fn enter(options: Options) -> Isolation {
         holds(ProcessSignaturePolicy, MICROSOFT_SIGNED_ONLY, 0),
         true,
     );
-    found.finish()
+    Ok(found.finish())
 }
 
 /// `ProhibitDynamicCode` of PROCESS_MITIGATION_DYNAMIC_CODE_POLICY.
@@ -675,12 +693,21 @@ fn restrict_default(token: HANDLE) -> bool {
 
 /// First pass hardens thread ACLs and pins handles. The second pass checks current
 /// effective tokens after the primary token has been lowered.
-fn inspect_threads(set_acl: bool, pinned: &mut BTreeMap<u32, OwnedHandle>) -> (bool, Outcome) {
-    let Ok(ids) = threads::current_ids() else {
-        return (false, Outcome::Unknown);
+fn inspect_threads(
+    ids: Option<Vec<u32>>,
+    set_acl: bool,
+    pinned: &mut BTreeMap<u32, OwnedHandle>,
+) -> (Outcome, Outcome) {
+    // SAFETY: these IDs identify the live thread performing this check and its process.
+    let (process, caller) = unsafe {
+        (
+            GetCurrentProcessId(),
+            windows_sys::Win32::System::Threading::GetCurrentThreadId(),
+        )
     };
-    // SAFETY: returns this process's ID.
-    let process = unsafe { GetCurrentProcessId() };
+    let Some(ids) = ids.filter(|ids| ids.binary_search(&caller).is_ok()) else {
+        return (Outcome::Unknown, Outcome::Unknown);
+    };
     let mut all = true;
     let mut integrity = Outcome::Confirmed;
     for id in ids {
@@ -703,7 +730,14 @@ fn inspect_threads(set_acl: bool, pinned: &mut BTreeMap<u32, OwnedHandle>) -> (b
             integrity = Outcome::Unknown;
         }
     }
-    (all, integrity)
+    (
+        if all {
+            Outcome::Confirmed
+        } else {
+            Outcome::Refused
+        },
+        integrity,
+    )
 }
 
 /// Gives the thread numbered `id` [`THREAD_ACCESS`] as its access list, and returns whether it
@@ -953,6 +987,7 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::NoMemoryReading, O::Confirmed) => {
             "the access lists read back, and no debugger is present"
         }
+        (P::NoMemoryReading, O::Unknown) => "the live thread inventory was unavailable",
         (P::NoMemoryReading, O::Refused) => {
             "an access list did not read back, or a debugger is present"
         }

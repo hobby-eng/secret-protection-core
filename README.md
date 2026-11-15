@@ -49,7 +49,7 @@ Options include restricting signals and locking the whole process on Linux, and 
 
 On Linux, macOS and Windows, `Worker::start(options, &required)` runs the same executable again. Call `serve(most, handler)` at the beginning of `main`, before other threads start. The parent receives a worker only after the startup check passes and every protection in `required` is confirmed. Both endpoints require confirmed whole-process isolation before dispatch. The parent then sends requests and sets a maximum reply size for each call.
 
-Linux closes inherited nonstandard descriptors before the executable starts. macOS closes them through its spawn policy. Windows disables inheritance, uses a named pipe and retains only wait and termination rights on the worker. The executable and its startup libraries are trusted. [Worker startup and transport](docs/TECHNICAL.md#the-worker-process)
+Linux closes inherited nonstandard descriptors before the executable starts. macOS closes them through its spawn policy. Windows disables inheritance, uses a named pipe and retains only wait and termination rights on the worker. On Windows, use a worker when your application requires low integrity or protection against memory reads. Its parent can list the worker’s threads even when Windows hides that list from the worker itself. The worker checks their access rights and tokens before the parent can send a secret. A standalone process reports `Unknown` for a check it cannot complete. The executable and its startup libraries are trusted. [Worker startup and transport](docs/TECHNICAL.md#the-worker-process)
 
 Startup and request–reply have no deadline. `Worker::end` closes the transport and reports whether the worker exited. Windows and Linux with a spawn-time pidfd can force termination. On macOS and older Linux paths a worker that outlives the grace period returns `false`. One waiting thread in the Unix parent collects the child when it eventually exits. On the POSIX fallback, give this library exclusive ownership of that child’s wait status.
 
@@ -88,6 +88,6 @@ assert_eq!(secret.as_bytes(), b"public example");
 
 ## Tests and license
 
-Linux x86-64 line coverage was **95.07%** (2,468 of 2,596 measured lines) on 2026-11-15. The run included all three integration programs and their workers, with source fingerprint `89ac61b27cd6`. [Per-file coverage and platform scope](docs/COVERAGE.md).
+Linux x86-64 line coverage was **95.07%** (2,468 of 2,596 measured lines) on 2026-11-15 at revision `a4fd4c5`. The run included the unit tests, all three integration programs and their workers. [Per-file coverage and platform scope](docs/COVERAGE.md).
 
 Licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. [Third-party notices](THIRD_PARTY_NOTICES.md).

@@ -2,7 +2,7 @@
 //! one handle of its parent's. The two talk through a named pipe that the worker opens by name.
 
 use std::fs::File;
-use std::io;
+use std::io::{self, Read, Write};
 use std::mem::size_of;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::ptr;
@@ -31,12 +31,14 @@ pub(crate) struct WorkerProcess {
     pub(crate) to: Option<File>,
     pub(crate) from: Option<File>,
     process: OwnedHandle,
+    id: u32,
+    launch_nonce: u128,
 }
 
 impl WorkerProcess {
     /// Starts this program again in its own AppContainer: no capabilities, no console, no handle
-    /// inherited, and an environment of the worker variable, set to `setting` and the name of
-    /// its pipe, and [`SYSTEM_VARIABLES`]. The program file must be readable by app containers
+    /// inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker variable
+    /// with its options, pipe name and launch nonce. The program file must be readable by app containers
     /// (Program Files is), or Windows refuses to start it. No worker on the terminal here.
     pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         use std::os::windows::ffi::OsStrExt;
@@ -47,11 +49,15 @@ impl WorkerProcess {
         let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
         let container = Container::of(&path)?;
         let (pipe, name) = listen(&container)?;
-        let (process, id) = container.start(&path, &format!("{setting},{name}"))?;
+        let launch_nonce = random_u128()?;
+        let (process, id) =
+            container.start(&path, &format!("{setting},{name},{launch_nonce:032x}"))?;
         let mut worker = Self {
             to: None,
             from: None,
             process,
+            id,
+            launch_nonce,
         };
         let process: HANDLE = worker.process.as_raw_handle().cast();
         match accept(&pipe, process, id).and_then(|()| pipe.try_clone()) {
@@ -66,6 +72,44 @@ impl WorkerProcess {
                 Err(error)
             }
         }
+    }
+
+    /// The pipe client has already been matched to this worker's PID. Keep its exact
+    /// process object live throughout each kernel inventory before sending the roster.
+    pub(crate) fn observe_threads(&mut self) -> io::Result<()> {
+        use super::threads::{Phase, inventory};
+        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+        let process = self.process.as_raw_handle().cast();
+        let running = || {
+            // SAFETY: the parent owns this process handle with synchronization rights.
+            if unsafe { WaitForSingleObject(process, 0) } == WAIT_TIMEOUT {
+                Ok(())
+            } else {
+                Err(io::Error::from(io::ErrorKind::BrokenPipe))
+            }
+        };
+        let from = self.from.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+        let to = self.to.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+        running()?;
+        to.write_all(&self.launch_nonce.to_le_bytes())?;
+        for phase in [Phase::Access, Phase::Integrity] {
+            let mut request = [0; 4];
+            from.read_exact(&mut request)?;
+            if request != phase.tag() {
+                return Err(io::ErrorKind::InvalidData.into());
+            }
+            running()?;
+            let ids = inventory(self.id, None).unwrap_or_default();
+            running()?;
+            let mut reply = Vec::with_capacity(4 + 4 * ids.len());
+            reply.extend_from_slice(&(ids.len() as u32).to_le_bytes());
+            for id in ids {
+                reply.extend_from_slice(&id.to_le_bytes());
+            }
+            to.write_all(&reply)?;
+        }
+        Ok(())
     }
 
     /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
@@ -93,24 +137,10 @@ impl WorkerProcess {
     }
 }
 
-/// Makes the pipe of one worker and returns it with its name. Its access list takes this user,
-/// in `container` or in none: Windows gives an app container what the user's entry and the
-/// container's both give. It has one instance, so one process holds it at a time, and none
-/// inherits it.
-fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
-    use windows_sys::Win32::Security::Authorization::{
-        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
-    };
+/// Generate independent values for the public pipe name and the private startup handshake.
+fn random_u128() -> io::Result<u128> {
     use windows_sys::Win32::Security::Cryptography::{
         BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
-    };
-    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
-    };
-    use windows_sys::Win32::System::Pipes::{
-        CreateNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
-        PIPE_TYPE_BYTE,
     };
     let mut random = [0_u8; 16];
     // SAFETY: the call fills the sixteen bytes it is given.
@@ -123,9 +153,30 @@ fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
         )
     } == 0;
     if !filled {
-        return Err(io::Error::other("Windows gave no random name for the pipe"));
+        return Err(io::Error::other(
+            "Windows could not generate worker startup randomness",
+        ));
     }
-    let name = format!("{PIPE_PREFIX}{:032x}", u128::from_le_bytes(random));
+    Ok(u128::from_le_bytes(random))
+}
+
+/// Makes the pipe of one worker and returns it with its name. Its access list takes this user,
+/// in `container` or in none: Windows gives an app container what the user's entry and the
+/// container's both give. It has one instance, so one process holds it at a time, and none
+/// inherits it.
+fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
+        PIPE_TYPE_BYTE,
+    };
+    let name = format!("{PIPE_PREFIX}{:032x}", random_u128()?);
     // The user and the container may read and write; the owner's own rights end at reading
     // this list; the low label lets a process of low integrity write.
     let access = format!(
@@ -497,6 +548,42 @@ pub(crate) fn leave_terminal() -> bool {
 /// sees the end at once, however long the worker lives on.
 pub(crate) struct WorkerStreams(File);
 
+impl WorkerStreams {
+    pub(crate) fn enter(&mut self, options: crate::Options) -> io::Result<crate::Isolation> {
+        super::enter_with_census(options, |phase| {
+            self.write_all(&phase.tag())?;
+            read_roster(self)
+        })
+    }
+}
+
+/// Zero represents an unavailable observation. Every other reply must be a complete,
+/// bounded sequence of distinct, nonzero, ascending thread IDs.
+fn read_roster(reader: &mut impl Read) -> io::Result<Option<Vec<u32>>> {
+    let mut word = [0; 4];
+    reader.read_exact(&mut word)?;
+    let count = u32::from_le_bytes(word) as usize;
+    if count == 0 {
+        return Ok(None);
+    }
+    if count > super::threads::MAX_THREADS {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    let mut bytes = vec![0; 4 * count];
+    reader.read_exact(&mut bytes)?;
+    let mut ids = Vec::with_capacity(count);
+    let mut previous = 0;
+    for &word in bytes.as_chunks::<4>().0 {
+        let id = u32::from_le_bytes(word);
+        if id <= previous {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        ids.push(id);
+        previous = id;
+    }
+    Ok(Some(ids))
+}
+
 impl io::Read for WorkerStreams {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         self.0.read(buffer)
@@ -520,7 +607,9 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
     };
-    let name: Vec<u16> = channel.encode_utf16().chain([0]).collect();
+    let (name, nonce) = channel.split_once(',').ok_or(io::ErrorKind::InvalidData)?;
+    let expected = u128::from_str_radix(nonce, 16).map_err(|_| io::ErrorKind::InvalidData)?;
+    let name: Vec<u16> = name.encode_utf16().chain([0]).collect();
     let deadline = std::time::Instant::now() + PATIENCE;
     let pipe = loop {
         // SAFETY: the name is NUL-terminated; the call returns a new handle or
@@ -548,12 +637,83 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
         std::thread::sleep(crate::os::STEP);
     };
     // SAFETY: the handle was just opened and nothing else owns it.
-    Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))
+    let mut file = unsafe { File::from_raw_handle(pipe.cast()) };
+    verify_server(&file)?;
+    verify_nonce(&mut file, expected)?;
+    Ok(WorkerStreams(file))
+}
+
+/// Bind the server to this particular launch even if the original parent exits and
+/// Windows reuses its PID. The nonce is independent of the publicly visible pipe name.
+fn verify_nonce(input: &mut impl Read, expected: u128) -> io::Result<()> {
+    let mut received = [0; 16];
+    input.read_exact(&mut received)?;
+    if u128::from_le_bytes(received) == expected {
+        Ok(())
+    } else {
+        Err(io::ErrorKind::PermissionDenied.into())
+    }
+}
+
+/// The launcher supplies security evidence. Its pipe must still belong to the process
+/// that created this worker. No access to the parent's process or tokens is needed.
+fn verify_server(pipe: &File) -> io::Result<()> {
+    use windows_sys::Wdk::System::Threading::{NtQueryInformationProcess, ProcessBasicInformation};
+    use windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, PROCESS_BASIC_INFORMATION};
+    let mut basic = PROCESS_BASIC_INFORMATION::default();
+    let mut size = 0;
+    let mut server = 0;
+    // SAFETY: query only this process through its pseudo-handle, and the already-open
+    // client handle. Both output buffers have the types and sizes required by the APIs.
+    let verified = unsafe {
+        NtQueryInformationProcess(
+            GetCurrentProcess(),
+            ProcessBasicInformation,
+            (&raw mut basic).cast(),
+            size_of::<PROCESS_BASIC_INFORMATION>() as u32,
+            &mut size,
+        ) == 0
+            && size as usize == size_of::<PROCESS_BASIC_INFORMATION>()
+            && GetNamedPipeServerProcessId(pipe.as_raw_handle().cast(), &mut server) != 0
+            && server != 0
+            && server as usize == basic.InheritedFromUniqueProcessId
+    };
+    if verified {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "worker pipe server does not match its launcher",
+        ))
+    }
 }
 
 #[cfg(test)]
 mod handle_tests {
-    use super::limited_process;
+    use super::{limited_process, read_roster, verify_nonce};
+
+    #[test]
+    fn a_launch_nonce_is_required_before_the_first_roster() {
+        let nonce = 1234u128;
+        assert!(verify_nonce(&mut nonce.to_le_bytes().as_slice(), nonce).is_ok());
+        assert!(verify_nonce(&mut (nonce + 1).to_le_bytes().as_slice(), nonce).is_err());
+        assert!(verify_nonce(&mut nonce.to_le_bytes()[..15].as_ref(), nonce).is_err());
+    }
+
+    #[test]
+    fn only_complete_ordered_rosters_are_accepted() {
+        fn parse(words: &[u32]) -> std::io::Result<Option<Vec<u32>>> {
+            let bytes: Vec<_> = words.iter().flat_map(|n| n.to_le_bytes()).collect();
+            read_roster(&mut bytes.as_slice())
+        }
+        assert_eq!(parse(&[0]).unwrap(), None);
+        assert_eq!(parse(&[2, 1, u32::MAX]).unwrap(), Some(vec![1, u32::MAX]));
+        for bad in [&[2, 1][..], &[1, 0], &[2, 1, 1], &[2, 9, 8], &[65_537]] {
+            assert!(parse(bad).is_err(), "{bad:?}");
+        }
+    }
+
     use std::io;
     use std::os::windows::io::{AsHandle, AsRawHandle};
     use std::process::{Command, Stdio};

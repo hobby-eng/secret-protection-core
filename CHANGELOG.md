@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Unix buffers record the fork generation at allocation. In a continuing child, dropping an inherited owner skips its mapping, its protection queries report false and a fresh access through it aborts. The rules for borrowed slices, closed-secret callbacks and protected stacks are in the [technical guide](docs/TECHNICAL.md#a-secrets-pages).
-- Windows retains only synchronization and termination rights on the worker. Strict low integrity also checks thread impersonation tokens.
+- Windows retains only synchronization and termination rights on the worker. During startup, the parent supplies thread lists so the worker can verify its thread access controls and impersonation tokens. A standalone isolation call reports `Unknown` for a measure whose thread list Windows withholds.
 - Unix workers close inherited descriptors before the executable runs and require whole-process isolation before serving. Linux can signal a worker through its spawn-time pidfd. The POSIX fallback uses cooperative shutdown. A dedicated waiter reaps late exits.
 - `ClosedSecret::is_closed` says false in a child of `fork`, as the other answers of its parent's buffers do.
 - Fuzz targets cover the worker setting, startup report and keystroke encoding. The coverage build counts worker processes. The test runner can report a named check as skipped or partially exercised.
