@@ -150,12 +150,15 @@ fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
     }
     let mut area = Some(WorkArea::new(8192).unwrap());
     let mut closed = Some(ClosedSecret::with_capacity(16));
+    assert!(closed.as_ref().is_some_and(ClosedSecret::is_closed));
     let status = in_child(|| {
         let reports = secret.as_ref().is_some_and(|secret| {
             !secret.is_locked() && !secret.is_out_of_dumps() && !secret.is_out_of_children()
         }) && area.as_ref().is_some_and(|area| {
             !area.is_locked() && !area.is_out_of_dumps() && !area.is_out_of_children()
-        }) && closed.as_ref().is_some_and(|closed| !closed.is_locked());
+        }) && closed
+            .as_ref()
+            .is_some_and(|closed| !closed.is_locked() && !closed.is_closed());
         drop((secret.take(), area.take(), closed.take()));
         let mut own = Secret::with_capacity(8);
         let works = own.push(b"own").is_ok() && own.as_bytes() == b"own";

@@ -10,10 +10,6 @@ use crate::protect::{Isolation, Missing, Options, Protection, Secret};
 /// The variable through which a worker learns that it is one: the options its parent chose, and
 /// whether it keeps the terminal.
 pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
-/// Deliberate copy of [`WORKER`] for the C library, which reads it before `main` on Unix, where
-/// no Rust string helps; a test keeps the two in step.
-#[cfg(any(unix, test))]
-pub(crate) const WORKER_NAME: &std::ffi::CStr = c"SECRET_PROTECTION_CORE_WORKER";
 
 /// What a worker sends before anything else: one byte for each protection, then whether its
 /// start left it clean.
@@ -58,8 +54,8 @@ impl std::error::Error for WorkerError {}
 
 impl Worker {
     /// Starts this program again as a worker with `options`, without the terminal. Returns it only
-    /// once the worker closed what it inherited and every protection in `required` is confirmed
-    /// in it; else the worker is ended and nothing was sent to it.
+    /// once the worker holds nothing of its parent's but its pipes and every protection in
+    /// `required` is confirmed in it; else the worker is ended and nothing was sent to it.
     pub fn start(options: Options, required: &[Protection]) -> Result<Self, WorkerError> {
         Self::starting(options, required, false)
     }
@@ -230,25 +226,11 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
         "1" => true,
         _ => return None,
     };
-    let rest = parts.next().unwrap_or_default();
-    // On Unix the rest names the descriptors the worker inherited, and nothing else fits.
-    let fits = !cfg!(unix)
-        || rest
-            .split('.')
-            .all(|part| part.is_empty() || named(part).is_some());
+    let rest = parts.next();
+    // Only Windows has more: the name of the worker's pipe. On Unix one text, one setting.
+    let fits = !cfg!(unix) || rest.is_none();
     let known = Options::from_bits(options).to_bits() == options;
-    (known && fits).then_some((options, terminal, rest))
-}
-
-/// A descriptor that the rest of a Unix setting names: a number above standard error.
-fn named(part: &str) -> Option<i32> {
-    part.parse().ok().filter(|&descriptor| descriptor > 2)
-}
-
-/// The descriptors that the rest of a Unix setting names as left open by the parent.
-#[cfg(unix)]
-pub(crate) fn inherited(rest: &str) -> impl Iterator<Item = i32> + '_ {
-    rest.split('.').filter_map(named)
+    (known && fits).then_some((options, terminal, rest.unwrap_or_default()))
 }
 
 /// The worker side. In a process started by [`Worker::start`] it leaves the terminal, isolates
@@ -259,11 +241,9 @@ pub(crate) fn inherited(rest: &str) -> impl Iterator<Item = i32> + '_ {
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
-    let Some((options, terminal, rest)) = setting(&text) else {
+    let Some((options, terminal, channel)) = setting(&text) else {
         return false;
     };
-    // On Unix the rest named what was closed before `main`; only Windows has a channel there.
-    let channel = if cfg!(unix) { "" } else { rest };
     if SERVED.swap(true, std::sync::atomic::Ordering::Relaxed) {
         return false;
     }
@@ -339,15 +319,13 @@ mod tests {
         let channel = setting("0,0,//./pipe/name,with,commas");
         let windows = cfg!(windows).then_some((0, false, "//./pipe/name,with,commas"));
         assert_eq!(channel, windows);
-        // On Unix the rest names descriptors above standard error, and nothing else.
-        assert!(setting("0,0,3.17").is_some());
+        // On Unix nothing follows the two flags, not even a comma.
         #[cfg(unix)]
-        assert!(inherited("3.17").eq([3, 17]) && setting("0,0,2").is_none());
+        assert!(setting("0,0,").is_none() && setting("0,0,3.17").is_none());
         // No other text: a flag that is neither 0 nor 1, or an option this crate does not have.
         for other in ["", "none", "x,1", "7", "0,2", "0,true", "64,0"] {
             assert_eq!(setting(other), None, "{other}");
         }
-        assert_eq!(WORKER_NAME.to_str(), Ok(WORKER));
     }
 
     /// A report is taken only as a worker of this crate writes it.

@@ -66,6 +66,40 @@ fn timed(most: Duration, mut scenario: impl FnMut() -> Duration) {
     panic!("late three times, against {most:?}: {times:?}");
 }
 
+/// The inodes of the pipes above standard error that were open when this program's first code
+/// ran, before `main`, as the start-up code of a library linked to it would find them; zeros
+/// after the last.
+#[cfg(unix)]
+static PIPES_BEFORE_MAIN: [std::sync::atomic::AtomicU64; 16] =
+    [const { std::sync::atomic::AtomicU64::new(0) }; 16];
+
+/// Fills [`PIPES_BEFORE_MAIN`], before `main`, with calls that need nothing set up.
+#[cfg(unix)]
+extern "C" fn record_pipes_before_main() {
+    let mut found = 0;
+    for descriptor in 3..256 {
+        // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
+        let mut status: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: as above.
+        let open = unsafe { libc::fstat(descriptor, &mut status) } == 0;
+        let pipe = open && status.st_mode & libc::S_IFMT == libc::S_IFIFO;
+        if let Some(slot) = PIPES_BEFORE_MAIN.get(found).filter(|_| pipe) {
+            slot.store(status.st_ino, Ordering::Relaxed);
+            found += 1;
+        }
+    }
+}
+
+/// Puts [`record_pipes_before_main`] among the functions the system runs before `main`.
+#[cfg(unix)]
+#[used]
+#[cfg_attr(target_os = "linux", unsafe(link_section = ".init_array"))]
+#[cfg_attr(
+    target_vendor = "apple",
+    unsafe(link_section = "__DATA,__mod_init_func,mod_init_funcs")
+)]
+static RECORD_PIPES_BEFORE_MAIN: extern "C" fn() = record_pipes_before_main;
+
 /// AddressSanitizer asks the program for its options. Its leak check needs ptrace, which an
 /// isolated process refuses, and a worker gets no environment to turn it off in.
 #[cfg(target_os = "linux")]
@@ -83,6 +117,15 @@ fn answer(request: &[u8]) -> Secret {
             .join(","),
         #[cfg(unix)]
         b"descriptors" => descriptors(),
+        #[cfg(unix)]
+        b"stderr" => identity(libc::STDERR_FILENO),
+        #[cfg(unix)]
+        b"pipes before main" => PIPES_BEFORE_MAIN
+            .iter()
+            .map(|inode| inode.load(Ordering::Relaxed).to_string())
+            .take_while(|inode| inode != "0")
+            .collect::<Vec<_>>()
+            .join(","),
         #[cfg(unix)]
         // SAFETY: getsid and getpid take integers and touch no memory.
         b"session" => (unsafe { libc::getsid(0) == libc::getpid() }).to_string(),
@@ -136,6 +179,18 @@ fn descriptors() -> String {
         .join(",")
 }
 
+/// The device and inode of what `descriptor` leads to, or "closed".
+#[cfg(unix)]
+fn identity(descriptor: i32) -> String {
+    // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: as above.
+    if unsafe { libc::fstat(descriptor, &mut status) } != 0 {
+        return "closed".to_owned();
+    }
+    format!("{}:{}", status.st_dev, status.st_ino)
+}
+
 /// What a worker has open while it serves: its standard streams, and /dev/null, which takes
 /// the place of its pipes once it serves no more.
 #[cfg(unix)]
@@ -147,6 +202,10 @@ fn its_own() -> &'static [u8] {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the table of every check and role of the program, read best whole"
+)]
 fn main() {
     // The `late` role opens a file of its own before it comes to `serve`.
     #[cfg(unix)]
@@ -205,6 +264,8 @@ fn main() {
         Ok("unserved") => return unserved(),
         #[cfg(unix)]
         Ok("kept") => return kept(),
+        #[cfg(unix)]
+        Ok("streamless") => return streamless(),
         _ => {}
     }
     if !cfg!(any(target_os = "linux", target_os = "macos", windows)) {
@@ -256,8 +317,8 @@ fn main() {
     );
     #[cfg(unix)]
     run(
-        "a worker closes what its parent names before main, and nothing else",
-        a_worker_closes_what_its_parent_names_and_nothing_else,
+        "a worker's start-up code finds no descriptor of its parent's",
+        a_worker_inherits_nothing_its_libraries_could_find,
     );
     #[cfg(windows)]
     run(
@@ -268,6 +329,11 @@ fn main() {
     run(
         "a worker starts from a protected stack",
         a_worker_starts_from_a_protected_stack,
+    );
+    #[cfg(unix)]
+    run(
+        "a program whose standard streams are closed starts both kinds of worker",
+        a_program_without_streams_starts_workers,
     );
     #[cfg(all(
         target_os = "linux",
@@ -401,6 +467,11 @@ fn a_worker_gets_nothing_but_its_pipes() {
             its_own()
         );
         assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
+        // Its standard error goes to /dev/null; a worker on the terminal keeps its parent's.
+        let null = std::fs::File::open("/dev/null").unwrap();
+        let stderr = worker.call(b"stderr", 100).unwrap();
+        let null = std::os::fd::AsRawFd::as_raw_fd(&null);
+        assert_eq!(stderr.as_str().unwrap(), identity(null));
         // SAFETY: closes the descriptor opened above, once.
         unsafe { libc::close(leaked) };
         let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
@@ -408,6 +479,8 @@ fn a_worker_gets_nothing_but_its_pipes() {
             on_terminal.call(b"session", 10).unwrap().as_bytes(),
             b"false"
         );
+        let stderr = on_terminal.call(b"stderr", 100).unwrap();
+        assert_eq!(stderr.as_str().unwrap(), identity(libc::STDERR_FILENO));
     }
 }
 
@@ -525,10 +598,10 @@ fn a_worker_starts_no_worker() {
     );
 }
 
-/// `serve` closes no descriptor: what the parent named was closed before the worker's `main`. A
-/// program that opened a file before it called `serve` keeps the file, and its report says that
-/// its start was not clean. The test stands in for the parent, takes the report and sends no
-/// request.
+/// `serve` closes no descriptor: the start of a worker closed what it would have inherited before
+/// the program ran. A program that opened a file before it called `serve` keeps the file, and its
+/// report says that its start was not clean. The test stands in for the parent, takes the report
+/// and sends no request.
 #[cfg(unix)]
 fn a_late_serve_closes_nothing() {
     let output = std::process::Command::new(std::env::current_exe().unwrap())
@@ -542,15 +615,16 @@ fn a_late_serve_closes_nothing() {
     assert_eq!(output.stdout.last(), Some(&0), "it calls its start clean");
 }
 
-/// A text in the worker's variable that is no setting starts no worker and closes nothing
-/// before `main`: the program keeps a descriptor its parent left it. A channel's name is no part
-/// of a setting on Unix.
+/// A text in the worker's variable that is no setting starts no worker, and nothing closes a
+/// descriptor before `main`: the program keeps one its parent left it. A channel's name is no
+/// part of a setting on Unix, nor are numbers of descriptors.
 #[cfg(unix)]
 fn a_program_without_a_setting_keeps_what_it_inherited() {
     // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
     let left = unsafe { libc::dup(0) };
     assert!(left > 2);
-    for text in ["none", "", "0,2", "64,0", "0,0,channel"] {
+    let named = format!("0,0,{left}");
+    for text in ["none", "", "0,2", "64,0", "0,0,channel", &named] {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
             .env(ROLE, "kept")
             .env(KEPT, left.to_string())
@@ -563,47 +637,58 @@ fn a_program_without_a_setting_keeps_what_it_inherited() {
     unsafe { libc::close(left) };
 }
 
-/// Before `main` a worker closes the descriptors its parent named, and no other: named, what it
-/// inherited is gone and its start is clean; not named, it stays and the start is not. The test
-/// stands in for the parent and sends no request.
+/// The start-up code of a worker, as that of a library linked to the program, finds no descriptor
+/// of its parent's: the start closed them before the program ran, not by their numbers after. A
+/// pipe the parent leaves open is looked for among the pipes the worker had before `main`.
 #[cfg(unix)]
-fn a_worker_closes_what_its_parent_names_and_nothing_else() {
-    // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
-    let left = unsafe { libc::dup(0) };
-    assert!(left > 2);
-    // Every descriptor a program started now inherits, `left` among them: a test runner may leave
-    // this process some of its own.
-    let open = secret_protection_core::open_channels().unwrap();
-    let inherited: Vec<i32> = open
-        .channels
-        .iter()
-        .map(|channel| channel.descriptor)
-        .filter(|&descriptor| {
-            // SAFETY: fcntl with F_GETFD takes integers and only reads.
-            let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
-            descriptor > 2 && flags >= 0 && flags & libc::FD_CLOEXEC == 0
-        })
-        .collect();
-    assert!(inherited.contains(&left), "{inherited:?}");
-    let names = |except: i32| {
-        let kept = inherited.iter().filter(|&&descriptor| descriptor != except);
-        kept.map(ToString::to_string).collect::<Vec<_>>().join(".")
-    };
-    for (named, clean) in [(names(-1), 1), (names(left), 0)] {
-        let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .env_clear()
-            .env("SECRET_PROTECTION_CORE_WORKER", format!("0,0,{named}"))
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap();
-        assert_eq!(output.stdout.len(), Protection::ALL.len() + 1, "{output:?}");
-        assert_eq!(output.stdout.last(), Some(&clean), "named {named}");
+fn a_worker_inherits_nothing_its_libraries_could_find() {
+    let mut ends = [0; 2];
+    // SAFETY: pipe writes two new descriptors without close-on-exec, closed below.
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
+    // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: as above.
+    assert_eq!(unsafe { libc::fstat(ends[0], &mut status) }, 0);
+    let mut worker = Worker::start(Options::new(), &required()).unwrap();
+    let found = worker.call(b"pipes before main", 1000).unwrap();
+    let found = found.as_str().unwrap();
+    let parents = status.st_ino.to_string();
+    assert!(!found.split(',').any(|inode| inode == parents), "{found}");
+    for end in ends {
+        // SAFETY: closes a descriptor made above, once.
+        unsafe { libc::close(end) };
     }
-    // SAFETY: closes the descriptor made above, which nothing else owns.
-    unsafe { libc::close(left) };
 }
 
-/// The `kept` role: the descriptor its parent named is still open.
+/// A program started with its standard streams closed makes the worker's pipes there, at 0 to 2,
+/// and must move them before it hands them on. The `streamless` role closes them and starts a
+/// worker of each kind; its exit says whether both answered.
+#[cfg(unix)]
+fn a_program_without_streams_starts_workers() {
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(ROLE, "streamless")
+        .status()
+        .unwrap();
+    assert!(status.success(), "{status}");
+}
+
+/// The `streamless` role.
+#[cfg(unix)]
+fn streamless() {
+    for stream in 0..=2 {
+        // SAFETY: closes a standard stream of this process, which nothing here uses again.
+        unsafe { libc::close(stream) };
+    }
+    let mut worker = Worker::start(Options::new(), &required()).unwrap();
+    assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+    let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
+    assert_eq!(
+        on_terminal.call(b"public", 100).unwrap().as_bytes(),
+        b"cilbup"
+    );
+}
+
+/// The `kept` role: the descriptor its parent left it is still open.
 #[cfg(unix)]
 fn kept() {
     let left: i32 = std::env::var(KEPT).unwrap().parse().unwrap();

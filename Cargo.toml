@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.99"
 description = "Memory pages for secrets that stay out of swap, core dumps and child processes, wiped when dropped, and the isolation of a process against a secret leaving it"
 license = "MIT OR Apache-2.0"
-# Not published while the interface is a draft.
+# Not published to crates.io.
 publish = false
 
 [dependencies]

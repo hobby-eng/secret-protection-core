@@ -92,9 +92,9 @@ impl ClosedSecret {
     }
 
     /// Whether the pages refuse every access now, as the system confirmed when they were last
-    /// closed.
+    /// closed. A child of `fork` holds no pages of its parent's: false there.
     pub fn is_closed(&self) -> bool {
-        self.access == Access::Nothing
+        self.secret.pages.here() && self.access == Access::Nothing
     }
 
     /// As [`Secret::is_locked`].

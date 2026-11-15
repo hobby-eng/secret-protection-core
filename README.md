@@ -1,8 +1,5 @@
 # secret-protection-core
 
-> [!WARNING]
-> **Draft, not ready for production.** The interface will still change. Its tests run on Linux, macOS and Windows; the code for Android and iOS is built and checked, not run. Nobody outside the project has reviewed this crate.
-
 [![CI](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml)
 [![RustSec audit](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml/badge.svg)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
@@ -80,7 +77,7 @@ let isolation = Isolation::enter_requiring(options, &required).expect("isolation
 
 ## A worker process
 
-A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again and names in its setting the descriptors the worker inherits beyond its pipes; the worker closes those before its `main` starts, and no other, and `main` calls `serve` first: a worker that holds any other descriptor by then, one of its own included, says that its start was not clean (on Windows, where a worker inherits no handle, what the program opened itself is not looked at). Before it reads anything, the worker leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
+A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again, and the descriptors the worker would inherit beyond its pipes are closed before the program runs, so that nothing in the worker closes a descriptor by its number and what its libraries open stays theirs. `main` calls `serve` first: a worker that holds any descriptor besides its standard streams by then, one of its own included, says that its start was not clean (on Windows, where a worker inherits no handle, what the program opened itself is not looked at). Before it reads anything, the worker leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
 
 The worker shares no memory with the parent, inherits no descriptor but its pipes, gets an environment of its own (one variable, and on Windows the few that Windows needs to start it) and no terminal (`Worker::start_on_terminal` keeps the terminal, for a password read in the worker). On Windows it runs in an AppContainer without capabilities, which keeps it from the network, and inherits no handle at all: it opens its pipe by name. The program's `main` calls `serve(most, answer)` first, where `most` is the longest request the worker takes; a program that reaches `Worker::start` in a worker is refused, so it never starts itself without end. An answer should hold what the parent shows or saves, never the password or the key.
 

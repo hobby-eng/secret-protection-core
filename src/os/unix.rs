@@ -7,12 +7,14 @@
               write are foreign functions"
 )]
 
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io;
 use std::mem::ManuallyDrop;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use std::mem::MaybeUninit;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::os::unix::ffi::OsStrExt;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::ptr::{self, NonNull};
 use std::time::{Duration, Instant};
 
@@ -44,7 +46,8 @@ impl Pages {
         Self::anonymous(bytes, Purpose::Secret).unwrap_or_else(|| super::out_of_memory(bytes))
     }
 
-    /// The work area of a computation: anonymous pages as for a secret, never secret memory, or `None`
+    /// The work area of a computation: anonymous pages as for a secret, never secret memory, or
+    /// `None`
     /// when the system refuses them. They are locked only when RLIMIT_MEMLOCK holds all of them,
     /// which also commits them; a refused lock leaves them as they are.
     pub(crate) fn work_area(bytes: usize) -> Option<Self> {
@@ -238,9 +241,9 @@ fn advise(_start: NonNull<u8>, _bytes: usize) -> (bool, bool) {
 
 /// The parent's end of a worker: the worker's standard input and output, and the process.
 pub(crate) struct WorkerProcess {
-    pub(crate) to: Option<ChildStdin>,
-    pub(crate) from: Option<ChildStdout>,
-    child: Child,
+    pub(crate) to: Option<io::PipeWriter>,
+    pub(crate) from: Option<io::PipeReader>,
+    child: Spawned,
 }
 
 impl WorkerProcess {
@@ -253,39 +256,29 @@ impl WorkerProcess {
         if cfg!(any(target_os = "android", target_os = "ios")) {
             return Err(io::ErrorKind::Unsupported.into());
         }
-        // The descriptors the worker inherits are named in its setting: it closes those before
-        // `main`, and no other, so that what its own libraries open there stays theirs.
-        let setting = format!("{setting},{}", left_open().join("."));
-        let mut command = Command::new(std::env::current_exe()?);
-        command.env_clear();
+        let program = CString::new(std::env::current_exe()?.into_os_string().into_vec())?;
+        #[cfg_attr(
+            not(coverage),
+            expect(unused_mut, reason = "one variable without coverage")
+        )]
+        let mut variables = vec![variable(crate::worker::WORKER, setting.as_bytes())?];
         // A measurement of coverage counts the worker as well: built for one, the worker gets the
         // name of the profile beside its setting, and no other variable of its parent's.
         #[cfg(coverage)]
         if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
-            command.env("LLVM_PROFILE_FILE", profile);
+            variables.push(variable("LLVM_PROFILE_FILE", profile.as_bytes())?);
         }
-        command
-            .env(crate::worker::WORKER, setting)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(if terminal {
-                Stdio::inherit()
-            } else {
-                Stdio::null()
-            });
-        let mut child = std::thread::Builder::new()
-            .spawn(move || command.spawn())?
+        let (input, to) = io::pipe()?;
+        let (from, output) = io::pipe()?;
+        let streams = [above_streams(input.into())?, above_streams(output.into())?];
+        let pid = std::thread::Builder::new()
+            .spawn(move || spawn(&program, &variables, &streams, terminal))?
             .join()
             .map_err(|_| io::Error::other("the thread that starts the worker failed"))??;
-        let (Some(to), Some(from)) = (child.stdin.take(), child.stdout.take()) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(io::ErrorKind::BrokenPipe.into());
-        };
         Ok(Self {
             to: Some(to),
             from: Some(from),
-            child,
+            child: Spawned { pid, ended: false },
         })
     }
 
@@ -302,29 +295,254 @@ impl WorkerProcess {
     pub(crate) fn finish(&mut self) -> bool {
         self.close();
         let grace = super::GRACE;
-        self.ends_within(grace) || (self.child.kill().is_ok() && self.ends_within(grace))
+        self.ends_within(grace) || (self.child.kill() && self.ends_within(grace))
     }
 
     /// Takes a worker that has ended since off the system's list, without waiting.
     pub(crate) fn reap(&mut self) {
-        let _ = self.child.try_wait();
+        self.child.ended();
     }
 
     /// Waits up to `limit` for the worker to end, and takes it off the system's list.
     fn ends_within(&mut self, limit: Duration) -> bool {
         let deadline = Instant::now() + limit;
-        loop {
-            match self.child.try_wait() {
-                Ok(Some(_)) => return true,
-                Ok(None) if Instant::now() < deadline => {
-                    std::thread::sleep(super::STEP);
-                }
-                Ok(None) => return false,
-                // The system has taken an ended child off its list itself, as with SIGCHLD ignored.
-                Err(error) => return error.raw_os_error() == Some(libc::ECHILD),
+        while !self.child.ended() {
+            if Instant::now() >= deadline {
+                return false;
             }
+            std::thread::sleep(super::STEP);
         }
+        true
     }
+}
+
+/// A worker by its process number, until the system has taken it off its list.
+struct Spawned {
+    pid: libc::pid_t,
+    /// Off the list: the number may be another process's now.
+    ended: bool,
+}
+
+impl Spawned {
+    /// Whether the worker has ended; one that has is taken off the system's list, unless the
+    /// system did that itself, as with SIGCHLD ignored.
+    fn ended(&mut self) -> bool {
+        if !self.ended {
+            let mut status = 0;
+            // SAFETY: waitpid asks about this process's own child and writes its status.
+            let taken = unsafe { libc::waitpid(self.pid, &mut status, libc::WNOHANG) };
+            let gone = || io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD);
+            self.ended = taken == self.pid || (taken == -1 && gone());
+        }
+        self.ended
+    }
+
+    /// Kills the worker unless it is off the list, and says whether the system did.
+    fn kill(&self) -> bool {
+        // SAFETY: kill takes integers and touches no memory. The number is this process's child,
+        // not yet waited for; with SIGCHLD ignored the system may have taken it off its list
+        // already, a window the standard library's `Child::kill` has as well.
+        !self.ended && unsafe { libc::kill(self.pid, libc::SIGKILL) } == 0
+    }
+}
+
+/// `name=value`, as the environment of a program holds it.
+fn variable(name: &str, value: &[u8]) -> io::Result<CString> {
+    Ok(CString::new([name.as_bytes(), b"=", value].concat())?)
+}
+
+/// `end` at a number above standard error, so that moving one pipe to 0 or 1 in the worker cannot
+/// overwrite the other first.
+fn above_streams(end: OwnedFd) -> io::Result<OwnedFd> {
+    if end.as_raw_fd() > 2 {
+        return Ok(end);
+    }
+    // SAFETY: fcntl copies a descriptor this function owns to the lowest free number from 3, with
+    // close-on-exec; the copy is new, and owned once, below.
+    let copy = unsafe { libc::fcntl(end.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
+    if copy < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: `copy` is a descriptor that nothing else owns.
+    Ok(unsafe { OwnedFd::from_raw_fd(copy) })
+}
+
+/// Starts `program` with `variables` as its whole environment and `streams` as its standard input
+/// and output, by `posix_spawn`, which runs no code of this program in the child. Every other
+/// descriptor above standard error is closed there before the program runs, so that the start-up
+/// code of its libraries finds none of the parent's: on Apple systems the system closes all that
+/// no action names, elsewhere the child closes those [`left_open`] lists.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn spawn(
+    program: &CStr,
+    variables: &[CString],
+    streams: &[OwnedFd; 2],
+    terminal: bool,
+) -> io::Result<libc::pid_t> {
+    let mut actions = MaybeUninit::uninit();
+    // SAFETY: init sets up the actions in the space given, or fails and leaves it.
+    check(unsafe { libc::posix_spawn_file_actions_init(actions.as_mut_ptr()) })?;
+    let mut actions = Actions(&mut actions);
+    actions.dup2(streams[0].as_raw_fd(), libc::STDIN_FILENO)?;
+    actions.dup2(streams[1].as_raw_fd(), libc::STDOUT_FILENO)?;
+    if !terminal {
+        actions.open_null(libc::STDERR_FILENO)?;
+    }
+    // Where every descriptor no action names is closed, an action that names standard error
+    // keeps it, as other systems keep one without close-on-exec.
+    #[cfg(target_vendor = "apple")]
+    if terminal && inheritable(libc::STDERR_FILENO) {
+        actions.dup2(libc::STDERR_FILENO, libc::STDERR_FILENO)?;
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    for descriptor in left_open() {
+        actions.close(descriptor)?;
+    }
+    let mut attributes = MaybeUninit::uninit();
+    // SAFETY: init sets up the attributes in the space given, or fails and leaves it.
+    check(unsafe { libc::posix_spawnattr_init(attributes.as_mut_ptr()) })?;
+    let mut attributes = Attributes(&mut attributes);
+    attributes.reset()?;
+    let arguments = [program.as_ptr(), ptr::null()];
+    let environment: Vec<*const libc::c_char> = variables
+        .iter()
+        .map(|variable| variable.as_ptr())
+        .chain([ptr::null()])
+        .collect();
+    let mut pid = 0;
+    // SAFETY: the program's name and every variable are NUL-terminated and outlive the call, both
+    // lists end in a null pointer, and the actions and attributes are set up; posix_spawn writes
+    // the child's number.
+    check(unsafe {
+        libc::posix_spawn(
+            &mut pid,
+            program.as_ptr(),
+            actions.0.as_ptr(),
+            attributes.0.as_ptr(),
+            arguments.as_ptr().cast(),
+            environment.as_ptr().cast(),
+        )
+    })?;
+    Ok(pid)
+}
+
+/// Android and iOS start no worker.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn spawn(_: &CStr, _: &[CString], _: &[OwnedFd; 2], _: bool) -> io::Result<libc::pid_t> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+/// What the child of `posix_spawn` does with its descriptors before the program runs; destroyed
+/// when dropped.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+struct Actions<'a>(&'a mut MaybeUninit<libc::posix_spawn_file_actions_t>);
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl Actions<'_> {
+    fn dup2(&mut self, from: i32, to: i32) -> io::Result<()> {
+        // SAFETY: the actions are set up; the call adds one.
+        check(unsafe { libc::posix_spawn_file_actions_adddup2(self.0.as_mut_ptr(), from, to) })
+    }
+
+    #[cfg(not(target_vendor = "apple"))]
+    fn close(&mut self, descriptor: i32) -> io::Result<()> {
+        // SAFETY: the actions are set up; the call adds one.
+        check(unsafe { libc::posix_spawn_file_actions_addclose(self.0.as_mut_ptr(), descriptor) })
+    }
+
+    /// Opens /dev/null for writing at `descriptor`.
+    fn open_null(&mut self, descriptor: i32) -> io::Result<()> {
+        let null = c"/dev/null".as_ptr();
+        // SAFETY: the actions are set up, and the path is NUL-terminated; the call adds one.
+        check(unsafe {
+            libc::posix_spawn_file_actions_addopen(
+                self.0.as_mut_ptr(),
+                descriptor,
+                null,
+                libc::O_WRONLY,
+                0,
+            )
+        })
+    }
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl Drop for Actions<'_> {
+    fn drop(&mut self) {
+        // SAFETY: the actions were set up, and are destroyed once, here.
+        unsafe { libc::posix_spawn_file_actions_destroy(self.0.as_mut_ptr()) };
+    }
+}
+
+/// The attributes of a start; destroyed when dropped.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+struct Attributes<'a>(&'a mut MaybeUninit<libc::posix_spawnattr_t>);
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl Attributes<'_> {
+    /// No signal blocked in the worker and SIGPIPE back at its default; on Apple systems also
+    /// every descriptor that no action names closed.
+    fn reset(&mut self) -> io::Result<()> {
+        let mut signals = MaybeUninit::<libc::sigset_t>::uninit();
+        // SAFETY: sigemptyset sets up the set in the space given, and sigaddset adds to it; the
+        // attributes are set up, and each call copies the set.
+        unsafe {
+            libc::sigemptyset(signals.as_mut_ptr());
+            check(libc::posix_spawnattr_setsigmask(
+                self.0.as_mut_ptr(),
+                signals.as_ptr(),
+            ))?;
+            libc::sigaddset(signals.as_mut_ptr(), libc::SIGPIPE);
+            check(libc::posix_spawnattr_setsigdefault(
+                self.0.as_mut_ptr(),
+                signals.as_ptr(),
+            ))?;
+        }
+        let flags = libc::POSIX_SPAWN_SETSIGMASK | libc::POSIX_SPAWN_SETSIGDEF;
+        // An old glibc would make the child with `fork`, whose child runs the fork handlers and
+        // reads the records of every thread; this flag makes it use `vfork`. A newer glibc
+        // ignores it.
+        #[cfg(target_os = "linux")]
+        let flags = flags | libc::c_int::from(libc::POSIX_SPAWN_USEVFORK);
+        #[cfg(target_vendor = "apple")]
+        let flags = flags | libc::POSIX_SPAWN_CLOEXEC_DEFAULT;
+        // The flags are below 0x8000: they fit the short the call takes.
+        let flags = flags as libc::c_short;
+        // SAFETY: the attributes are set up; the call sets their flags.
+        check(unsafe { libc::posix_spawnattr_setflags(self.0.as_mut_ptr(), flags) })
+    }
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+impl Drop for Attributes<'_> {
+    fn drop(&mut self) {
+        // SAFETY: the attributes were set up, and are destroyed once, here.
+        unsafe { libc::posix_spawnattr_destroy(self.0.as_mut_ptr()) };
+    }
+}
+
+/// The answer of a `posix_spawn` call, which is 0 or the number of the error.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn check(answer: libc::c_int) -> io::Result<()> {
+    if answer == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::from_raw_os_error(answer))
+    }
+}
+
+/// Whether `descriptor` is open without close-on-exec, so that a started program gets it.
+#[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
+fn inheritable(descriptor: i32) -> bool {
+    // SAFETY: fcntl with F_GETFD takes integers and only reads.
+    let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
+    flags >= 0 && flags & libc::FD_CLOEXEC == 0
+}
+
+/// Whether `descriptor` is open.
+fn is_open(descriptor: i32) -> bool {
+    // SAFETY: fcntl with F_GETFD takes integers and only reads.
+    unsafe { libc::fcntl(descriptor, libc::F_GETFD) != -1 }
 }
 
 /// Where the system lists the open descriptors of the process.
@@ -352,7 +570,8 @@ fn listed_descriptors() -> Option<Vec<i32>> {
 /// The descriptors above standard error that a program started now would inherit: open, without
 /// close-on-exec. None where the system cannot list them; a worker that inherits one anyway, or
 /// one opened meanwhile by another thread, finds it open and calls its start unclean.
-fn left_open() -> Vec<String> {
+#[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+fn left_open() -> Vec<i32> {
     let open = listed_descriptors().unwrap_or_default();
     open.into_iter()
         .filter(|&descriptor| {
@@ -360,34 +579,14 @@ fn left_open() -> Vec<String> {
             let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
             descriptor > 2 && flags >= 0 && flags & libc::FD_CLOEXEC == 0
         })
-        .map(|descriptor| descriptor.to_string())
         .collect()
 }
 
 /// Runs before `main` in every process that holds this crate, before any thread exists: no `fork`
-/// already begun can miss the handler that counts forks. One started as a worker, with a setting
-/// that `serve` takes, closes the descriptors its parent named as left open, and no other: those
-/// the program's libraries opened before this ran stay theirs. Rust's own start has not run, so it
-/// calls the C library and code that needs nothing set up.
+/// already begun can miss the handler that counts forks. It touches no descriptor: the start of a
+/// worker closed what the worker would have inherited before the program ran.
 extern "C" fn before_main() {
     forks::watched();
-    // SAFETY: the name is NUL-terminated and the environment is set up before this runs; the
-    // value, NUL-terminated as well, is read before anything can change it.
-    let text = unsafe {
-        let value = libc::getenv(crate::worker::WORKER_NAME.as_ptr());
-        if value.is_null() {
-            return;
-        }
-        std::ffi::CStr::from_ptr(value)
-    };
-    let Some((_, _, named)) = text.to_str().ok().and_then(crate::worker::setting) else {
-        return;
-    };
-    for descriptor in crate::worker::inherited(named) {
-        // SAFETY: close takes an integer: a number the parent left open, which the worker
-        // inherited and which no code of the program can hold while it is open.
-        unsafe { libc::close(descriptor) };
-    }
 }
 
 /// Puts [`before_main`] among the functions the system runs before `main`. On Apple systems the
@@ -404,14 +603,13 @@ extern "C" fn before_main() {
 static BEFORE_MAIN: extern "C" fn() = before_main;
 
 /// Whether the worker holds no descriptor but its standard streams, as the system lists them
-/// when it comes to serve: what its parent named was closed before `main`, and whatever the
-/// program or its libraries opened counts as well. A list that cannot be read proves nothing.
-/// Nothing is closed here: those descriptors are the program's.
+/// when it comes to serve: its start closed what it would have inherited, and whatever the
+/// program or its libraries opened since counts as well. A list that cannot be read proves
+/// nothing. Nothing is closed here: those descriptors are the program's.
 pub(crate) fn starts_clean() -> bool {
     // The listing's own descriptor takes the lowest free number, 3, and is gone with it.
     let alone = listed_descriptors().is_some_and(|open| open.iter().all(|&d| d <= 3));
-    // SAFETY: fcntl with F_GETFD takes integers and only reads.
-    alone && unsafe { libc::fcntl(3, libc::F_GETFD) } == -1
+    alone && !is_open(3)
 }
 
 /// Leaves the terminal the program was started on: a session of its own has no controlling
