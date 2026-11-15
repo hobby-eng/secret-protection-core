@@ -18,16 +18,16 @@ pub(crate) use heap::Pages;
 pub(crate) use linux::{enter, evidence};
 #[cfg(unix)]
 pub(crate) use unix::{
-    WorkerProcess, inherits_nothing, leave_terminal, open_channels, run_on_stack, worker_streams,
+    WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean, worker_streams,
     write_secret,
 };
 #[cfg(not(any(unix, windows)))]
 pub(crate) use unsupported::{
-    WorkerProcess, inherits_nothing, leave_terminal, open_channels, run_on_stack, worker_streams,
+    WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean, worker_streams,
 };
 #[cfg(windows)]
 pub(crate) use windows::{
-    WorkerProcess, enter, evidence, inherits_nothing, leave_terminal, open_channels, run_on_stack,
+    WorkerProcess, enter, evidence, leave_terminal, open_channels, run_on_stack, starts_clean,
     worker_streams, write_secret,
 };
 
@@ -222,7 +222,7 @@ mod unsupported {
         pub(crate) fn reap(&mut self) {}
     }
 
-    pub(crate) fn inherits_nothing() -> bool {
+    pub(crate) fn starts_clean() -> bool {
         true
     }
 

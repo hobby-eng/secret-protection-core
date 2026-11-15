@@ -233,6 +233,12 @@ fn setting(text: &str) -> Option<(u32, bool, &str)> {
     known.then_some((options, terminal, parts.next().unwrap_or_default()))
 }
 
+/// Whether the text of [`WORKER`], as the C library gives it before `main`, is a setting.
+#[cfg(unix)]
+pub(crate) fn is_setting(text: &std::ffi::CStr) -> bool {
+    text.to_str().ok().and_then(setting).is_some()
+}
+
 /// The worker side. If this process was started by [`Worker::start`], it leaves the terminal,
 /// isolates itself, reports, then answers requests of up to `most` bytes with `answer` until the
 /// parent closes the pipe, and returns `true`; otherwise, and at any later call, it returns
@@ -249,7 +255,7 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     }
     // Whatever a wrong setting makes fail comes before the isolation, which cannot be undone.
     // The streams end when this returns: the parent then sees that the worker serves no more.
-    let mut clean = crate::os::inherits_nothing();
+    let mut clean = crate::os::starts_clean();
     let Ok(mut streams) = crate::os::worker_streams(channel) else {
         return true;
     };
@@ -306,6 +312,8 @@ mod tests {
             assert_eq!(setting(other), None, "{other}");
         }
         assert_eq!(WORKER_NAME.to_str(), Ok(WORKER));
+        #[cfg(unix)]
+        assert!(is_setting(c"5,1") && !is_setting(c"") && !is_setting(c"none"));
     }
 
     /// A report is taken only as a worker of this crate writes it.

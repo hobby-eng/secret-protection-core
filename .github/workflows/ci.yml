@@ -1,0 +1,67 @@
+name: CI
+
+# The fast checks (CI-04): the formatting, the lints of every system the crate has code for, and
+# the tests on each system that runs them natively.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or pull request makes a running check pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The formatting, the lints of the host and of every target of rust-toolchain.toml, and the
+  # tests on x86-64 Linux.
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - name: Check the formatting
+        run: cargo fmt --check
+      - name: Lint the host and every target
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          for target in $(sed -n 's/^  "\(.*\)",$/\1/p' rust-toolchain.toml); do
+            cargo clippy --locked --all-targets --target "$target" -- -D warnings
+          done
+      - name: Run the tests
+        run: cargo test --locked
+
+  # The tests on each other system the crate runs on natively. Code for one system alone is
+  # compiled only there, so warnings fail the job.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      # A worker runs in an AppContainer, which starts only a program file that application
+      # packages may read and run, as the files under Program Files are.
+      - name: Let application packages read and run the test programs
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -ItemType Directory -Force target | Out-Null
+          icacls target /grant "*S-1-15-2-1:(OI)(CI)RX"
+      - name: Run the tests
+        run: cargo test --locked

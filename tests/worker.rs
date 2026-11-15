@@ -31,6 +31,9 @@ const MOST: usize = 1 << 20;
 const HUGE: usize = 4 << 20;
 /// The variable that gives a child of the test its part.
 const ROLE: &str = "SECRET_PROTECTION_CORE_TEST_ROLE";
+/// The variable that names, to the `kept` role, the descriptor its parent left it.
+#[cfg(unix)]
+const KEPT: &str = "SECRET_PROTECTION_CORE_TEST_KEPT";
 
 /// Set in a worker that was asked to stay after its pipes close.
 static LINGERS: AtomicBool = AtomicBool::new(false);
@@ -156,7 +159,14 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("unsignalling") => return linux::unsignalling(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("without-null") => return linux::without_null(),
         Ok("unserved") => return unserved(),
+        #[cfg(unix)]
+        Ok("kept") => return kept(),
         _ => {}
     }
     if !cfg!(any(target_os = "linux", target_os = "macos", windows)) {
@@ -197,8 +207,18 @@ fn main() {
     );
     #[cfg(unix)]
     run(
-        "a program that comes to serve with a file of its own keeps it",
+        "a program that comes to serve with a file of its own keeps it and is not clean",
         a_late_serve_closes_nothing,
+    );
+    #[cfg(unix)]
+    run(
+        "a program whose worker variable holds no setting keeps what it inherited",
+        a_program_without_a_setting_keeps_what_it_inherited,
+    );
+    #[cfg(windows)]
+    run(
+        "another process that opens the worker's pipe first does not stop the start",
+        a_stray_client_does_not_stop_the_start,
     );
     #[cfg(unix)]
     run(
@@ -225,6 +245,10 @@ fn main() {
         run(
             "a program that may not signal others leaves a stubborn worker behind, in time",
             || linux::role("unsignalling"),
+        );
+        run(
+            "without /dev/null a worker that serves no more closes its pipes",
+            || linux::role("without-null"),
         );
     }
 }
@@ -426,8 +450,9 @@ fn a_worker_starts_no_worker() {
 }
 
 /// `serve` closes no descriptor: what a worker inherited was closed before its `main`. A
-/// program that opened a file before it called `serve` keeps the file. The test stands in for
-/// the parent, takes the report and sends no request.
+/// program that opened a file before it called `serve` keeps the file, and its report says that
+/// its start was not clean. The test stands in for the parent, takes the report and sends no
+/// request.
 #[cfg(unix)]
 fn a_late_serve_closes_nothing() {
     let output = std::process::Command::new(std::env::current_exe().unwrap())
@@ -438,6 +463,67 @@ fn a_late_serve_closes_nothing() {
         .unwrap();
     assert!(output.status.success(), "the file was closed: {output:?}");
     assert_eq!(output.stdout.len(), Protection::ALL.len() + 1);
+    assert_eq!(output.stdout.last(), Some(&0), "it calls its start clean");
+}
+
+/// A text in the worker's variable that is no setting starts no worker and closes nothing
+/// before `main`: the program keeps a descriptor its parent left it.
+#[cfg(unix)]
+fn a_program_without_a_setting_keeps_what_it_inherited() {
+    // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
+    let left = unsafe { libc::dup(0) };
+    assert!(left > 2);
+    for text in ["none", "", "0,2", "64,0"] {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .env(ROLE, "kept")
+            .env(KEPT, left.to_string())
+            .env("SECRET_PROTECTION_CORE_WORKER", text)
+            .status()
+            .unwrap();
+        assert!(status.success(), "{text:?} closed what the program had");
+    }
+    // SAFETY: closes the descriptor made above, which nothing else owns.
+    unsafe { libc::close(left) };
+}
+
+/// The `kept` role: the descriptor its parent named is still open.
+#[cfg(unix)]
+fn kept() {
+    let left: i32 = std::env::var(KEPT).unwrap().parse().unwrap();
+    // SAFETY: fcntl with F_GETFD takes integers and only reads.
+    assert_ne!(unsafe { libc::fcntl(left, libc::F_GETFD) }, -1);
+}
+
+/// A process of the same user may open the worker's pipe before the worker does, as a program
+/// that looks at every pipe would. It is put off, and the worker starts all the same. Here a
+/// thread of the test takes the pipe as soon as it is listed, a few times.
+#[cfg(windows)]
+fn a_stray_client_does_not_stop_the_start() {
+    let done = std::sync::Arc::new(AtomicBool::new(false));
+    let stop = std::sync::Arc::clone(&done);
+    let stray = std::thread::spawn(move || {
+        let mut taken = 0;
+        while taken < 3 && !stop.load(Ordering::Relaxed) {
+            for entry in std::fs::read_dir(r"\\.\pipe\").unwrap().flatten() {
+                let ours = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("secret-protection-core.");
+                if ours && let Ok(pipe) = std::fs::File::open(entry.path()) {
+                    taken += 1;
+                    std::thread::sleep(Duration::from_millis(20));
+                    drop(pipe);
+                }
+            }
+        }
+        taken
+    });
+    // The thread is listing pipes by the time the worker's appears.
+    std::thread::sleep(Duration::from_millis(200));
+    let mut worker = Worker::start(Options::new(), &required()).unwrap();
+    assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+    done.store(true, Ordering::Relaxed);
+    assert!(stray.join().unwrap() > 0, "the test never took the pipe");
 }
 
 /// The `unserved` role: the worker's variable is set, and the program is past `serve`.
@@ -568,6 +654,27 @@ mod linux {
             program.push(instruction(0x06, 0, 0, answer));
         }
         program.push(instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW));
+        install(&mut program);
+    }
+
+    /// Installs a filter, which a started worker inherits, that refuses every open for both
+    /// reading and writing, as a worker opens /dev/null, and allows every other call.
+    fn refuse_read_write_opens() {
+        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
+        // The flags are the third argument of openat; their two lowest bits say how it opens.
+        install(&mut [
+            instruction(0x20, 0, 0, 0),
+            instruction(0x15, 0, 4, libc::SYS_openat as u32),
+            instruction(0x20, 0, 0, 32),
+            instruction(0x54, 0, 0, libc::O_ACCMODE as u32),
+            instruction(0x15, 0, 1, libc::O_RDWR as u32),
+            instruction(0x06, 0, 0, errno(libc::EACCES)),
+            instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW),
+        ]);
+    }
+
+    /// Installs `program` as a filter of this process and of what it starts.
+    fn install(program: &mut [libc::sock_filter]) {
         let filter = libc::sock_fprog {
             len: program.len() as u16,
             filter: program.as_mut_ptr(),
@@ -617,6 +724,18 @@ mod linux {
         }
         let open = secret_protection_core::open_channels().unwrap();
         assert!(!open.complete, "{open:?}");
+    }
+
+    /// Where /dev/null cannot be opened, a worker that serves no more closes its pipes outright:
+    /// the parent's call fails at once, long before the worker ends by itself.
+    pub(super) fn without_null() {
+        refuse_read_write_opens();
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+        let started = Instant::now();
+        assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
+        let taken = started.elapsed();
+        assert!(taken < Duration::from_millis(2500), "{taken:?}");
     }
 
     /// A worker that cannot leave its parent's session says so and gets no request; on the

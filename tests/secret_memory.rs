@@ -231,12 +231,7 @@ mod linux {
     /// and its kind is what keeps it out of swap: since Linux commit 97d34aa65c29 its folios are
     /// unevictable and the mapping has no `lo`, which an older kernel's has.
     pub(super) fn secret_pages_are_marked(secret: &Secret) {
-        let address = secret.as_bytes().as_ptr() as usize;
-        let mappings = mappings();
-        let mapping = mappings
-            .iter()
-            .find(|mapping| mapping.range.contains(&address))
-            .unwrap();
+        let mapping = mapping_of(secret);
         let flags: &[&str] = if mapping.name.starts_with("/secretmem") {
             &["dd", "dc"]
         } else {
@@ -253,12 +248,7 @@ mod linux {
     /// The pages of `secret` are kept out of swap: secret memory, or anonymous pages marked
     /// locked (`lo`).
     pub(super) fn is_out_of_swap(secret: &Secret) {
-        let address = secret.as_bytes().as_ptr() as usize;
-        let mappings = mappings();
-        let mapping = mappings
-            .iter()
-            .find(|mapping| mapping.range.contains(&address))
-            .unwrap();
+        let mapping = mapping_of(secret);
         assert!(
             mapping.name.starts_with("/secretmem") || mapping.has("lo"),
             "{} {:?}",
@@ -280,6 +270,8 @@ mod linux {
         let area = new[0];
         assert!(area.has("dd") && area.has("wf"), "{:?}", area.flags);
         assert_eq!(area.has("lo"), locked, "{:?}", area.flags);
+        // It keeps the huge pages the system gives: only a secret refuses them.
+        assert!(!area.has("nh"), "{:?}", area.flags);
     }
 
     /// With no memory to lock, work that requires a locked stack does not run, and work that
@@ -328,15 +320,20 @@ mod linux {
         assert!(status.success(), "{role}: {status}");
     }
 
-    /// The name of the mapping a secret lies in: `/secretmem` for secret memory.
-    fn mapping_name(secret: &Secret) -> String {
+    /// The mapping a secret lies in; its name is `/secretmem` for secret memory.
+    fn mapping_of(secret: &Secret) -> Mapping {
         let address = secret.as_bytes().as_ptr() as usize;
-        let mappings = mappings();
-        let mapping = mappings
+        let mut mappings = mappings();
+        let place = mappings
             .iter()
-            .find(|mapping| mapping.range.contains(&address))
+            .position(|mapping| mapping.range.contains(&address))
             .unwrap();
-        mapping.name.clone()
+        mappings.swap_remove(place)
+    }
+
+    /// Whether this kernel joins small pages into huge ones at all.
+    fn has_huge_pages() -> bool {
+        std::path::Path::new("/sys/kernel/mm/transparent_hugepage/enabled").exists()
     }
 
     /// The `late` role. A `fork` that another thread has begun runs no handler registered after
@@ -346,13 +343,15 @@ mod linux {
     pub(super) fn first_secret_among_threads() {
         let other = std::thread::spawn(std::thread::park);
         let first = Secret::with_capacity(16);
-        assert!(!mapping_name(&first).starts_with("/secretmem"));
+        assert!(!mapping_of(&first).name.starts_with("/secretmem"));
         // Anonymous pages: out of core dumps, and zeros in a child.
         assert!(first.is_out_of_dumps() && first.is_out_of_children());
+        // Small pages only (`nh`): joining them into a huge one would copy the secret.
+        assert!(!has_huge_pages() || mapping_of(&first).has("nh"));
         other.thread().unpark();
         other.join().unwrap();
         let later = Secret::with_capacity(16);
-        assert!(!mapping_name(&later).starts_with("/secretmem"));
+        assert!(!mapping_of(&later).name.starts_with("/secretmem"));
     }
 
     /// The `gated` role. The program has a fork handler of its own that waits for a lock. A
@@ -400,7 +399,7 @@ mod linux {
             std::thread::yield_now();
         }
         let secret = Secret::with_capacity(16);
-        assert!(!mapping_name(&secret).starts_with("/secretmem"));
+        assert!(!mapping_of(&secret).name.starts_with("/secretmem"));
         LOCKED.store(false, Ordering::Release);
         assert_eq!(forking.join().unwrap(), 0);
     }

@@ -69,7 +69,7 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::core::{PCWSTR, w};
 
-pub(crate) use worker::{WorkerProcess, inherits_nothing, leave_terminal, worker_streams};
+pub(crate) use worker::{WorkerProcess, leave_terminal, starts_clean, worker_streams};
 
 use super::{Access, Pages, Region};
 use crate::protect::{Findings, Isolation, Options, Secret};

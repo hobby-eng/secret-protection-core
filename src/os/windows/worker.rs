@@ -19,6 +19,8 @@ const CLIENT_ACCESS: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
 const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
 /// The pipe's buffers, each way.
 const PIPE_BUFFER: u32 = 64 << 10;
+/// How long a worker keeps trying its pipe while another process holds it.
+const PATIENCE: Duration = Duration::from_secs(1);
 
 /// The parent's end of a worker: its pipe, as one handle to write to and one to read from, and
 /// the process.
@@ -88,8 +90,10 @@ impl WorkerProcess {
     }
 }
 
-/// Makes the pipe of one worker and returns it with its name. Only a process of this user in
-/// `container` passes its access list, only one process ever opens it, and none inherits it.
+/// Makes the pipe of one worker and returns it with its name. Its access list takes this user,
+/// in `container` or in none: Windows gives an app container what the user's entry and the
+/// container's both give. It has one instance, so one process holds it at a time, and none
+/// inherits it.
 fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
     use windows_sys::Win32::Security::Authorization::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
@@ -171,37 +175,44 @@ fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
 }
 
 /// Waits for the worker to open `pipe` and takes no one else: the process at the other end must
-/// be number `id`. An error when the worker ends first. From then on the pipe waits for reads
-/// and writes.
+/// be number `id`. Another process that opens it first is put off, and the pipe listens again.
+/// An error when the worker ends first. From then on the pipe waits for reads and writes.
 fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
     use windows_sys::Win32::Foundation::{
-        ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, WAIT_OBJECT_0,
+        ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, WAIT_OBJECT_0,
     };
     use windows_sys::Win32::System::Pipes::{
-        ConnectNamedPipe, GetNamedPipeClientProcessId, PIPE_READMODE_BYTE, PIPE_WAIT,
-        SetNamedPipeHandleState,
+        ConnectNamedPipe, DisconnectNamedPipe, GetNamedPipeClientProcessId, PIPE_READMODE_BYTE,
+        PIPE_WAIT, SetNamedPipeHandleState,
     };
     use windows_sys::Win32::System::Threading::WaitForSingleObject;
     let pipe: HANDLE = pipe.as_raw_handle().cast();
     loop {
         // SAFETY: the pipe does not wait, so the call returns at once; the error is its own.
-        let (connected, error) =
+        // Such a pipe answers yes only to say that it listens again after a client was put off.
+        let (listens, error) =
             unsafe { (ConnectNamedPipe(pipe, ptr::null_mut()) != 0, GetLastError()) };
-        if connected || error == ERROR_PIPE_CONNECTED {
-            break;
+        if !listens && (error == ERROR_PIPE_CONNECTED || error == ERROR_NO_DATA) {
+            let mut client = 0;
+            // SAFETY: the call writes the number of the process at the other end.
+            let known = unsafe { GetNamedPipeClientProcessId(pipe, &mut client) } != 0;
+            if known && client == id {
+                break;
+            }
+            // Another process took the pipe, or took it and left: it is put off, and the pipe
+            // listens for the worker again. Nothing was written to it.
+            // SAFETY: ends the connection of this instance, which this process owns.
+            if unsafe { DisconnectNamedPipe(pipe) } == 0 {
+                return Err(io::Error::last_os_error());
+            }
+            continue;
         }
         // SAFETY: asks, without waiting, whether the worker has ended.
         let ended = unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0;
-        if ended || error != ERROR_PIPE_LISTENING {
+        if ended || !(listens || error == ERROR_PIPE_LISTENING) {
             return Err(io::Error::other("the worker did not open its pipe"));
         }
         std::thread::sleep(Duration::from_millis(2));
-    }
-    let mut client = 0;
-    // SAFETY: the call writes the number of the process at the other end.
-    let known = unsafe { GetNamedPipeClientProcessId(pipe, &mut client) } != 0;
-    if !known || client != id {
-        return Err(io::Error::other("another process opened the worker's pipe"));
     }
     let waits = PIPE_READMODE_BYTE | PIPE_WAIT;
     // SAFETY: the call reads one mode word, which lives for the call.
@@ -434,8 +445,9 @@ impl Drop for Attributes {
     }
 }
 
-/// A worker is started without one handle of its parent's.
-pub(crate) fn inherits_nothing() -> bool {
+/// A worker is started without one handle of its parent's. What the program opened itself by
+/// the time it serves is not listed here.
+pub(crate) fn starts_clean() -> bool {
     true
 }
 
@@ -467,6 +479,7 @@ impl io::Write for WorkerStreams {
 /// Opens the worker's pipe by the name its parent gave it. A name that is no worker's pipe is
 /// refused.
 pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
+    use windows_sys::Win32::Foundation::ERROR_PIPE_BUSY;
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, OPEN_EXISTING, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
     };
@@ -475,22 +488,32 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
         return Err(io::ErrorKind::InvalidInput.into());
     }
     let name: Vec<u16> = channel.encode_utf16().chain([0]).collect();
-    // SAFETY: the name is NUL-terminated; the call returns a new handle or
-    // INVALID_HANDLE_VALUE. The other end may learn who this process is, and no more.
-    let pipe = unsafe {
-        CreateFileW(
-            name.as_ptr(),
-            CLIENT_ACCESS,
-            0,
-            ptr::null(),
-            OPEN_EXISTING,
-            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
-            ptr::null_mut(),
-        )
+    let deadline = std::time::Instant::now() + PATIENCE;
+    let pipe = loop {
+        // SAFETY: the name is NUL-terminated; the call returns a new handle or
+        // INVALID_HANDLE_VALUE. The other end may learn who this process is, and no more.
+        let pipe = unsafe {
+            CreateFileW(
+                name.as_ptr(),
+                CLIENT_ACCESS,
+                0,
+                ptr::null(),
+                OPEN_EXISTING,
+                SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+                ptr::null_mut(),
+            )
+        };
+        if pipe != INVALID_HANDLE_VALUE {
+            break pipe;
+        }
+        // Busy: another process holds the pipe until the parent puts it off.
+        let error = io::Error::last_os_error();
+        let busy = error.raw_os_error() == i32::try_from(ERROR_PIPE_BUSY).ok();
+        if !busy || std::time::Instant::now() >= deadline {
+            return Err(error);
+        }
+        std::thread::sleep(Duration::from_millis(2));
     };
-    if pipe == INVALID_HANDLE_VALUE {
-        return Err(io::Error::last_os_error());
-    }
     // SAFETY: the handle was just opened and nothing else owns it.
     Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))
 }

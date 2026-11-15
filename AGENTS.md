@@ -16,6 +16,9 @@ Fast gates (CORE-43):
 - `cargo test` (the isolation and secret-memory tests have a `main` of their own and start child
   processes)
 
+CI (`.github/workflows/ci.yml`) runs these gates on x86-64 Linux and the tests on ARM Linux, macOS
+and Windows; `audit.yml` holds `Cargo.lock` against the RustSec advisories.
+
 Layout: `src/protect.rs` the public items and what each promises; `src/os.rs` the pages shared by
 every system; `src/os/{unix,linux,apple,windows}.rs` the calls of each system. `unsafe` is allowed
 only in `src/os*`, each block with a `SAFETY` comment. `docs/TECHNICAL.md` describes all of it and

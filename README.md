@@ -3,13 +3,15 @@
 > [!WARNING]
 > **Draft, not ready for production.** The interface will still change. The macOS and Windows code has not yet run on those systems, and nobody outside the project has reviewed this crate.
 
+[![CI](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/ci.yml)
+[![RustSec audit](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml/badge.svg)](https://github.com/hobby-eng/secret-protection-core/actions/workflows/audit.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
 secret-protection-core keeps secrets in memory out of the places they leak to: swap, core dumps, child processes and other programs that read the memory of the process. It gives a program buffers for secrets in memory pages of their own, a call that isolates the process against a secret leaving it, and a worker process that does the secret work apart from the rest of the program. It has code for Linux, Android, macOS, iOS and Windows; in WebAssembly a secret is only wiped.
 
 The [documentation index](docs/README.md) lists the guides; [How it works](docs/TECHNICAL.md) says what each system applies and what it does not cover.
 
-Line coverage on Linux x86-64, measured on 2026-11-15, is **90.41%** for the unit tests and the three test programs (source fingerprint `d42704b9`). [Test scope and per-file results](docs/COVERAGE.md).
+Line coverage on Linux x86-64, measured on 2026-11-15, is **90.51%** for the unit tests and the three test programs (source fingerprint `613ecbc1`). [Test scope and per-file results](docs/COVERAGE.md).
 
 ## Contents
 
@@ -78,7 +80,7 @@ let isolation = Isolation::enter_requiring(options, &required).expect("isolation
 
 ## A worker process
 
-A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again. What the worker inherited beyond its pipes is closed before its `main` starts. Before it reads anything, the worker leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
+A program with a window, or one that wants the strongest isolation, does the secret work in a worker. `Worker::start` starts the program again. What the worker inherited beyond its pipes is closed before its `main` starts, and `main` calls `serve` first: a worker that holds any other descriptor by then, one of its own included, says that its start was not clean. Before it reads anything, the worker leaves its parent's terminal, isolates itself as a whole and reports each protection's outcome. The parent sends a request only when the worker says its start was clean and every protection the parent requires is confirmed; otherwise it ends the worker first: `WorkerError::Unclean` or `WorkerError::Missing`.
 
 The worker shares no memory with the parent, inherits no descriptor but its pipes, gets an empty environment and no terminal (`Worker::start_on_terminal` keeps the terminal, for a password read in the worker). On Windows it runs in an AppContainer without capabilities, which keeps it from the network, and inherits no handle at all: it opens its pipe by name. The program's `main` calls `serve(most, answer)` first, where `most` is the longest request the worker takes; a program that reaches `Worker::start` in a worker is refused, so it never starts itself without end. An answer should hold what the parent shows or saves, never the password or the key.
 
