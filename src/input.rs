@@ -179,6 +179,34 @@ impl std::fmt::Debug for SecretLine {
 mod tests {
     use super::*;
 
+    /// Each keystroke crosses as bytes and comes back as itself; other bytes are no keystroke,
+    /// and the debug text of a character hides it.
+    #[test]
+    fn keystrokes_cross_as_bytes_and_hide_their_character() {
+        for keystroke in [
+            Keystroke::Char('ж'),
+            Keystroke::RemoveLast,
+            Keystroke::Clear,
+        ] {
+            assert_eq!(
+                Keystroke::from_bytes(keystroke.to_bytes().as_bytes()),
+                Some(keystroke)
+            );
+        }
+        for other in [&[][..], &[1], &[1, 0xFF], &[1, b'a', b'b'], &[2, 0], &[4]] {
+            assert_eq!(Keystroke::from_bytes(other), None, "{other:?}");
+        }
+        assert_eq!(
+            format!("{:?}", Keystroke::Char('ж')),
+            "Keystroke::Char(hidden)"
+        );
+        assert_eq!(format!("{:?}", Keystroke::Clear), "Keystroke::Clear");
+        assert_eq!(
+            format!("{:?}", Keystroke::RemoveLast),
+            "Keystroke::RemoveLast"
+        );
+    }
+
     #[test]
     fn keystrokes_build_and_take_back_a_line() {
         let mut line = SecretLine::with_capacity(16);

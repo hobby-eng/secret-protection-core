@@ -222,7 +222,7 @@ impl fmt::Debug for Worker {
 
 /// What the parent wrote into [`WORKER`]: the options, whether to keep the terminal, and on
 /// Windows the name of the pipe. `None` for any other text, an unknown option or flag included.
-fn setting(text: &str) -> Option<(u32, bool, &str)> {
+pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     let mut parts = text.splitn(3, ',');
     let options: u32 = parts.next()?.parse().ok()?;
     let terminal = match parts.next()? {
@@ -230,14 +230,25 @@ fn setting(text: &str) -> Option<(u32, bool, &str)> {
         "1" => true,
         _ => return None,
     };
+    let rest = parts.next().unwrap_or_default();
+    // On Unix the rest names the descriptors the worker inherited, and nothing else fits.
+    let fits = !cfg!(unix)
+        || rest
+            .split('.')
+            .all(|part| part.is_empty() || named(part).is_some());
     let known = Options::from_bits(options).to_bits() == options;
-    known.then_some((options, terminal, parts.next().unwrap_or_default()))
+    (known && fits).then_some((options, terminal, rest))
 }
 
-/// Whether the text of [`WORKER`], as the C library gives it before `main`, is a setting.
+/// A descriptor that the rest of a Unix setting names: a number above standard error.
+fn named(part: &str) -> Option<i32> {
+    part.parse().ok().filter(|&descriptor| descriptor > 2)
+}
+
+/// The descriptors that the rest of a Unix setting names as left open by the parent.
 #[cfg(unix)]
-pub(crate) fn is_setting(text: &std::ffi::CStr) -> bool {
-    text.to_str().ok().and_then(setting).is_some()
+pub(crate) fn inherited(rest: &str) -> impl Iterator<Item = i32> + '_ {
+    rest.split('.').filter_map(named)
 }
 
 /// The worker side. In a process started by [`Worker::start`] it leaves the terminal, isolates
@@ -248,9 +259,11 @@ pub(crate) fn is_setting(text: &std::ffi::CStr) -> bool {
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
-    let Some((options, terminal, channel)) = setting(&text) else {
+    let Some((options, terminal, rest)) = setting(&text) else {
         return false;
     };
+    // On Unix the rest named what was closed before `main`; only Windows has a channel there.
+    let channel = if cfg!(unix) { "" } else { rest };
     if SERVED.swap(true, std::sync::atomic::Ordering::Relaxed) {
         return false;
     }
@@ -302,19 +315,39 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
 mod tests {
     use super::*;
 
+    /// A refused start says which refusal it was.
+    #[test]
+    fn a_refused_start_says_why() {
+        let missing = Missing {
+            missing: vec![Protection::NoCoreDumps],
+            isolation: Isolation::default(),
+        };
+        let texts = [
+            WorkerError::Start(io::ErrorKind::BrokenPipe.into()).to_string(),
+            WorkerError::Unclean.to_string(),
+            WorkerError::Missing(missing).to_string(),
+        ];
+        assert!(texts[2].ends_with("no core dumps"), "{texts:?}");
+        let unique: std::collections::BTreeSet<&String> = texts.iter().collect();
+        assert_eq!(unique.len(), texts.len(), "{texts:?}");
+    }
+
     /// The worker's setting: options, the terminal, and the name of a pipe where there is one.
     #[test]
     fn a_setting_is_read_as_the_parent_writes_it() {
         assert_eq!(setting("5,1"), Some((5, true, "")));
-        let named = setting("0,0,//./pipe/name,with,commas");
-        assert_eq!(named, Some((0, false, "//./pipe/name,with,commas")));
+        let channel = setting("0,0,//./pipe/name,with,commas");
+        let windows = cfg!(windows).then_some((0, false, "//./pipe/name,with,commas"));
+        assert_eq!(channel, windows);
+        // On Unix the rest names descriptors above standard error, and nothing else.
+        assert!(setting("0,0,3.17").is_some());
+        #[cfg(unix)]
+        assert!(inherited("3.17").eq([3, 17]) && setting("0,0,2").is_none());
         // No other text: a flag that is neither 0 nor 1, or an option this crate does not have.
         for other in ["", "none", "x,1", "7", "0,2", "0,true", "64,0"] {
             assert_eq!(setting(other), None, "{other}");
         }
         assert_eq!(WORKER_NAME.to_str(), Ok(WORKER));
-        #[cfg(unix)]
-        assert!(is_setting(c"5,1") && !is_setting(c"") && !is_setting(c"none"));
     }
 
     /// A report is taken only as a worker of this crate writes it.

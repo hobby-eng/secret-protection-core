@@ -18,6 +18,10 @@
               check ends it, as in a test harness"
 )]
 
+#[path = "support/run.rs"]
+mod support;
+use support::run;
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -57,6 +61,12 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 }
 
 fn main() {
+    // A secret of a quarter of the address space, which no system gives.
+    #[cfg(unix)]
+    if std::env::var(NO_MEMORY).is_ok() {
+        drop(Secret::with_capacity(usize::MAX / 4));
+        return;
+    }
     #[cfg(target_os = "linux")]
     match std::env::var(linux::ROLE).as_deref() {
         Ok("child") => return linux::secrets_under_every_lock_limit(),
@@ -100,21 +110,96 @@ fn main() {
         "six hundred secrets made one after another each report their core-dump exclusion",
         six_hundred_secrets_made_one_after_another_report_their_core_dump_exclusion,
     );
+    #[cfg(unix)]
+    run(
+        "a child of fork leaves the buffers of its parent alone and uses its own",
+        a_child_of_fork_leaves_the_buffers_of_its_parent_alone,
+    );
+    #[cfg(unix)]
+    run(
+        "a secret beyond what the system gives ends the program as a full heap does",
+        a_secret_beyond_the_system_ends_the_program,
+    );
 }
 
-/// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
-/// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
-/// locked memory have to be left out under it.
-fn run(name: &str, check: fn()) {
-    let arguments: Vec<String> = std::env::args().collect();
-    let skipped = arguments
-        .windows(2)
-        .any(|pair| pair[0] == "--skip" && name.contains(pair[1].as_str()));
-    if skipped {
-        return println!("test {name} ... ignored");
+/// The variable that starts this program again to ask for a secret no system gives.
+#[cfg(unix)]
+const NO_MEMORY: &str = "SECRET_PROTECTION_CORE_TEST_NO_MEMORY";
+
+/// `Secret::with_capacity` ends the program when the system gives no pages, as a `Vec` does when
+/// the heap is full: the program does not go on without the secret it asked for.
+#[cfg(unix)]
+fn a_secret_beyond_the_system_ends_the_program() {
+    use std::os::unix::process::ExitStatusExt;
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(NO_MEMORY, "1")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "{output:?}");
+}
+
+/// A child of `fork` that goes on holds owners of its parent's buffers, whose pages are gone or
+/// zeros without a lock there. It drops them without touching the pages, they report nothing,
+/// and reaching their bytes ends it; a buffer it makes itself works. The parent's are unharmed.
+#[cfg(unix)]
+fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
+    use secret_protection_core::ClosedSecret;
+    let mut secret = Some(Secret::with_capacity(32));
+    if let Some(secret) = secret.as_mut() {
+        secret.push(b"the parent's").unwrap();
     }
-    check();
-    println!("test {name} ... ok");
+    let mut area = Some(WorkArea::new(8192).unwrap());
+    let mut closed = Some(ClosedSecret::with_capacity(16));
+    let status = in_child(|| {
+        let reports = secret.as_ref().is_some_and(|secret| {
+            !secret.is_locked() && !secret.is_out_of_dumps() && !secret.is_out_of_children()
+        }) && area.as_ref().is_some_and(|area| {
+            !area.is_locked() && !area.is_out_of_dumps() && !area.is_out_of_children()
+        }) && closed.as_ref().is_some_and(|closed| !closed.is_locked());
+        drop((secret.take(), area.take(), closed.take()));
+        let mut own = Secret::with_capacity(8);
+        let works = own.push(b"own").is_ok() && own.as_bytes() == b"own";
+        reports && works
+    });
+    assert_eq!(status, Ending::Exit(0));
+    let status = in_child(|| {
+        secret
+            .as_ref()
+            .is_some_and(|secret| secret.as_bytes().is_empty())
+    });
+    assert_eq!(status, Ending::Signal(libc::SIGABRT));
+    assert_eq!(secret.unwrap().as_bytes(), b"the parent's");
+}
+
+/// How a child ended.
+#[cfg(unix)]
+#[derive(Debug, PartialEq, Eq)]
+enum Ending {
+    Exit(i32),
+    Signal(i32),
+}
+
+/// Runs `check` in a child of `fork`, which ends with 0 when it holds and 1 when not, and waits
+/// for exactly that child. Only from one thread: the child of a process with threads may make
+/// only the calls of a signal handler.
+#[cfg(unix)]
+fn in_child(check: impl FnOnce() -> bool) -> Ending {
+    // SAFETY: the child runs `check` and ends at once without returning.
+    let child = unsafe { libc::fork() };
+    assert!(child >= 0, "fork failed");
+    if child == 0 {
+        let held = check();
+        // SAFETY: ends the child without running the parent's exit handlers.
+        unsafe { libc::_exit(i32::from(!held)) };
+    }
+    let mut status = 0;
+    // SAFETY: waits for the child just made and writes its status.
+    assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
+    if libc::WIFEXITED(status) {
+        Ending::Exit(libc::WEXITSTATUS(status))
+    } else {
+        Ending::Signal(libc::WTERMSIG(status))
+    }
 }
 
 /// What the system reports of the pages; the unit tests check what `Secret` reports itself.
@@ -303,6 +388,7 @@ mod linux {
     pub(super) fn role_ends_well(role: &str) {
         let mut process = Command::new(std::env::current_exe().unwrap())
             .env(ROLE, role)
+            .stderr(std::process::Stdio::piped())
             .spawn()
             .unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
@@ -317,7 +403,10 @@ mod linux {
             assert!(!late, "{role}: not done within a minute");
             std::thread::sleep(std::time::Duration::from_millis(5));
         };
-        assert!(status.success(), "{role}: {status}");
+        // The messages of a role are a few lines, which the pipe holds until it is read.
+        let mut said = Vec::new();
+        std::io::Read::read_to_end(&mut process.stderr.take().unwrap(), &mut said).unwrap();
+        crate::support::role_ended(role, status, &said);
     }
 
     /// The mapping a secret lies in; its name is `/secretmem` for secret memory.
@@ -387,11 +476,12 @@ mod linux {
             // SAFETY: the child ends at once; the parent waits for it and reads its status.
             unsafe {
                 let child = libc::fork();
+                assert!(child >= 0, "fork failed");
                 if child == 0 {
                     libc::_exit(0);
                 }
-                let mut status = 0;
-                libc::waitpid(child, &mut status, 0);
+                let mut status = -1;
+                assert_eq!(libc::waitpid(child, &mut status, 0), child);
                 status
             }
         });
@@ -417,8 +507,9 @@ mod linux {
         });
         drop(sample);
         if !secret_memory {
-            eprintln!("This kernel gives no secret memory: the race with fork is not checked.");
-            return;
+            crate::support::skip_role(
+                "This kernel gives no secret memory: the race with fork is not checked.",
+            );
         }
         let maker = std::thread::spawn(|| {
             let mut made = 0_u64;
@@ -432,15 +523,17 @@ mod linux {
         for _ in 0..2000 {
             // SAFETY: the child makes only calls that a signal handler may make.
             let child = unsafe { libc::fork() };
+            assert!(child >= 0, "fork failed");
             if child == 0 {
                 let found = holds_secret_memory();
                 // SAFETY: ends the child at once.
                 unsafe { libc::_exit(i32::from(found)) };
             }
-            let mut status = 0;
+            let mut status = -1;
             // SAFETY: waits for the child just made and writes its status.
             assert_eq!(unsafe { libc::waitpid(child, &mut status, 0) }, child);
-            inherited += i32::from(status != 0);
+            assert!(libc::WIFEXITED(status), "a child ended by a signal");
+            inherited += i32::from(libc::WEXITSTATUS(status) != 0);
         }
         DONE.store(true, Ordering::Relaxed);
         let made = maker.join().unwrap();
@@ -451,16 +544,20 @@ mod linux {
         );
     }
 
-    /// Whether one of the descriptors 3 to 63 names secret memory, as the link in /proc/self/fd
+    /// Whether one of the descriptors 3 to 255 names secret memory, as the link in /proc/self/fd
     /// says, without any allocation.
     fn holds_secret_memory() -> bool {
-        (3..64_u8).any(|descriptor| {
-            let mut path = *b"/proc/self/fd/\0\0\0";
-            if descriptor < 10 {
-                path[14] = b'0' + descriptor;
-            } else {
-                path[14] = b'0' + descriptor / 10;
-                path[15] = b'0' + descriptor % 10;
+        (3..=255_u8).any(|descriptor| {
+            // Up to three digits, and the NUL after them.
+            let mut path = *b"/proc/self/fd/\0\0\0\0";
+            let digits = [descriptor / 100, descriptor / 10 % 10, descriptor % 10];
+            let first = match descriptor {
+                0..10 => 2,
+                10..100 => 1,
+                _ => 0,
+            };
+            for (slot, digit) in path[14..].iter_mut().zip(&digits[first..]) {
+                *slot = b'0' + digit;
             }
             let mut target = [0_u8; 64];
             // SAFETY: readlink reads the NUL-terminated path and writes at most the buffer's
@@ -479,11 +576,11 @@ mod linux {
     /// In a child process: the limit stays its own, and so does a SIGBUS at a write to a page
     /// beyond the limit.
     pub(super) fn a_secret_works_under_every_lock_limit() {
-        let status = Command::new(std::env::current_exe().unwrap())
+        let output = Command::new(std::env::current_exe().unwrap())
             .env(ROLE, "child")
-            .status()
+            .output()
             .unwrap();
-        assert!(status.success(), "{status}");
+        crate::support::role_ended("child", output.status, &output.stderr);
     }
 
     /// Child process: a two-page secret is written and read under every lock limit down to 0, and must
@@ -557,7 +654,8 @@ fn quota_partly_used(page: usize) {
     use secret_protection_core::{Secret, SecretError};
     let Ok(held) = Secret::locked(3 * page) else {
         eprintln!(
-            "Other programs hold this user's lock limit: the partly used quota is not checked."
+            "{}other programs hold this user's lock limit: the partly used quota is not checked.",
+            crate::support::NOT_CHECKED
         );
         return;
     };

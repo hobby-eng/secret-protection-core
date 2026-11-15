@@ -65,6 +65,9 @@ harness = false
 [lints.rust]
 unsafe_code = "deny" # "deny", not "forbid": the operating-system modules allow it (RUST-07)
 missing_docs = "deny"
+# The fuzz targets under fuzz/ build the crate with `fuzzing` (cargo-fuzz sets it), a measurement
+# of coverage with `coverage` (cargo-llvm-cov sets it).
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)", "cfg(coverage)"] }
 unreachable_pub = "deny"
 
 [lints.clippy]

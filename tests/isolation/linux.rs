@@ -513,11 +513,7 @@ pub(super) fn locking_all_memory_is_reported() {
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub(super) fn role_ends_well(role: &str) {
     let output = super::child(role).wait_with_output().unwrap();
-    assert!(
-        output.status.success(),
-        "{role}: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    crate::support::role_ended(role, output.status, &output.stderr);
 }
 
 /// The Landlock ABI of the kernel; 0 or less without Landlock.
@@ -652,7 +648,9 @@ pub(super) fn expect_whole_process(isolation: Isolation) {
             !allowed,
             "the system allows the empty network, which enter left out"
         );
-        eprintln!("This system allows no user namespace: the empty network is not checked.");
+        crate::support::skip(
+            "this system allows no user namespace: the empty network is not checked",
+        );
     }
 }
 

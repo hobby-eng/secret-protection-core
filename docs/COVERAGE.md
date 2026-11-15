@@ -1,17 +1,21 @@
 # Test coverage
 
-On 2026-11-15 UTC the tests covered **90.22%** of the source lines that LLVM reports for the Linux x86-64 build (1,900 of 2,106). The run passed 22 unit tests and 40 checks of the three test programs `isolation`, `secret_memory` and `worker`. One more worker check passes in an ordinary run and cannot run under the measurement.
+On 2026-11-15 UTC the tests covered **97.41%** of the source lines that LLVM reports for the Linux x86-64 build (2,218 of 2,277). The run passed 29 unit tests and 47 checks of the three test programs `isolation`, `secret_memory` and `worker`, the worker's own side included; none was skipped.
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `f89d0bf7578cdf3d9e9acc616fb3f1f6a71f9886`; the SHA-256 fingerprint of its inputs is `6c6c37593c6fa0c9f871aeeffa3ab601f39ad42c7865c1dfc27ce1a5958712c6`.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the Linux build on kernel 7.0.0-43-generic, x86-64. The measured source is the working tree that follows commit `6f0968d08a46ef2fe5c38ffcceff8f9b3c9e2f88`; the SHA-256 fingerprint of its inputs is `eabe6a927c2976d7cd8bbf1f637994903d64dc104e8a53be8095087f6c02b803`.
 
 The tests start child processes that isolate themselves and can then write no file, so a profile written when a process ends would be lost. The counters are therefore synced to the profile file as they change (`%c` in its name, with LLVM's `-runtime-counter-relocation`), and such a child is counted.
 
+A worker is counted as well: a build for the measurement (`--cfg coverage`, which cargo-llvm-cov sets) gives it the name of the profile, the one variable of its parent's beside its setting. An ordinary build gives it none.
+
 What the figure leaves out:
 
-- The worker's own side. A worker starts with an empty environment, so it has no profile file: `serve`, the closing of inherited descriptors and the leaving of the terminal run in every worker check and are not counted. They are most of the lines missing in `src/worker.rs` and `src/os/unix.rs`.
-- The worker check "a worker gets nothing of its parent's but its pipes". LLVM's profiling runtime puts a variable of its own into the worker's environment, which the check refuses, as it should. It passes without the instrumentation.
+- Lines that only a refusal of the system reaches, which no input or setting brings about here: `mmap`, `mprotect` or `madvise` refused for pages the crate maps, `prctl(PR_SET_NO_NEW_PRIVS)` or `pthread_atfork` refused, `dup2` refused when a worker ends its streams, a thread the system starts but cannot join, a `write` that takes nothing or is interrupted, and standard streams the standard library did not make. A closed secret whose pages the system will not open again ends the process; the unit tests reach that refusal through a fault of the crate's own, and the end itself is left out. They are most of the lines missing in `src/os/unix.rs` and `src/os/linux.rs`.
+- Races and older systems: a thread that ends between the listing of threads and the reading of its status, a descriptor closed between two looks at it, and the mark of a lock of all memory on a kernel before Linux 4.14.
+- A worker that cannot write its profile: under a filter that refuses every opening for writing, the check "without /dev/null a worker that serves no more still ends its streams" runs, and the fallback to an ended pipe is not counted.
+- A request or answer of 4 GiB or more, which a test cannot hold, and a second call of `serve` in one process.
 - The code for Android, macOS, iOS, Windows and WebAssembly, which this build does not compile. The tests run on macOS and Windows as well, at every push, without a measurement of their lines.
 - Files under `tests/`. The count includes the unit tests inside `src/`.
 
@@ -25,7 +29,7 @@ source <(cargo llvm-cov show-env --sh)
 export RUSTFLAGS="-C llvm-args=-runtime-counter-relocation"
 export LLVM_PROFILE_FILE="$CARGO_TARGET_DIR/spc-%p%c.profraw"
 cargo llvm-cov clean --workspace
-cargo test --locked --offline -- --skip "nothing of its parent's"
+cargo test --locked --offline
 cargo llvm-cov report --summary-only
 ```
 
@@ -36,13 +40,14 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | File                      | Covered lines | Measured lines | Coverage |
 | ------------------------- | ------------: | -------------: | -------: |
 | `src/channels.rs`         |            40 |             40 |  100.00% |
-| `src/input.rs`            |           117 |            120 |   97.50% |
-| `src/os.rs`               |            38 |             41 |   92.68% |
-| `src/os/linux.rs`         |           426 |            462 |   92.21% |
+| `src/input.rs`            |           137 |            137 |  100.00% |
+| `src/os.rs`               |            56 |             56 |  100.00% |
+| `src/os/linux.rs`         |           449 |            462 |   97.19% |
 | `src/os/linux/seccomp.rs` |           145 |            145 |  100.00% |
-| `src/os/unix.rs`          |           323 |            392 |   82.40% |
-| `src/protect.rs`          |           368 |            378 |   97.35% |
-| `src/protect/closed.rs`   |           116 |            129 |   89.92% |
-| `src/protect/options.rs`  |            76 |            101 |   75.25% |
-| `src/stack.rs`            |            81 |             88 |   92.05% |
-| `src/worker.rs`           |           170 |            210 |   80.95% |
+| `src/os/unix.rs`          |           374 |            408 |   91.67% |
+| `src/os/unix/forks.rs`    |            17 |             17 |  100.00% |
+| `src/protect.rs`          |           404 |            405 |   99.75% |
+| `src/protect/closed.rs`   |           131 |            132 |   99.24% |
+| `src/protect/options.rs`  |           140 |            140 |  100.00% |
+| `src/stack.rs`            |            98 |             98 |  100.00% |
+| `src/worker.rs`           |           227 |            237 |   95.78% |

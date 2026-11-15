@@ -18,9 +18,14 @@ use std::time::{Duration, Instant};
 
 use super::{Access, Pages, Region};
 
+pub(super) mod forks;
+
 impl Pages {
     /// `bytes` bytes, at least one, in pages of their own.
     pub(crate) fn new(bytes: usize) -> Self {
+        if !forks::watched() {
+            super::out_of_memory(bytes);
+        }
         #[cfg(target_os = "linux")]
         if let Some(start) = super::linux::secret_pages(bytes) {
             // Secret memory stays out of swap and core dumps by construction, which is what
@@ -33,6 +38,7 @@ impl Pages {
                 locked: true,
                 out_of_dumps: true,
                 out_of_children: true,
+                generation: forks::generation(),
             };
         }
         Self::anonymous(bytes, Purpose::Secret).unwrap_or_else(|| super::out_of_memory(bytes))
@@ -42,7 +48,7 @@ impl Pages {
     /// when the system refuses them. They are locked only when RLIMIT_MEMLOCK holds all of them,
     /// which also commits them; a refused lock leaves them as they are.
     pub(crate) fn work_area(bytes: usize) -> Option<Self> {
-        Self::anonymous(bytes, Purpose::Work)
+        forks::watched().then(|| Self::anonymous(bytes, Purpose::Work))?
     }
 
     fn anonymous(bytes: usize, purpose: Purpose) -> Option<Self> {
@@ -78,15 +84,16 @@ impl Pages {
             locked,
             out_of_dumps,
             out_of_children,
+            generation: forks::generation(),
         })
     }
 
     pub(crate) fn is_out_of_dumps(&self) -> bool {
-        self.out_of_dumps
+        self.out_of_dumps && self.here()
     }
 
     pub(crate) fn is_out_of_children(&self) -> bool {
-        self.out_of_children
+        self.out_of_children && self.here()
     }
 }
 
@@ -100,8 +107,11 @@ enum Purpose {
 
 impl Drop for Pages {
     fn drop(&mut self) {
-        // Unmapping the pages also unlocks them.
-        release(self.start, self.bytes);
+        // Unmapping the pages also unlocks them. A child of `fork` leaves its parent's alone:
+        // gone there, their addresses may hold what the child mapped since.
+        if self.here() {
+            release(self.start, self.bytes);
+        }
     }
 }
 
@@ -243,9 +253,18 @@ impl WorkerProcess {
         if cfg!(any(target_os = "android", target_os = "ios")) {
             return Err(io::ErrorKind::Unsupported.into());
         }
+        // The descriptors the worker inherits are named in its setting: it closes those before
+        // `main`, and no other, so that what its own libraries open there stays theirs.
+        let setting = format!("{setting},{}", left_open().join("."));
         let mut command = Command::new(std::env::current_exe()?);
+        command.env_clear();
+        // A measurement of coverage counts the worker as well: built for one, the worker gets the
+        // name of the profile beside its setting, and no other variable of its parent's.
+        #[cfg(coverage)]
+        if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
+            command.env("LLVM_PROFILE_FILE", profile);
+        }
         command
-            .env_clear()
             .env(crate::worker::WORKER, setting)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -330,48 +349,49 @@ fn listed_descriptors() -> Option<Vec<i32>> {
     Some(numbers)
 }
 
-/// Runs before `main` in every process that holds this crate. One started as a worker, with a
-/// setting that `serve` takes, closes every descriptor above standard error here, where no code
-/// of the program owns one yet: whatever its parent had open without close-on-exec. Rust's own
-/// start has not run, so it calls the C library and code that needs nothing set up.
-extern "C" fn shed_inherited() {
+/// The descriptors above standard error that a program started now would inherit: open, without
+/// close-on-exec. None where the system cannot list them; a worker that inherits one anyway, or
+/// one opened meanwhile by another thread, finds it open and calls its start unclean.
+fn left_open() -> Vec<String> {
+    let open = listed_descriptors().unwrap_or_default();
+    open.into_iter()
+        .filter(|&descriptor| {
+            // SAFETY: fcntl with F_GETFD takes integers and only reads.
+            let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
+            descriptor > 2 && flags >= 0 && flags & libc::FD_CLOEXEC == 0
+        })
+        .map(|descriptor| descriptor.to_string())
+        .collect()
+}
+
+/// Runs before `main` in every process that holds this crate, before any thread exists: no `fork`
+/// already begun can miss the handler that counts forks. One started as a worker, with a setting
+/// that `serve` takes, closes the descriptors its parent named as left open, and no other: those
+/// the program's libraries opened before this ran stay theirs. Rust's own start has not run, so it
+/// calls the C library and code that needs nothing set up.
+extern "C" fn before_main() {
+    forks::watched();
     // SAFETY: the name is NUL-terminated and the environment is set up before this runs; the
     // value, NUL-terminated as well, is read before anything can change it.
-    let worker = unsafe {
+    let text = unsafe {
         let value = libc::getenv(crate::worker::WORKER_NAME.as_ptr());
-        !value.is_null() && crate::worker::is_setting(std::ffi::CStr::from_ptr(value))
-    };
-    if !worker {
-        return;
-    }
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    // SAFETY: close_range takes integers (Linux 5.9); nothing owns these descriptors yet.
-    if unsafe { libc::syscall(libc::SYS_close_range, 3_u32, u32::MAX, 0_u32) } == 0 {
-        return;
-    }
-    // SAFETY: the path is NUL-terminated; each entry is read while the listing is open; the
-    // descriptors closed belong to no code yet, and the listing's own is left to closedir.
-    unsafe {
-        let listing = libc::opendir(DESCRIPTORS.as_ptr());
-        if !listing.is_null() {
-            let own = libc::dirfd(listing);
-            loop {
-                let entry = libc::readdir(listing);
-                if entry.is_null() {
-                    break;
-                }
-                let number = libc::atoi((*entry).d_name.as_ptr());
-                if number > 2 && number != own {
-                    libc::close(number);
-                }
-            }
-            libc::closedir(listing);
+        if value.is_null() {
+            return;
         }
+        std::ffi::CStr::from_ptr(value)
+    };
+    let Some((_, _, named)) = text.to_str().ok().and_then(crate::worker::setting) else {
+        return;
+    };
+    for descriptor in crate::worker::inherited(named) {
+        // SAFETY: close takes an integer: a number the parent left open, which the worker
+        // inherited and which no code of the program can hold while it is open.
+        unsafe { libc::close(descriptor) };
     }
 }
 
-/// Puts [`shed_inherited`] among the functions the system runs before `main`. On Apple systems
-/// the section names its kind, pointers to such functions, so that every linker keeps it one.
+/// Puts [`before_main`] among the functions the system runs before `main`. On Apple systems the
+/// section names its kind, pointers to such functions, so that every linker keeps it one.
 #[used]
 #[cfg_attr(
     any(target_os = "linux", target_os = "android"),
@@ -381,12 +401,12 @@ extern "C" fn shed_inherited() {
     target_vendor = "apple",
     unsafe(link_section = "__DATA,__mod_init_func,mod_init_funcs")
 )]
-static BEFORE_MAIN: extern "C" fn() = shed_inherited;
+static BEFORE_MAIN: extern "C" fn() = before_main;
 
 /// Whether the worker holds no descriptor but its standard streams, as the system lists them
-/// when it comes to serve: what it inherited was closed before `main`, and what the program
-/// opened since counts as well. A list that cannot be read proves nothing. Nothing is closed
-/// here, where the program may own descriptors by now.
+/// when it comes to serve: what its parent named was closed before `main`, and whatever the
+/// program or its libraries opened counts as well. A list that cannot be read proves nothing.
+/// Nothing is closed here: those descriptors are the program's.
 pub(crate) fn starts_clean() -> bool {
     // The listing's own descriptor takes the lowest free number, 3, and is gone with it.
     let alone = listed_descriptors().is_some_and(|open| open.iter().all(|&d| d <= 3));
@@ -591,7 +611,7 @@ pub(crate) struct WorkerStreams {
     input: ManuallyDrop<File>,
     output: ManuallyDrop<File>,
     /// /dev/null or an ended pipe, made before the isolation refuses opening for writing.
-    nowhere: Option<OwnedFd>,
+    nowhere: OwnedFd,
 }
 
 impl io::Read for WorkerStreams {
@@ -612,13 +632,14 @@ impl io::Write for WorkerStreams {
 
 impl Drop for WorkerStreams {
     fn drop(&mut self) {
-        if let Some(nowhere) = &self.nowhere {
-            // SAFETY: dup2 takes integers: both numbers now name what leads nowhere, which
-            // closes the pipes they named and keeps the numbers taken. The files above never
-            // close them.
+        for stream in [libc::STDIN_FILENO, libc::STDOUT_FILENO] {
+            // SAFETY: dup2 and close take integers: the number now names what leads nowhere,
+            // which closes the pipe it named and keeps the number taken, or the pipe is closed
+            // outright. The files above never close them.
             unsafe {
-                libc::dup2(nowhere.as_raw_fd(), libc::STDIN_FILENO);
-                libc::dup2(nowhere.as_raw_fd(), libc::STDOUT_FILENO);
+                if libc::dup2(self.nowhere.as_raw_fd(), stream) == -1 {
+                    libc::close(stream);
+                }
             }
         }
     }
@@ -644,13 +665,15 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
     if !channel.is_empty() {
         return Err(io::ErrorKind::InvalidInput.into());
     }
+    // Without either the streams could not be ended while the process lives: no start.
     let nowhere = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
         .open("/dev/null")
         .ok()
         .map(OwnedFd::from)
-        .or_else(ended_pipe);
+        .or_else(ended_pipe)
+        .ok_or_else(|| io::Error::other("nothing to put in place of the streams"))?;
     // SAFETY: descriptors 0 and 1 are the pipes the parent made, open for the whole process;
     // `ManuallyDrop` never closes them.
     Ok(unsafe {

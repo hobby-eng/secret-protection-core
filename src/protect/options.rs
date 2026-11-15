@@ -279,6 +279,55 @@ impl std::error::Error for Missing {}
 mod tests {
     use super::*;
 
+    /// Options cross to a worker as bits: each builder sets a bit of its own, and every set of
+    /// options comes back from its bits.
+    #[test]
+    fn every_option_crosses_to_a_worker_as_its_own_bit() {
+        let each = [
+            Options::new().refuse_file_locks(),
+            Options::new().refuse_sendmsg(),
+            Options::new().refuse_dynamic_code(),
+            Options::new().microsoft_signed_only(),
+            Options::new().signals_to_self_only(),
+            Options::new().lock_all_memory(),
+        ];
+        let bits: Vec<u32> = each.iter().map(|options| options.to_bits()).collect();
+        assert!(bits.iter().all(|bits| bits.count_ones() == 1));
+        assert_eq!(bits.iter().fold(0, |all, bits| all | bits), 0b11_1111);
+        for set in 0..64 {
+            assert_eq!(Options::from_bits(set).to_bits(), set);
+        }
+    }
+
+    /// A refusal of the strict mode names each protection that does not hold, each by a name of
+    /// its own, and every outcome on every system is explained the same way for both readings.
+    #[test]
+    fn a_refusal_names_what_is_missing_and_why() {
+        let names: Vec<String> = Protection::ALL.iter().map(ToString::to_string).collect();
+        let unique: std::collections::BTreeSet<&String> = names.iter().collect();
+        assert!(names.iter().all(|name| !name.is_empty()) && unique.len() == names.len());
+        let missing = Missing {
+            missing: vec![Protection::NoCoreDumps, Protection::LowIntegrity],
+            isolation: Isolation::default(),
+        };
+        let text = missing.to_string();
+        assert_eq!(
+            text,
+            "required protections do not hold: no core dumps, low integrity"
+        );
+        // A protection this system offers says why it holds and why not, in other words.
+        for protection in Protection::ALL {
+            let held = crate::os::evidence(protection, Outcome::Confirmed);
+            let refused = crate::os::evidence(protection, Outcome::Refused);
+            assert_eq!(held.is_some(), refused.is_some(), "{protection}");
+            assert!(held.is_none() || held != refused, "{protection}");
+            for outcome in Outcome::ALL {
+                let said = crate::os::evidence(protection, outcome);
+                assert!(said.is_none_or(|said| !said.is_empty()));
+            }
+        }
+    }
+
     #[test]
     fn protections_and_outcomes_keep_their_numbers() {
         for (index, protection) in Protection::ALL.into_iter().enumerate() {

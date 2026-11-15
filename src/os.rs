@@ -130,6 +130,10 @@ pub(crate) struct Pages {
     /// Whether a child process gets none of the bytes: no mapping, or zeros.
     #[cfg(unix)]
     out_of_children: bool,
+    /// The forks counted when the pages were made: in a child of a later `fork` the count is
+    /// higher, and the pages are not there to use.
+    #[cfg(unix)]
+    generation: usize,
     /// The blocks registered with Windows Error Reporting, which holds 512 per process.
     #[cfg(windows)]
     excluded: usize,
@@ -145,28 +149,51 @@ pub(crate) struct Pages {
 )]
 impl Pages {
     pub(crate) fn as_slice(&self) -> &[u8] {
+        self.check();
         // SAFETY: the pages hold `bytes` initialized bytes (the system fills them with zeros),
-        // belong to this value alone and live as long as it.
+        // belong to this value alone and live as long as it; `check` ended a child of `fork`.
         unsafe { std::slice::from_raw_parts(self.start.as_ptr(), self.bytes) }
     }
 
     pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
+        self.check();
         // SAFETY: as for `as_slice`; the exclusive borrow of `self` rules out any other access.
         unsafe { std::slice::from_raw_parts_mut(self.start.as_ptr(), self.bytes) }
     }
 
     pub(crate) fn is_locked(&self) -> bool {
-        self.locked
+        self.locked && self.here()
+    }
+
+    /// Whether the pages are this process's own. In a child of `fork` those its parent made are
+    /// gone, or zeros without a lock; Windows starts a process without a copy of any.
+    pub(crate) fn here(&self) -> bool {
+        #[cfg(unix)]
+        let here = self.generation == unix::forks::generation();
+        #[cfg(windows)]
+        let here = true;
+        here
+    }
+
+    /// Ends a child of `fork` that reaches its parent's pages, before any reference to them.
+    fn check(&self) {
+        #[cfg(unix)]
+        if !self.here() {
+            unix::forks::foreign();
+        }
     }
 
     /// Wipes the pages whatever they hold, as a thread's stack leaves them.
     #[cfg(unix)]
     pub(crate) fn wipe_any(&mut self) {
-        // SAFETY: the pages belong to this value alone and are mapped for `bytes` bytes.
-        unsafe { wipe_unwritten(self.start.as_ptr(), self.bytes) };
+        if self.here() {
+            // SAFETY: the pages belong to this value alone and are mapped for `bytes` bytes.
+            unsafe { wipe_unwritten(self.start.as_ptr(), self.bytes) };
+        }
     }
 
     pub(crate) fn region(&self) -> Region {
+        self.check();
         Region {
             start: self.start,
             bytes: self.bytes,
@@ -294,6 +321,11 @@ mod heap {
 
         pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
             &mut self.0
+        }
+
+        /// No process starts here, so no buffer is another's.
+        pub(crate) fn here(&self) -> bool {
+            true
         }
 
         pub(crate) fn is_locked(&self) -> bool {

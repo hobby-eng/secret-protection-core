@@ -17,6 +17,10 @@
               check ends it, as in a test harness"
 )]
 
+#[path = "../support/run.rs"]
+mod support;
+use support::run;
+
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Command, Stdio};
 
@@ -105,6 +109,8 @@ fn main() {
         Ok("refused") => refused_filter_role(),
         #[cfg(not(target_arch = "wasm32"))]
         Ok("writer") => writer(),
+        #[cfg(unix)]
+        Ok("unread-writer") => unread_writer(),
         _ if cfg!(target_family = "wasm") => run(
             "WebAssembly applies nothing and says so",
             webassembly_applies_nothing_and_says_so,
@@ -243,21 +249,83 @@ fn checks() {
         "a secret is written after the buffered public output",
         a_secret_is_written_after_the_buffered_public_output,
     );
+    #[cfg(unix)]
+    run(
+        "a secret written where nobody reads fails, and says so",
+        || role_ends_well("unread-writer"),
+    );
+    #[cfg(unix)]
+    run(
+        "the channels a process holds are listed by kind",
+        the_channels_a_process_holds_are_listed_by_kind,
+    );
 }
 
-/// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
-/// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
-/// locked memory have to be left out under it.
-fn run(name: &str, check: fn()) {
-    let arguments: Vec<String> = std::env::args().collect();
-    let skipped = arguments
-        .windows(2)
-        .any(|pair| pair[0] == "--skip" && name.contains(pair[1].as_str()));
-    if skipped {
-        return println!("test {name} ... ignored");
+/// Starts this program again in `role` and expects it to end well.
+#[cfg(unix)]
+fn role_ends_well(role: &str) {
+    let output = child(role).wait_with_output().unwrap();
+    support::role_ended(role, output.status, &output.stderr);
+}
+
+/// The `unread-writer` role: standard output is a pipe whose reader is gone, so writing a secret
+/// fails; the error says so, instead of the secret seeming written.
+#[cfg(unix)]
+fn unread_writer() {
+    let mut ends = [0; 2];
+    // SAFETY: pipe writes two new descriptors into the array; close and dup2 take integers.
+    unsafe {
+        assert_eq!(libc::pipe(ends.as_mut_ptr()), 0);
+        libc::close(ends[0]);
+        assert_eq!(libc::dup2(ends[1], 1), 1);
     }
-    check();
-    println!("test {name} ... ok");
+    let refused = protect::write_secret("test words").map_err(|error| error.kind());
+    assert_eq!(refused, Err(std::io::ErrorKind::BrokenPipe));
+}
+
+/// What a process holds open, by kind: a host looks at it after the isolation, before it reads a
+/// secret.
+#[cfg(unix)]
+fn the_channels_a_process_holds_are_listed_by_kind() {
+    use protect::ChannelKind;
+    use std::os::fd::AsRawFd;
+    let directory = std::fs::File::open("/").unwrap();
+    let file = std::fs::File::open(std::env::current_exe().unwrap()).unwrap();
+    let device = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .unwrap();
+    let (socket, _other) = std::os::unix::net::UnixStream::pair().unwrap();
+    let (reader, _writer) = std::io::pipe().unwrap();
+    let open = protect::open_channels().unwrap();
+    assert!(open.complete, "{open:?}");
+    let kind = |descriptor: i32| {
+        let found = open
+            .channels
+            .iter()
+            .find(|channel| channel.descriptor == descriptor);
+        found.map(|channel| (channel.kind, channel.writable))
+    };
+    assert_eq!(
+        kind(directory.as_raw_fd()),
+        Some((ChannelKind::Directory, Some(false)))
+    );
+    assert_eq!(
+        kind(file.as_raw_fd()),
+        Some((ChannelKind::File, Some(false)))
+    );
+    assert_eq!(
+        kind(device.as_raw_fd()),
+        Some((ChannelKind::Device, Some(true)))
+    );
+    assert_eq!(
+        kind(socket.as_raw_fd()),
+        Some((ChannelKind::Socket, Some(true)))
+    );
+    assert_eq!(
+        kind(reader.as_raw_fd()),
+        Some((ChannelKind::Pipe, Some(false)))
+    );
 }
 
 /// Starts this program again in `role`, its standard streams piped.

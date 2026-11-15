@@ -94,6 +94,12 @@ Where a row says that the fix was not run on Windows or macOS, that was so when 
 | AUD-009-FUN002 | fixed | `bebf3ff1db7fd84e41f892c258733aa92a7db87e` | none | Where /dev/null could not be opened, the two descriptors are closed outright. `worker`: under a filter that refuses opening for reading and writing, a call to a worker that serves no more and lives on fails at once; seen failing without the fix. |
 | AUD-009-SEC004 | fixed | `bebf3ff1db7fd84e41f892c258733aa92a7db87e` | none | A secret's anonymous pages are marked `MADV_NOHUGEPAGE` before they are locked. `secret_memory`: the mapping of such a secret has the flag and a work area's has not; both seen failing when the code is changed. A work area keeps the huge pages the system gives it, on purpose: a large computation is much slower without them; docs/TECHNICAL.md, What is not covered. |
 
+## Errata
+
+- AUD-001 links to `tests/isolation.rs` (lines 868 and 880). That file was later split into `tests/isolation/main.rs` and its modules; the lines are those of the commit AUD-001 reviewed, published as [8081d01](https://github.com/hobby-eng/secret-protection-core/blob/8081d010b8040483d3ede458f522fad0fa81c571/tests/isolation.rs#L868). The report itself is kept as it was written.
+- The row of AUD-009-FUN002 above says that the two descriptors are closed outright where /dev/null cannot be opened. Since `e529376` they are pointed at the read end of an ended pipe instead, so that their numbers stay taken; since the fixes of AUD-010 a worker that can have neither refuses to start.
+- The row of AUD-009-SEC002 describes the function that runs before `main` as closing the descriptors above standard error. Since the fixes of AUD-010 it closes only those its parent names in the setting, so that descriptors the program's libraries opened before it stay theirs.
+
 ## Release audit of the published Git source
 
 | Audit | Date (UTC) | Source | Outcome |

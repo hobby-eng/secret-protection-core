@@ -44,11 +44,11 @@ impl fmt::Display for SecretError {
 
 impl std::error::Error for SecretError {}
 
-/// A buffer for a secret in memory pages of its own: locked against swap, kept out of core dumps and
-/// child processes where the system allows, between guard pages, and wiped on drop. It never grows,
-/// so it leaves no copies. A failed lock doesn't fail the call: check [`Secret::is_locked`] or use
-/// [`Secret::locked`]. If the process aborts, drops don't run and only the lock and dump settings
-/// protect the bytes. What each system does: docs/TECHNICAL.md.
+/// A buffer for a secret in pages of its own: locked, out of core dumps and child processes where
+/// the system allows, between guard pages (a heap buffer in WebAssembly), wiped on drop, never
+/// grown. A failed lock doesn't fail the call: check [`Secret::is_locked`] or use
+/// [`Secret::locked`]. A child of `fork` must leave its parent's buffers alone. What each system
+/// does, and what an abort or a `fork` leaves: docs/TECHNICAL.md.
 pub struct Secret {
     pages: Pages,
     capacity: usize,
@@ -150,8 +150,11 @@ impl Secret {
 
 impl Drop for Secret {
     fn drop(&mut self) {
-        // Volatile writes, which the compiler keeps although nothing reads the bytes again.
-        self.pages.as_mut_slice().zeroize();
+        // Volatile writes, which the compiler keeps although nothing reads the bytes again. A
+        // child of `fork` leaves its parent's pages alone: they are gone there, or zeros.
+        if self.pages.here() {
+            self.pages.as_mut_slice().zeroize();
+        }
     }
 }
 
@@ -217,7 +220,9 @@ impl WorkArea {
 
 impl Drop for WorkArea {
     fn drop(&mut self) {
-        self.pages.as_mut_slice().zeroize();
+        if self.pages.here() {
+            self.pages.as_mut_slice().zeroize();
+        }
     }
 }
 
@@ -235,8 +240,8 @@ impl fmt::Debug for WorkArea {
 pub struct Isolation {
     /// On Unix a crash writes no core dump: RLIMIT_CORE is 0, and on Linux and Android the process
     /// is not dumpable, which a pipe in `core_pattern` respects too. Not offered on Windows, whose
-    /// error reports, which [`Isolation::enter`] keeps from the heap, still hold the threads'
-    /// stacks and registers.
+    /// error reports still hold the threads' stacks and registers; [`Isolation::enter`] asks them
+    /// to leave out the heap, which Windows does not let it read back.
     pub no_core_dumps: bool,
     /// Other programs of the same user cannot open the process to read or change its memory, nor
     /// on Windows its threads to read or change their registers; and no thread had a debugger
@@ -244,7 +249,9 @@ pub struct Isolation {
     /// own, as in a container, where a debugger outside it does not show.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
-    /// macOS a socket can still be made, but the sandbox refuses to bind or connect it.
+    /// macOS a socket can still be made, but the sandbox refuses to bind or connect it. On Windows
+    /// it is the policy of the worker's AppContainer token, which has no network capability: what
+    /// is confirmed is that token, not a socket refused or a connection tried.
     pub no_new_sockets: bool,
     /// The process runs in network and IPC namespaces of its own, with only a loopback interface,
     /// which stays down, and no route (Linux).
@@ -637,6 +644,20 @@ mod tests {
         );
         assert_eq!((secret.len(), secret.capacity()), (6, 32));
         assert_eq!(format!("{secret:?}"), "ClosedSecret(hidden)");
+        // It says of its pages what a secret made the same way says.
+        let open = Secret::with_capacity(32);
+        assert!(!secret.is_empty() && secret.is_locked() == open.is_locked());
+        assert_eq!(secret.is_out_of_dumps(), open.is_out_of_dumps());
+        assert_eq!(secret.is_out_of_children(), open.is_out_of_children());
+    }
+
+    /// A strict work area is given only locked. A page lies within every lock limit a system sets
+    /// by default; a sanitizer's own `mlock` locks nothing, and then it is refused.
+    #[test]
+    fn a_strict_work_area_is_given_only_locked() {
+        let strict = WorkArea::locked(4096);
+        let refused = strict.as_ref().err() == Some(&SecretError::NotLocked);
+        assert!(strict.as_ref().is_ok_and(WorkArea::is_locked) || refused);
     }
 
     /// Two pages of the largest size in use, 64 KiB: Linux touches every page before handing it
@@ -713,5 +734,22 @@ mod tests {
         let mut secret = Secret::with_capacity(8);
         secret.push(b"public").unwrap();
         assert_eq!(format!("{secret:?}"), "Secret(hidden)");
+        let mut area = WorkArea::new(8).unwrap();
+        area.as_mut_slice().copy_from_slice(b"public!!");
+        assert_eq!(format!("{area:?}"), "WorkArea(8 bytes, hidden)");
+    }
+
+    /// Each refusal of a buffer says which it was, the room of a full one included.
+    #[test]
+    fn a_refused_buffer_says_why() {
+        let full = SecretError::Full { capacity: 16 }.to_string();
+        assert!(full.contains("16"), "{full}");
+        let texts = [
+            full,
+            SecretError::NotLocked.to_string(),
+            SecretError::NoMemory.to_string(),
+        ];
+        let unique: std::collections::BTreeSet<&String> = texts.iter().collect();
+        assert_eq!(unique.len(), texts.len(), "{texts:?}");
     }
 }

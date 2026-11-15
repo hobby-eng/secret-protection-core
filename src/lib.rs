@@ -5,6 +5,9 @@
 //! system does is described in docs/TECHNICAL.md.
 
 mod channels;
+#[cfg(fuzzing)]
+#[doc(hidden)]
+pub mod fuzzing;
 mod input;
 mod os;
 mod protect;

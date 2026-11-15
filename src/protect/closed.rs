@@ -116,12 +116,15 @@ impl ClosedSecret {
 impl Drop for ClosedSecret {
     fn drop(&mut self) {
         // Open for the wipe in the drop of the secret that follows; pages that stay closed to
-        // writing end the process rather than keep the bytes unwiped.
-        open(
-            self.secret.pages.region(),
-            Access::ReadWrite,
-            &mut self.access,
-        );
+        // writing end the process rather than keep the bytes unwiped. A child of `fork` leaves
+        // its parent's pages alone.
+        if self.secret.pages.here() {
+            open(
+                self.secret.pages.region(),
+                Access::ReadWrite,
+                &mut self.access,
+            );
+        }
     }
 }
 

@@ -19,6 +19,12 @@ Fast gates (CORE-43):
 CI (`.github/workflows/ci.yml`) runs these gates on x86-64 Linux and the tests on ARM Linux, macOS
 and Windows; `audit.yml` holds `Cargo.lock` against the RustSec advisories.
 
+Before a release, and after a change of what crosses between processes, the fuzz targets under
+`fuzz/` (the worker's setting, its report, the keys of a secret field) run under the sanitizer:
+`cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu <target> --
+-max_total_time=90`. They build the crate with `--cfg fuzzing`, which opens `src/fuzzing.rs` to
+them. The coverage record in `docs/COVERAGE.md` is measured as it says, the worker included.
+
 Layout: `src/protect.rs` the public items and what each promises; `src/os.rs` the pages shared by
 every system; `src/os/{unix,linux,apple,windows}.rs` the calls of each system. `unsafe` is allowed
 only in `src/os*`, each block with a `SAFETY` comment. `docs/TECHNICAL.md` describes all of it and

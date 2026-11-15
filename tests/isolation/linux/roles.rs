@@ -166,8 +166,9 @@ pub(crate) fn own_pids_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     // SAFETY: unshare takes flags only.
     if unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWPID) } != 0 {
-        eprintln!("This system allows no user namespace: the PID namespace is not checked.");
-        return;
+        crate::support::skip_role(
+            "this system allows no user namespace: the PID namespace is not checked",
+        );
     }
     // SAFETY: the process has one thread, so the child may go on as any process.
     let child = unsafe { libc::fork() };
@@ -207,8 +208,9 @@ pub(crate) fn own_pids_role() {
 pub(crate) fn relayered_role() {
     use secret_protection_core::{Outcome, Protection};
     if landlock_abi() < 6 {
-        eprintln!("This kernel's Landlock has no signal scope: the second try is not checked.");
-        return;
+        crate::support::skip_role(
+            "this kernel's Landlock has no signal scope: the second try is not checked",
+        );
     }
     let scope = Protection::SignalsWithinLayer;
     let mut limit = libc::rlimit {

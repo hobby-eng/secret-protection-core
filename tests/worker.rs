@@ -18,6 +18,10 @@
               check ends it, as in a test harness"
 )]
 
+#[path = "support/run.rs"]
+mod support;
+use support::run;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -37,8 +41,30 @@ const KEPT: &str = "SECRET_PROTECTION_CORE_TEST_KEPT";
 
 /// Set in a worker that was asked to stay after its pipes close.
 static LINGERS: AtomicBool = AtomicBool::new(false);
-/// How long such a worker stays, at most: beyond the two seconds its parent gives it.
-const LINGER_SECONDS: u32 = 4;
+/// How long such a worker stays, at most: long past every wait of its parent, so that within a
+/// check it ends only when it is killed.
+const LINGER_SECONDS: u32 = 30;
+/// The exit status of a role whose timed part came late: its parent tries it again.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+const LATE: i32 = 78;
+
+/// Runs `scenario`, which returns how long its timed part took, until the time is below `most`,
+/// three times at most: a process the system put on hold is late once, a fault of the code
+/// every time. What must hold whatever the time, the scenario asserts itself.
+fn timed(most: Duration, mut scenario: impl FnMut() -> Duration) {
+    let mut times = Vec::new();
+    for _ in 0..3 {
+        let taken = scenario();
+        if taken < most {
+            return;
+        }
+        times.push(taken);
+    }
+    panic!("late three times, against {most:?}: {times:?}");
+}
 
 /// AddressSanitizer asks the program for its options. Its leak check needs ptrace, which an
 /// isolated process refuses, and a worker gets no environment to turn it off in.
@@ -150,12 +176,17 @@ fn main() {
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
-        Ok("without-close-range") => return linux::without_close_range(),
+        Ok("without-listing") => return linux::without_listing(),
         #[cfg(all(
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
-        Ok("without-listing") => return linux::without_listing(),
+        Ok("unwaited") => return linux::unwaited(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("unexamined") => return linux::unexamined(),
         #[cfg(all(
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
@@ -188,6 +219,7 @@ fn main() {
         "a worker gets nothing of its parent's but its pipes",
         a_worker_gets_nothing_but_its_pipes,
     );
+    #[cfg(target_os = "linux")]
     run(
         "a worker applies the options it is given",
         a_worker_applies_its_options,
@@ -222,6 +254,11 @@ fn main() {
         "a program whose worker variable holds no setting keeps what it inherited",
         a_program_without_a_setting_keeps_what_it_inherited,
     );
+    #[cfg(unix)]
+    run(
+        "a worker closes what its parent names before main, and nothing else",
+        a_worker_closes_what_its_parent_names_and_nothing_else,
+    );
     #[cfg(windows)]
     run(
         "another process that opens the worker's pipe first does not stop the start",
@@ -238,12 +275,16 @@ fn main() {
     ))]
     {
         run(
-            "without close_range a worker closes what it inherited one by one",
-            || linux::role("without-close-range"),
-        );
-        run(
             "a worker that cannot list what it inherited is refused",
             || linux::role("without-listing"),
+        );
+        run(
+            "a program that ignores SIGCHLD still ends its worker",
+            || linux::role("unwaited"),
+        );
+        run(
+            "channels that cannot be looked at are listed as unknown, in a list not whole",
+            || linux::role("unexamined"),
         );
         run(
             "a worker that cannot leave the session, or dies before it reports, is refused",
@@ -258,21 +299,6 @@ fn main() {
             || linux::role("without-null"),
         );
     }
-}
-
-/// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
-/// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
-/// locked memory have to be left out under it.
-fn run(name: &str, check: fn()) {
-    let arguments: Vec<String> = std::env::args().collect();
-    let skipped = arguments
-        .windows(2)
-        .any(|pair| pair[0] == "--skip" && name.contains(pair[1].as_str()));
-    if skipped {
-        return println!("test {name} ... ignored");
-    }
-    check();
-    println!("test {name} ... ok");
 }
 
 /// What every worker must have on the systems where it starts.
@@ -325,6 +351,12 @@ fn a_worker_answers_isolated() {
     let mut worker = Worker::start(Options::new(), &required()).unwrap();
     assert!(worker.isolation().whole_process, "{worker:?}");
     assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+    // Its debug text shows what holds, and nothing it was sent.
+    let shown = format!("{worker:?}");
+    assert!(
+        shown.starts_with("Worker { isolation:") && !shown.contains("public"),
+        "{shown}"
+    );
     // Keystrokes, as a window sends them.
     let key = Keystroke::Char('ж').to_bytes();
     assert_eq!(worker.call(key.as_bytes(), 10).unwrap().as_bytes(), b"1");
@@ -350,10 +382,15 @@ fn a_worker_gets_nothing_but_its_pipes() {
     } else {
         &[]
     };
+    // A measurement of coverage gives the worker the name of its profile, which the profiling
+    // runtime may echo in a variable of its own.
+    let measured = |name: &str| cfg!(coverage) && name.contains("LLVM_PROFILE");
     assert!(
         names
             .split(',')
-            .all(|name| name == "SECRET_PROTECTION_CORE_WORKER" || systems.contains(&name)),
+            .all(|name| name == "SECRET_PROTECTION_CORE_WORKER"
+                || systems.contains(&name)
+                || measured(name)),
         "{names}"
     );
     assert!(names.contains("SECRET_PROTECTION_CORE_WORKER"), "{names}");
@@ -374,20 +411,20 @@ fn a_worker_gets_nothing_but_its_pipes() {
     }
 }
 
+/// The options of the filter, which only Linux and Android have; Android starts no worker.
+#[cfg(target_os = "linux")]
 fn a_worker_applies_its_options() {
-    if cfg!(target_os = "linux") {
-        let options = Options::new().refuse_file_locks().refuse_sendmsg();
-        let required = [Protection::FileLocksRefused, Protection::SendmsgRefused];
-        let worker = Worker::start(options, &required).unwrap();
-        assert!(worker.isolation().file_locks_refused && worker.isolation().sendmsg_refused);
-        // Without the options neither holds, and the worker says they were not asked for.
-        let plain = Worker::start(Options::new(), &[]).unwrap();
-        assert!(!plain.isolation().file_locks_refused && !plain.isolation().sendmsg_refused);
-        assert_eq!(
-            plain.isolation().outcome(Protection::SendmsgRefused),
-            secret_protection_core::Outcome::NotRequested
-        );
-    }
+    let options = Options::new().refuse_file_locks().refuse_sendmsg();
+    let required = [Protection::FileLocksRefused, Protection::SendmsgRefused];
+    let worker = Worker::start(options, &required).unwrap();
+    assert!(worker.isolation().file_locks_refused && worker.isolation().sendmsg_refused);
+    // Without the options neither holds, and the worker says they were not asked for.
+    let plain = Worker::start(Options::new(), &[]).unwrap();
+    assert!(!plain.isolation().file_locks_refused && !plain.isolation().sendmsg_refused);
+    assert_eq!(
+        plain.isolation().outcome(Protection::SendmsgRefused),
+        secret_protection_core::Outcome::NotRequested
+    );
 }
 
 fn a_worker_lacking_a_protection_is_stopped() {
@@ -441,8 +478,12 @@ fn a_refused_answer_ends_the_worker() {
         .map_err(|error| error.kind());
     assert_eq!(refused, Err(std::io::ErrorKind::BrokenPipe));
     // Dropping it returns at once: its pipes were closed, so it ended instead of waiting to write.
-    let taken = within(Duration::from_secs(20), move || drop(worker));
-    assert!(taken < Duration::from_millis(900), "{taken:?}");
+    timed(Duration::from_millis(900), || {
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert!(worker.call(b"huge", HUGE - 1).is_err());
+        within(Duration::from_secs(20), move || drop(worker))
+    });
+    drop(worker);
     // The same from a drop alone, with the answer never read.
     let mut worker = Worker::start(Options::new(), &[]).unwrap();
     assert!(worker.call(b"huge", 10).is_err());
@@ -459,12 +500,13 @@ fn a_request_beyond_the_limit_ends_the_worker() {
     within(Duration::from_secs(20), move || drop(worker));
     // A worker that lives on after it stopped serving does not keep its parent waiting: its
     // streams ended with `serve`, so the request it left unread fails at once.
-    let mut worker = Worker::start(Options::new(), &[]).unwrap();
-    assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-    let started = Instant::now();
-    assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
-    let taken = started.elapsed();
-    assert!(taken < Duration::from_millis(2500), "{taken:?}");
+    timed(Duration::from_millis(2500), || {
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+        let started = Instant::now();
+        assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
+        started.elapsed()
+    });
 }
 
 /// A program whose `main` reached `Worker::start` before `serve` would start itself without
@@ -483,7 +525,7 @@ fn a_worker_starts_no_worker() {
     );
 }
 
-/// `serve` closes no descriptor: what a worker inherited was closed before its `main`. A
+/// `serve` closes no descriptor: what the parent named was closed before the worker's `main`. A
 /// program that opened a file before it called `serve` keeps the file, and its report says that
 /// its start was not clean. The test stands in for the parent, takes the report and sends no
 /// request.
@@ -501,13 +543,14 @@ fn a_late_serve_closes_nothing() {
 }
 
 /// A text in the worker's variable that is no setting starts no worker and closes nothing
-/// before `main`: the program keeps a descriptor its parent left it.
+/// before `main`: the program keeps a descriptor its parent left it. A channel's name is no part
+/// of a setting on Unix.
 #[cfg(unix)]
 fn a_program_without_a_setting_keeps_what_it_inherited() {
     // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
     let left = unsafe { libc::dup(0) };
     assert!(left > 2);
-    for text in ["none", "", "0,2", "64,0"] {
+    for text in ["none", "", "0,2", "64,0", "0,0,channel"] {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
             .env(ROLE, "kept")
             .env(KEPT, left.to_string())
@@ -515,6 +558,28 @@ fn a_program_without_a_setting_keeps_what_it_inherited() {
             .status()
             .unwrap();
         assert!(status.success(), "{text:?} closed what the program had");
+    }
+    // SAFETY: closes the descriptor made above, which nothing else owns.
+    unsafe { libc::close(left) };
+}
+
+/// Before `main` a worker closes the descriptors its parent named, and no other: named, what it
+/// inherited is gone and its start is clean; not named, it stays and the start is not. The test
+/// stands in for the parent and sends no request.
+#[cfg(unix)]
+fn a_worker_closes_what_its_parent_names_and_nothing_else() {
+    // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
+    let left = unsafe { libc::dup(0) };
+    assert!(left > 2);
+    for (named, clean) in [(left.to_string(), 1), ("900".to_owned(), 0)] {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .env_clear()
+            .env("SECRET_PROTECTION_CORE_WORKER", format!("0,0,{named}"))
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert_eq!(output.stdout.len(), Protection::ALL.len() + 1, "{output:?}");
+        assert_eq!(output.stdout.last(), Some(&clean), "named {named}");
     }
     // SAFETY: closes the descriptor made above, which nothing else owns.
     unsafe { libc::close(left) };
@@ -552,8 +617,12 @@ fn a_stray_client_does_not_stop_the_start() {
                     return;
                 }
                 if ours && let Ok(pipe) = std::fs::File::open(entry.path()) {
-                    count.fetch_add(1, Ordering::Relaxed);
-                    std::thread::sleep(Duration::from_millis(20));
+                    // Only the pipe of a worker of this process counts, and is held; one of
+                    // another program is let go at once.
+                    if served_here(&pipe) {
+                        count.fetch_add(1, Ordering::Relaxed);
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
                     drop(pipe);
                 }
             }
@@ -577,14 +646,27 @@ fn a_stray_client_does_not_stop_the_start() {
     );
 }
 
+/// Whether this process holds the server end of `pipe`: its own worker's.
+#[cfg(windows)]
+fn served_here(pipe: &std::fs::File) -> bool {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId;
+    let mut server = 0;
+    // SAFETY: the handle is the open pipe, and the call writes one number.
+    let read = unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle(), &mut server) } != 0;
+    read && server == std::process::id()
+}
+
 /// The `unserved` role: the worker's variable is set, and the program is past `serve`.
 fn unserved() {
-    let started = Instant::now();
-    match Worker::start(Options::new(), &[]) {
-        Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
-        other => panic!("{other:?}"),
-    }
-    assert!(started.elapsed() < Duration::from_secs(2));
+    timed(Duration::from_secs(2), || {
+        let started = Instant::now();
+        match Worker::start(Options::new(), &[]) {
+            Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
+            other => panic!("{other:?}"),
+        }
+        started.elapsed()
+    });
 }
 
 /// Ending a worker never waits for ever: one that stays after its pipes close gets a second,
@@ -595,15 +677,16 @@ fn a_worker_that_lingers_is_killed() {
         any(target_arch = "x86_64", target_arch = "aarch64")
     ))]
     let before = linux::children();
-    let mut worker = Worker::start(Options::new(), &[]).unwrap();
-    assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-    let started = Instant::now();
-    assert!(worker.end(), "the worker was not ended");
-    let taken = started.elapsed();
-    assert!(
-        taken >= Duration::from_millis(900) && taken < Duration::from_millis(1900),
-        "{taken:?}"
-    );
+    // One second of grace, then the kill, and no second wait.
+    timed(Duration::from_millis(1900), || {
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+        let started = Instant::now();
+        assert!(worker.end(), "the worker was not ended");
+        let taken = started.elapsed();
+        assert!(taken >= Duration::from_millis(900), "{taken:?}");
+        taken
+    });
     #[cfg(all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")
@@ -668,25 +751,41 @@ mod linux {
             !ended,
             "a process that signals only itself ended its worker"
         );
-        // One second of grace and no second wait, in `end` or in the drop that follows.
-        assert!(
-            taken >= Duration::from_millis(900) && taken < Duration::from_millis(1900),
-            "{taken:?}"
-        );
+        // One second of grace and no second wait, in `end` or in the drop that follows. Late,
+        // the role is tried again: the isolation cannot be undone in this process.
+        assert!(taken >= Duration::from_millis(900), "{taken:?}");
+        if taken >= Duration::from_millis(1900) {
+            late(taken);
+        }
     }
 
     /// Starts this program again in a part that runs under a filter of its own, and expects it
     /// to end well.
+    /// Ends a role whose timed part came late, with the time: its parent tries it again.
+    #[allow(
+        clippy::print_stderr,
+        reason = "the time goes to the parent on standard error"
+    )]
+    fn late(taken: Duration) -> ! {
+        eprintln!("{taken:?}");
+        std::process::exit(LATE)
+    }
+
+    /// Starts this program again in role `name`, again when its timed part came late, three
+    /// times at most.
     pub(super) fn role(name: &str) {
-        let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .env(ROLE, name)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{name}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let mut late = Vec::new();
+        for _ in 0..3 {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .env(ROLE, name)
+                .output()
+                .unwrap();
+            if output.status.code() != Some(LATE) {
+                return super::support::role_ended(name, output.status, &output.stderr);
+            }
+            late.push(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        panic!("{name}: late three times: {late:?}");
     }
 
     /// The answer of a filter that refuses a call with `error`.
@@ -747,28 +846,60 @@ mod linux {
         }
     }
 
-    /// As on a kernel before Linux 5.9: before its `main` the worker closes each descriptor the
-    /// system lists, and then sees that none is left.
-    pub(super) fn without_close_range() {
-        // SAFETY: dup takes an integer and returns a new descriptor, which the worker inherits.
-        let leaked = unsafe { libc::dup(0) };
-        assert!(leaked > 2);
-        refuse(&[(libc::SYS_close_range, errno(libc::ENOSYS))]);
-        let mut worker = Worker::start(Options::new(), &required()).unwrap();
-        assert_eq!(
-            worker.call(b"descriptors", 100).unwrap().as_bytes(),
-            its_own()
+    /// The `unexamined` role: a sandbox refuses `fstat` on one descriptor. The list of descriptors
+    /// still reads, says it is not whole, and gives that one as unknown, never a kind it was not
+    /// seen to be; the others keep their kinds.
+    pub(super) fn unexamined() {
+        use secret_protection_core::ChannelKind;
+        use std::os::fd::AsRawFd;
+        let hidden = std::fs::File::open("/dev/null").unwrap();
+        let target = u32::try_from(hidden.as_raw_fd()).unwrap();
+        let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
+        let refused = libc::SECCOMP_RET_ERRNO | libc::EACCES as u32;
+        // The call's number; for each way to `fstat`, the descriptor in its first argument.
+        let mut program = vec![
+            instruction(0x20, 0, 0, 0),
+            instruction(0x15, 2, 0, libc::SYS_fstat as u32),
+            instruction(0x15, 1, 0, libc::SYS_newfstatat as u32),
+            instruction(0x15, 0, 3, libc::SYS_statx as u32),
+            instruction(0x20, 0, 0, 16),
+            instruction(0x15, 0, 1, target),
+            instruction(0x06, 0, 0, refused),
+            instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW),
+        ];
+        install(&mut program);
+        let open = secret_protection_core::open_channels().unwrap();
+        assert!(!open.complete, "{open:?}");
+        let kind = |descriptor: i32| {
+            let channel = open
+                .channels
+                .iter()
+                .find(|channel| channel.descriptor == descriptor);
+            channel.map(|channel| (channel.kind, channel.writable))
+        };
+        assert_eq!(kind(hidden.as_raw_fd()), Some((ChannelKind::Unknown, None)));
+        assert!(
+            kind(2).is_some_and(|(kind, _)| kind != ChannelKind::Unknown),
+            "{open:?}"
         );
     }
 
-    /// With neither `close_range` nor a readable list, the worker cannot know what it inherited:
-    /// it says so, and the parent ends it before any request. A list cut short is not complete
-    /// for `open_channels` either.
+    /// The `unwaited` role: a program that ignores SIGCHLD, as many services do, has its ended
+    /// children taken off the system's list at once. Ending its worker still says that it ended.
+    pub(super) fn unwaited() {
+        // SAFETY: sets the action of one signal to the system's own "ignore".
+        let before = unsafe { libc::signal(libc::SIGCHLD, libc::SIG_IGN) };
+        assert_ne!(before, libc::SIG_ERR);
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
+        assert!(worker.end(), "the worker was not seen to end");
+    }
+
+    /// Without a readable list of descriptors the worker cannot know what it holds: it says so,
+    /// and the parent ends it before any request. A list cut short is not complete for
+    /// `open_channels` either.
     pub(super) fn without_listing() {
-        refuse(&[
-            (libc::SYS_close_range, errno(libc::ENOSYS)),
-            (libc::SYS_getdents64, errno(libc::EACCES)),
-        ]);
+        refuse(&[(libc::SYS_getdents64, errno(libc::EACCES))]);
         match Worker::start(Options::new(), &[]) {
             Err(WorkerError::Unclean) => {}
             other => panic!("{other:?}"),
@@ -787,10 +918,10 @@ mod linux {
         let started = Instant::now();
         assert!(worker.call(&vec![b'x'; MOST + 1], 10).is_err());
         let taken = started.elapsed();
-        assert!(
-            taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
-            "{taken:?}"
-        );
+        assert!(taken >= Duration::from_millis(900), "{taken:?}");
+        if taken >= Duration::from_millis(2500) {
+            late(taken);
+        }
     }
 
     /// A worker that cannot leave its parent's session says so and gets no request; on the

@@ -79,6 +79,19 @@ pub fn run_on_protected_stack<R: Send>(
 mod tests {
     use super::*;
 
+    /// A refused protected stack says which refusal it was.
+    #[test]
+    fn a_refused_stack_says_why() {
+        let texts = [
+            StackError::Unsupported.to_string(),
+            StackError::Size.to_string(),
+            StackError::NotProtected(StackProperties::default()).to_string(),
+            StackError::System(io::Error::from_raw_os_error(11)).to_string(),
+        ];
+        let unique: std::collections::BTreeSet<&String> = texts.iter().collect();
+        assert_eq!(unique.len(), texts.len(), "{texts:?}");
+    }
+
     /// The VmFlags of the mapping that holds `address`, and the permissions of the bytes just
     /// below and just above that mapping.
     fn around(address: usize) -> (String, String, String) {
