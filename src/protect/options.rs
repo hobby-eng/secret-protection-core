@@ -144,8 +144,8 @@ pub enum Protection {
     MemoryLocked,
     /// [`Isolation::no_new_programs`].
     NoNewPrograms,
-    /// [`Isolation::known_libraries_only`].
-    KnownLibrariesOnly,
+    /// [`Isolation::no_planted_libraries`].
+    NoPlantedLibraries,
     /// [`Isolation::desktop_restricted`].
     DesktopRestricted,
     /// [`Isolation::low_integrity`].
@@ -173,7 +173,7 @@ impl Protection {
         Self::SignalsWithinLayer,
         Self::MemoryLocked,
         Self::NoNewPrograms,
-        Self::KnownLibrariesOnly,
+        Self::NoPlantedLibraries,
         Self::DesktopRestricted,
         Self::LowIntegrity,
     ];
@@ -200,7 +200,7 @@ impl Protection {
             Self::SignalsWithinLayer => "signals only inside the Landlock layer",
             Self::MemoryLocked => "the whole process out of swap",
             Self::NoNewPrograms => "no other program started",
-            Self::KnownLibrariesOnly => "libraries only from known places",
+            Self::NoPlantedLibraries => "no planted libraries",
             Self::DesktopRestricted => "no writing to the clipboard or to other windows",
             Self::LowIntegrity => "low integrity",
         }

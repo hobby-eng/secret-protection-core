@@ -8,6 +8,8 @@
               foreign functions"
 )]
 
+mod worker;
+
 use std::io;
 use std::mem::size_of;
 use std::ptr::{self, NonNull};
@@ -66,6 +68,8 @@ use windows_sys::Win32::System::Threading::{
     ProcessSideChannelIsolationPolicy, ProcessSignaturePolicy, SetProcessMitigationPolicy,
 };
 use windows_sys::core::{PCWSTR, w};
+
+pub(crate) use worker::{WorkerProcess, close_inherited, leave_terminal, worker_streams};
 
 use super::{Access, Pages, Region};
 use crate::protect::{Findings, Isolation, Options, Secret};
@@ -288,7 +292,11 @@ pub(crate) fn enter(options: Options) -> Isolation {
     let known_places = load_libraries_from_known_places();
     let no_extensions = mitigate(ProcessExtensionPointDisablePolicy, NO_EXTENSION_POINTS, 0);
     let known_images = mitigate(ProcessImageLoadPolicy, KNOWN_IMAGES, 0);
-    let no_programs = mitigate(ProcessChildProcessPolicy, NO_CHILD_PROCESSES, 0);
+    let no_programs = mitigate(
+        ProcessChildProcessPolicy,
+        NO_CHILD_PROCESSES,
+        SECURE_PROCESSES_ALLOWED,
+    );
     let speculation_limited = mitigate(ProcessSideChannelIsolationPolicy, SIDE_CHANNELS, 0);
     let desktop_restricted = enter_restricted_job();
     let mut token = ptr::null_mut();
@@ -336,7 +344,7 @@ pub(crate) fn enter(options: Options) -> Isolation {
     found.check(Protection::WholeProcess, true, true);
     found.check(Protection::NoNewPrograms, no_programs, true);
     found.check(
-        Protection::KnownLibrariesOnly,
+        Protection::NoPlantedLibraries,
         known_places && no_extensions && known_images,
         true,
     );
@@ -404,6 +412,9 @@ const KNOWN_IMAGES: u32 = 0b111;
 /// `NoChildProcessCreation` of PROCESS_MITIGATION_CHILD_PROCESS_POLICY (Windows 10 1709): a
 /// program started with the secret in its command line or input would carry it out.
 const NO_CHILD_PROCESSES: u32 = 1;
+/// `AllowSecureProcessCreation` of that policy: with it some processes still start, so the
+/// policy does not count as holding.
+const SECURE_PROCESSES_ALLOWED: u32 = 0b100;
 /// PROCESS_MITIGATION_SIDE_CHANNEL_ISOLATION_POLICY (Windows 10 1809): branch targets not shared
 /// with the other thread of a core (`SmtBranchTargetIsolation`), a security domain of its own,
 /// apart from other processes of the user (`IsolateSecurityDomain`), no page combined with an
@@ -457,30 +468,41 @@ const DESKTOP_LIMITS: u32 = JOB_OBJECT_UILIMIT_WRITECLIPBOARD
     | JOB_OBJECT_UILIMIT_DISPLAYSETTINGS
     | JOB_OBJECT_UILIMIT_EXITWINDOWS;
 
-/// Whether the job the process is in has every limit of [`DESKTOP_LIMITS`], whoever put it there.
-fn desktop_limits_hold() -> bool {
-    let mut read = JOBOBJECT_BASIC_UI_RESTRICTIONS {
+/// Whether the job the process is in has every limit of [`DESKTOP_LIMITS`] and allows one
+/// process only, whoever put it there.
+fn job_limits_hold() -> bool {
+    let mut desktop = JOBOBJECT_BASIC_UI_RESTRICTIONS {
         UIRestrictionsClass: 0,
     };
-    // SAFETY: a null job stands for the one this process is in; the call writes the struct,
-    // whose size it is given.
+    let mut basic = JOBOBJECT_BASIC_LIMIT_INFORMATION::default();
+    // SAFETY: a null job stands for the one this process is in; each call writes the struct it
+    // is given, whose size it is told.
     let got = unsafe {
         QueryInformationJobObject(
             ptr::null_mut(),
             JobObjectBasicUIRestrictions,
-            (&raw mut read).cast(),
+            (&raw mut desktop).cast(),
             size_of::<JOBOBJECT_BASIC_UI_RESTRICTIONS>() as u32,
             ptr::null_mut(),
-        )
-    } != 0;
-    got && read.UIRestrictionsClass & DESKTOP_LIMITS == DESKTOP_LIMITS
+        ) != 0
+            && QueryInformationJobObject(
+                ptr::null_mut(),
+                JobObjectBasicLimitInformation,
+                (&raw mut basic).cast(),
+                size_of::<JOBOBJECT_BASIC_LIMIT_INFORMATION>() as u32,
+                ptr::null_mut(),
+            ) != 0
+    };
+    got && desktop.UIRestrictionsClass & DESKTOP_LIMITS == DESKTOP_LIMITS
+        && basic.LimitFlags & JOB_OBJECT_LIMIT_ACTIVE_PROCESS != 0
+        && basic.ActiveProcessLimit == 1
 }
 
 /// Puts the process into a job of its own with [`DESKTOP_LIMITS`] that allows only one process,
-/// unless its job has the limits already, and returns whether they read back. Reading the
-/// clipboard stays, so people can paste a secret in.
+/// unless its job has both already, and returns whether they read back. Reading the clipboard
+/// stays, so people can paste a secret in.
 fn enter_restricted_job() -> bool {
-    if desktop_limits_hold() {
+    if job_limits_hold() {
         return true;
     }
     // SAFETY: makes a new unnamed job; its handle is closed below.
@@ -514,7 +536,7 @@ fn enter_restricted_job() -> bool {
         AssignProcessToJobObject(job, GetCurrentProcess());
         CloseHandle(job);
     }
-    desktop_limits_hold()
+    job_limits_hold()
 }
 
 /// Hands the access list of the descriptor `access` to `apply`, and returns its answer; false
@@ -817,336 +839,6 @@ fn write_all(
     Ok(())
 }
 
-/// The parent's end of a worker: pipes to its standard input and from its standard output, and
-/// the process.
-pub(crate) struct WorkerProcess {
-    pub(crate) to: Option<std::fs::File>,
-    pub(crate) from: Option<std::fs::File>,
-    process: std::os::windows::io::OwnedHandle,
-}
-
-/// How long a worker gets to end by itself once its pipes are closed, before it is ended.
-const GRACE_MILLISECONDS: u32 = 1000;
-
-impl WorkerProcess {
-    /// Starts this program again in its own AppContainer: no capabilities, no console, an environment
-    /// with only the worker variable, set to `setting`, and only its two pipes inherited. The
-    /// program file must be readable by app containers (Program Files is), or Windows refuses to
-    /// start it. A worker on the terminal is not offered here.
-    pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
-        use std::os::windows::ffi::OsStrExt;
-        if terminal {
-            return Err(io::ErrorKind::Unsupported.into());
-        }
-        let program = std::env::current_exe()?;
-        let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
-        let container = Container::of(&path)?;
-        let pipes = Pipes::new()?;
-        let process = container.start(&path, &pipes, setting)?;
-        Ok(Self {
-            to: Some(std::fs::File::from(pipes.parent_in)),
-            from: Some(std::fs::File::from(pipes.parent_out)),
-            process,
-        })
-    }
-
-    /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
-    pub(crate) fn close(&mut self) {
-        self.to = None;
-        self.from = None;
-    }
-
-    /// Closes both pipes and waits for the worker; one still running after the grace time is
-    /// ended, so that this never waits for ever.
-    pub(crate) fn finish(&mut self) {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
-        use windows_sys::Win32::System::Threading::{
-            INFINITE, TerminateProcess, WaitForSingleObject,
-        };
-        self.close();
-        let process = self.process.as_raw_handle().cast();
-        // SAFETY: waits on, and if need be ends, the process whose handle this value owns.
-        unsafe {
-            if WaitForSingleObject(process, GRACE_MILLISECONDS) != WAIT_OBJECT_0 {
-                TerminateProcess(process, 1);
-                WaitForSingleObject(process, INFINITE);
-            }
-        }
-    }
-}
-
-/// The SID of the program's AppContainer, freed when dropped.
-struct Container(windows_sys::Win32::Security::PSID);
-
-/// Held while the worker's ends of the pipes can be inherited, so that two workers starting at
-/// once never get each other's ends. Other code of the program that starts a process with
-/// handle inheritance in that moment is beyond this lock.
-static LAUNCHING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-impl Container {
-    /// The AppContainer of the program at `path` (NUL-terminated UTF-16), made at its first start:
-    /// one per program, named after the FNV-1a digest of its path.
-    fn of(path: &[u16]) -> io::Result<Self> {
-        use windows_sys::Win32::Security::Isolation::{
-            CreateAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
-        };
-        let digest = path.iter().fold(0xcbf2_9ce4_8422_2325_u64, |hash, &unit| {
-            (hash ^ u64::from(unit)).wrapping_mul(0x0100_0000_01b3)
-        });
-        let name: Vec<u16> = format!("secret-protection-core.{digest:016x}")
-            .encode_utf16()
-            .chain([0])
-            .collect();
-        let mut sid = ptr::null_mut();
-        // SAFETY: the names are NUL-terminated; the call writes the container's SID into `sid`,
-        // which `Container` frees. A profile made by an earlier start answers ERROR_ALREADY_EXISTS.
-        let made = unsafe {
-            CreateAppContainerProfile(
-                name.as_ptr(),
-                name.as_ptr(),
-                name.as_ptr(),
-                ptr::null(),
-                0,
-                &mut sid,
-            )
-        } >= 0;
-        let mut derived = || {
-            // SAFETY: as above, for a profile that exists.
-            unsafe { DeriveAppContainerSidFromAppContainerName(name.as_ptr(), &mut sid) >= 0 }
-        };
-        if made || derived() {
-            Ok(Self(sid))
-        } else {
-            Err(io::Error::other(
-                "Windows made no AppContainer for the worker",
-            ))
-        }
-    }
-
-    /// Starts the program at `path` in this AppContainer, without capabilities, its standard input
-    /// and output the child's ends of `pipes`, which are the only handles it inherits, and with the
-    /// worker's variable alone in its environment. The child's ends can be inherited only for the
-    /// length of this call, under [`LAUNCHING`].
-    fn start(
-        &self,
-        path: &[u16],
-        pipes: &Pipes,
-        setting: &str,
-    ) -> io::Result<std::os::windows::io::OwnedHandle> {
-        use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
-        use windows_sys::Win32::System::Threading::{
-            CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
-            EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-            STARTUPINFOEXW,
-        };
-        let handles: [HANDLE; 2] = [
-            pipes.child_in.as_raw_handle().cast(),
-            pipes.child_out.as_raw_handle().cast(),
-        ];
-        let attributes = Attributes::new(self.0, &handles)?;
-        let mut startup = STARTUPINFOEXW::default();
-        startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        startup.StartupInfo.hStdInput = handles[0];
-        startup.StartupInfo.hStdOutput = handles[1];
-        startup.lpAttributeList = attributes.list;
-        let mut environment: Vec<u16> = format!("{}={setting}", crate::worker::WORKER)
-            .encode_utf16()
-            .chain([0, 0])
-            .collect();
-        let mut command: Vec<u16> = [u16::from(b'"')]
-            .into_iter()
-            .chain(path[..path.len() - 1].iter().copied())
-            .chain([u16::from(b'"'), 0])
-            .collect();
-        let mut information = PROCESS_INFORMATION::default();
-        let _launching = LAUNCHING
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let inheritable = pipes.inherit(true);
-        // SAFETY: every pointer is valid for the call: the NUL-terminated path, the command line,
-        // which the call may change, the environment block ending in two NULs, and the startup
-        // information with its attribute list.
-        let started = inheritable.is_ok()
-            && unsafe {
-                CreateProcessW(
-                    path.as_ptr(),
-                    command.as_mut_ptr(),
-                    ptr::null(),
-                    ptr::null(),
-                    1,
-                    EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
-                    environment.as_mut_ptr().cast(),
-                    ptr::null(),
-                    &startup.StartupInfo,
-                    &mut information,
-                )
-            } != 0;
-        let error = io::Error::last_os_error();
-        let _ = pipes.inherit(false);
-        inheritable?;
-        if !started {
-            return Err(error);
-        }
-        // SAFETY: the process and thread handles were just made and nothing else owns them.
-        unsafe {
-            CloseHandle(information.hThread);
-            Ok(OwnedHandle::from_raw_handle(information.hProcess.cast()))
-        }
-    }
-}
-
-impl Drop for Container {
-    fn drop(&mut self) {
-        // SAFETY: frees the SID the profile call allocated, once.
-        unsafe { windows_sys::Win32::Security::FreeSid(self.0) };
-    }
-}
-
-/// The attribute list of a worker's start: its AppContainer, and the two handles it may inherit.
-/// Deleted when dropped, which happens only for a list that was initialized.
-struct Attributes {
-    list: windows_sys::Win32::System::Threading::LPPROC_THREAD_ATTRIBUTE_LIST,
-    _memory: Vec<u64>,
-    _capabilities: Box<windows_sys::Win32::Security::SECURITY_CAPABILITIES>,
-}
-
-impl Attributes {
-    fn new(
-        container: windows_sys::Win32::Security::PSID,
-        handles: &[HANDLE; 2],
-    ) -> io::Result<Self> {
-        use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
-        use windows_sys::Win32::System::Threading::{
-            InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, UpdateProcThreadAttribute,
-        };
-        let capabilities = Box::new(SECURITY_CAPABILITIES {
-            AppContainerSid: container,
-            Capabilities: ptr::null_mut(),
-            CapabilityCount: 0,
-            Reserved: 0,
-        });
-        let mut size = 0;
-        // SAFETY: with no list, the call only answers the size of a list of two attributes.
-        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), 2, 0, &mut size) };
-        let mut memory = vec![0_u64; size.div_ceil(8)];
-        let list = memory.as_mut_ptr().cast();
-        // SAFETY: the memory has the size the first call asked for.
-        if unsafe { InitializeProcThreadAttributeList(list, 2, 0, &mut size) } == 0 {
-            // Not initialized: there is nothing to delete.
-            return Err(io::Error::last_os_error());
-        }
-        let attributes = Self {
-            list,
-            _memory: memory,
-            _capabilities: capabilities,
-        };
-        // SAFETY: the list is initialized with room for two attributes; each points to a value
-        // that lives as long as the list: the boxed capabilities, and the caller's handles.
-        let updated = unsafe {
-            UpdateProcThreadAttribute(
-                list,
-                0,
-                PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES as usize,
-                (&raw const *attributes._capabilities).cast(),
-                size_of::<SECURITY_CAPABILITIES>(),
-                ptr::null_mut(),
-                ptr::null(),
-            ) != 0
-                && UpdateProcThreadAttribute(
-                    list,
-                    0,
-                    PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                    handles.as_ptr().cast(),
-                    size_of::<[HANDLE; 2]>(),
-                    ptr::null_mut(),
-                    ptr::null(),
-                ) != 0
-        };
-        if updated {
-            Ok(attributes)
-        } else {
-            // The error of the update, read before the drop of the list replaces it.
-            Err(io::Error::last_os_error())
-        }
-    }
-}
-
-impl Drop for Attributes {
-    fn drop(&mut self) {
-        // SAFETY: deletes a list that `new` initialized, once.
-        unsafe { windows_sys::Win32::System::Threading::DeleteProcThreadAttributeList(self.list) };
-    }
-}
-
-/// The two pipes of a worker. No end can be inherited, except the child's two for the length of
-/// the worker's own start.
-struct Pipes {
-    child_in: std::os::windows::io::OwnedHandle,
-    parent_in: std::os::windows::io::OwnedHandle,
-    parent_out: std::os::windows::io::OwnedHandle,
-    child_out: std::os::windows::io::OwnedHandle,
-}
-
-impl Pipes {
-    fn new() -> io::Result<Self> {
-        use std::os::windows::io::{FromRawHandle, OwnedHandle};
-        use windows_sys::Win32::System::Pipes::CreatePipe;
-        let pipe = || -> io::Result<(OwnedHandle, OwnedHandle)> {
-            let (mut read, mut write) = (ptr::null_mut(), ptr::null_mut());
-            // SAFETY: the call writes two new handles, which nothing else owns; without security
-            // attributes no process inherits them.
-            if unsafe { CreatePipe(&mut read, &mut write, ptr::null(), 0) } == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            // SAFETY: as above; the owners close them when dropped.
-            Ok(unsafe {
-                (
-                    OwnedHandle::from_raw_handle(read.cast()),
-                    OwnedHandle::from_raw_handle(write.cast()),
-                )
-            })
-        };
-        let (child_in, parent_in) = pipe()?;
-        let (parent_out, child_out) = pipe()?;
-        Ok(Self {
-            child_in,
-            parent_in,
-            parent_out,
-            child_out,
-        })
-    }
-
-    /// Lets the child's two ends be inherited, or not.
-    fn inherit(&self, inherit: bool) -> io::Result<()> {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation};
-        let flag = if inherit { HANDLE_FLAG_INHERIT } else { 0 };
-        for end in [&self.child_in, &self.child_out] {
-            // SAFETY: changes only whether a child inherits the handle.
-            if unsafe {
-                SetHandleInformation(end.as_raw_handle().cast(), HANDLE_FLAG_INHERIT, flag)
-            } == 0
-            {
-                return Err(io::Error::last_os_error());
-            }
-        }
-        Ok(())
-    }
-}
-
-/// A worker inherits no handle but its pipes: nothing to close.
-pub(crate) fn close_inherited() -> bool {
-    true
-}
-
-/// A worker is started without a console.
-pub(crate) fn leave_terminal() -> bool {
-    true
-}
-
 /// Windows has no plain way for a process to list its own handles.
 pub(crate) fn open_channels() -> io::Result<crate::OpenChannels> {
     Err(io::ErrorKind::Unsupported.into())
@@ -1161,30 +853,8 @@ pub(crate) fn run_on_stack<R>(
     Err(crate::StackError::Unsupported)
 }
 
-/// The worker's standard input and output, unbuffered; they stay open when dropped.
-pub(crate) fn worker_streams() -> (
-    std::mem::ManuallyDrop<std::fs::File>,
-    std::mem::ManuallyDrop<std::fs::File>,
-) {
-    use std::os::windows::io::FromRawHandle;
-    use windows_sys::Win32::System::Console::STD_INPUT_HANDLE;
-    // SAFETY: the standard handles are the pipes the parent made, open for the whole process;
-    // `ManuallyDrop` never closes them.
-    unsafe {
-        (
-            std::mem::ManuallyDrop::new(std::fs::File::from_raw_handle(
-                GetStdHandle(STD_INPUT_HANDLE).cast(),
-            )),
-            std::mem::ManuallyDrop::new(std::fs::File::from_raw_handle(
-                GetStdHandle(STD_OUTPUT_HANDLE).cast(),
-            )),
-        )
-    }
-}
-
-/// What a call observed for `protection` when it reports `outcome`, in words. Several measures go
-/// in without a line of their own here: error reports without the heap, the DLL folders, the
-/// extension-point, image-load and child-process policies, the job, and low integrity.
+/// What a call observed for `protection` when it reports `outcome`, in words. Error reports
+/// without the heap go in without a line of their own here.
 pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'static str> {
     use {Outcome as O, Protection as P};
     Some(match (protection, outcome) {
@@ -1205,16 +875,24 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::SpeculationLimited, O::Confirmed) => "the side-channel policy reads back",
         (P::SpeculationLimited, O::Refused) => "the side-channel policy did not read back",
         (P::WholeProcess, O::Confirmed) => "everything here holds for the process",
-        (P::NoNewPrograms, O::Confirmed) => "the child-process policy reads back",
-        (P::NoNewPrograms, O::Refused) => "the child-process policy did not read back",
-        (P::KnownLibrariesOnly, O::Confirmed) => {
-            "the extension-point and image-load policies read back, and the search path was taken"
+        (P::NoNewPrograms, O::Confirmed) => {
+            "the child-process policy reads back, with no exception for secure processes"
         }
-        (P::KnownLibrariesOnly, O::Refused) => {
-            "a library policy did not read back, or the search path was refused"
+        (P::NoNewPrograms, O::Refused) => {
+            "the child-process policy did not read back, or allows secure processes"
         }
-        (P::DesktopRestricted, O::Confirmed) => "the job of the process reads back with the limits",
-        (P::DesktopRestricted, O::Refused) => "the process is in no job with the limits",
+        (P::NoPlantedLibraries, O::Confirmed) => {
+            "the extension-point and image-load policies read back, and the search for a name was limited"
+        }
+        (P::NoPlantedLibraries, O::Refused) => {
+            "a library policy did not read back, or the limit of the search was refused"
+        }
+        (P::DesktopRestricted, O::Confirmed) => {
+            "the job of the process reads back with the limits and one process"
+        }
+        (P::DesktopRestricted, O::Refused) => {
+            "the process is in no job with the limits and one process"
+        }
         (P::LowIntegrity, O::Confirmed) => "the token's integrity level reads back low or below",
         (P::LowIntegrity, O::Refused) => {
             "the token's integrity level is above low, or could not be read"

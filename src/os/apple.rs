@@ -19,8 +19,10 @@ pub(crate) fn enter(_options: Options) -> Isolation {
     );
     #[cfg(target_os = "macos")]
     {
+        // Before the sandbox, which may not allow the call.
+        let reading = macos::refuse_debuggers();
         let (sockets, files) = macos::enter_sandbox();
-        found.set(Protection::NoMemoryReading, macos::refuse_debuggers(), true);
+        found.set(Protection::NoMemoryReading, reading, true);
         found.set(Protection::NoNewSockets, sockets, true);
         found.set(Protection::NoFileChanges, files, true);
         // The profile allows neither a new program nor a fork; no probe confirms it yet.
@@ -128,6 +130,12 @@ mod macos {
     /// network and of file writes. A refusal read back without this crate's profile in place may
     /// come from the folder or from another sandbox, which says nothing of the rest: unknown.
     pub(super) fn enter_sandbox() -> (Outcome, Outcome) {
+        // One call at a time: of two at once the second is refused, and must still find the
+        // first one's success.
+        static ENTERING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _entering = ENTERING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if !ENTERED.load(Ordering::Relaxed) {
             let mut error = ptr::null_mut();
             // SAFETY: the profile is a NUL-terminated text; on a failure the call allocates a
@@ -137,7 +145,8 @@ mod macos {
                 // SAFETY: frees the message sandbox_init allocated, once.
                 unsafe { sandbox_free_error(error) };
             }
-            ENTERED.store(entered, Ordering::Relaxed);
+            // Never back to false: a profile that went in stays in.
+            ENTERED.fetch_or(entered, Ordering::Relaxed);
         }
         let outcome = |refused: bool| match (ENTERED.load(Ordering::Relaxed), refused) {
             (true, true) => Outcome::Confirmed,

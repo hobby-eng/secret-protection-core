@@ -11,7 +11,8 @@ pub enum ChannelKind {
     File,
     /// A pipe or a FIFO.
     Pipe,
-    /// A terminal.
+    /// A terminal. One opened after the isolation shows as another device from Linux 6.10 on,
+    /// where it answers no request.
     Terminal,
     /// Another device, such as /dev/null.
     Device,

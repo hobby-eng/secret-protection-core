@@ -202,19 +202,18 @@ pub(crate) struct WorkerProcess {
     child: Child,
 }
 
-/// How long a worker gets to end by itself once its pipes are closed, before it is killed.
-const GRACE: Duration = Duration::from_secs(1);
-
 impl WorkerProcess {
-    /// Starts this program again with an environment of the worker's variable alone, set to
-    /// `setting`, and its standard input and output piped. Without `terminal` its standard error
-    /// goes nowhere. No code runs between `fork` and the start of the program, so it can be
-    /// started from any thread and stack. Android and iOS start no worker.
+    /// Starts this program again with the worker's variable alone in its environment, set to
+    /// `setting`, and its standard input and output piped; without `terminal` its standard error
+    /// goes nowhere. Android and iOS start no worker. The start runs on a thread of its own: an
+    /// old C library starts a program with `fork`, whose child runs on a copy of the calling
+    /// stack, and a protected one would be empty there.
     pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
         if cfg!(any(target_os = "android", target_os = "ios")) {
             return Err(io::ErrorKind::Unsupported.into());
         }
-        let mut child = Command::new(std::env::current_exe()?)
+        let mut command = Command::new(std::env::current_exe()?);
+        command
             .env_clear()
             .env(crate::worker::WORKER, setting)
             .stdin(Stdio::piped())
@@ -223,8 +222,11 @@ impl WorkerProcess {
                 Stdio::inherit()
             } else {
                 Stdio::null()
-            })
-            .spawn()?;
+            });
+        let mut child = std::thread::Builder::new()
+            .spawn(move || command.spawn())?
+            .join()
+            .map_err(|_| io::Error::other("the thread that starts the worker failed"))??;
         let (Some(to), Some(from)) = (child.stdin.take(), child.stdout.take()) else {
             let _ = child.kill();
             let _ = child.wait();
@@ -243,18 +245,29 @@ impl WorkerProcess {
         self.from = None;
     }
 
-    /// Closes both pipes and waits for the worker; one still running after [`GRACE`] is killed,
-    /// so that this never waits for ever.
-    pub(crate) fn finish(&mut self) {
+    /// Closes both pipes and waits for the worker; one still running after the grace time is killed
+    /// and given as long again, so that this never waits for ever. Returns whether the worker
+    /// ended. A program that may no longer signal other processes cannot kill it: the worker is
+    /// then left behind.
+    pub(crate) fn finish(&mut self) -> bool {
         self.close();
-        let deadline = Instant::now() + GRACE;
-        while let Ok(None) = self.child.try_wait() {
-            if Instant::now() >= deadline {
-                let _ = self.child.kill();
-                let _ = self.child.wait();
-                return;
+        let grace = super::GRACE;
+        self.ends_within(grace) || (self.child.kill().is_ok() && self.ends_within(grace))
+    }
+
+    /// Waits up to `limit` for the worker to end, and takes it off the system's list.
+    fn ends_within(&mut self, limit: Duration) -> bool {
+        let deadline = Instant::now() + limit;
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => return true,
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(None) => return false,
+                // The system has taken an ended child off its list itself, as with SIGCHLD ignored.
+                Err(error) => return error.raw_os_error() == Some(libc::ECHILD),
             }
-            std::thread::sleep(Duration::from_millis(2));
         }
     }
 }

@@ -48,11 +48,21 @@ unsafe impl GlobalAlloc for Counting {
 #[global_allocator]
 static ALLOCATOR: Counting = Counting;
 
+/// AddressSanitizer asks the program for its options. Its leak check needs ptrace, which an
+/// isolated process refuses, and a worker gets no environment to turn it off in.
+#[cfg(target_os = "linux")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
+    c"detect_leaks=0".as_ptr()
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     match std::env::var(linux::ROLE).as_deref() {
         Ok("child") => return linux::secrets_under_every_lock_limit(),
         Ok("forks") => return linux::secrets_made_during_forks(),
+        Ok("late") => return linux::first_secret_among_threads(),
+        Ok("gated") => return linux::a_secret_under_a_fork_handlers_lock(),
         _ => {}
     }
     // WebAssembly has no pages of its own to give a secret: it is a heap buffer there.
@@ -70,6 +80,16 @@ fn main() {
     run(
         "no forked child inherits a descriptor of secret memory",
         linux::no_forked_child_inherits_secret_memory,
+    );
+    #[cfg(target_os = "linux")]
+    run(
+        "a process that had threads before its first secret takes no secret memory",
+        || linux::role_ends_well("late"),
+    );
+    #[cfg(target_os = "linux")]
+    run(
+        "a secret made under a lock that a fork handler waits for does not hang",
+        || linux::role_ends_well("gated"),
     );
     #[cfg(not(target_arch = "wasm32"))]
     run(
@@ -283,11 +303,106 @@ mod linux {
 
     /// In a child process, which forks: the test itself keeps to one thread.
     pub(super) fn no_forked_child_inherits_secret_memory() {
-        let status = Command::new(std::env::current_exe().unwrap())
-            .env(ROLE, "forks")
-            .status()
+        role_ends_well("forks");
+    }
+
+    /// Starts this program again in `role` and expects it to end well, within a minute: a role
+    /// that hangs is ended.
+    pub(super) fn role_ends_well(role: &str) {
+        let mut process = Command::new(std::env::current_exe().unwrap())
+            .env(ROLE, role)
+            .spawn()
             .unwrap();
-        assert!(status.success(), "{status}");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let status = loop {
+            if let Some(status) = process.try_wait().unwrap() {
+                break status;
+            }
+            let late = std::time::Instant::now() >= deadline;
+            if late {
+                process.kill().unwrap();
+            }
+            assert!(!late, "{role}: not done within a minute");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        };
+        assert!(status.success(), "{role}: {status}");
+    }
+
+    /// The name of the mapping a secret lies in: `/secretmem` for secret memory.
+    fn mapping_name(secret: &Secret) -> String {
+        let address = secret.as_bytes().as_ptr() as usize;
+        let mappings = mappings();
+        let mapping = mappings
+            .iter()
+            .find(|mapping| mapping.range.contains(&address))
+            .unwrap();
+        mapping.name.clone()
+    }
+
+    /// The `late` role. A `fork` that another thread has begun runs no handler registered after
+    /// it started, so a process that already has threads cannot keep `fork` out any more: its
+    /// secrets lie on locked anonymous pages, never in secret memory, and stay there once it is
+    /// alone again.
+    pub(super) fn first_secret_among_threads() {
+        let other = std::thread::spawn(std::thread::park);
+        let first = Secret::with_capacity(16);
+        assert!(!mapping_name(&first).starts_with("/secretmem"));
+        // Anonymous pages: out of core dumps, and zeros in a child.
+        assert!(first.is_out_of_dumps() && first.is_out_of_children());
+        other.thread().unpark();
+        other.join().unwrap();
+        let later = Secret::with_capacity(16);
+        assert!(!mapping_name(&later).starts_with("/secretmem"));
+    }
+
+    /// The `gated` role. The program has a fork handler of its own that waits for a lock. A
+    /// thread forks: the fork takes the gate of secret memory, then waits in that handler. The
+    /// thread that holds the lock makes a secret meanwhile. It must not wait for the gate for
+    /// ever: it takes anonymous pages, and the fork goes on once the lock is free.
+    pub(super) fn a_secret_under_a_fork_handlers_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static LOCKED: AtomicBool = AtomicBool::new(false);
+        static WAITING: AtomicBool = AtomicBool::new(false);
+        unsafe extern "C" fn wait_for_the_lock() {
+            WAITING.store(true, Ordering::Release);
+            while LOCKED.load(Ordering::Acquire) {
+                // SAFETY: sched_yield takes nothing and touches no memory.
+                unsafe { libc::sched_yield() };
+            }
+        }
+        unsafe extern "C" {
+            fn pthread_atfork(
+                prepare: Option<unsafe extern "C" fn()>,
+                parent: Option<unsafe extern "C" fn()>,
+                child: Option<unsafe extern "C" fn()>,
+            ) -> libc::c_int;
+        }
+        // SAFETY: registers a function that lives as long as the program.
+        let registered = unsafe { pthread_atfork(Some(wait_for_the_lock), None, None) };
+        assert_eq!(registered, 0);
+        // The first secret, made alone: from now on a fork takes the gate, and takes it before
+        // it runs the handler above, which was registered earlier.
+        drop(Secret::with_capacity(16));
+        LOCKED.store(true, Ordering::Release);
+        let forking = std::thread::spawn(|| {
+            // SAFETY: the child ends at once; the parent waits for it and reads its status.
+            unsafe {
+                let child = libc::fork();
+                if child == 0 {
+                    libc::_exit(0);
+                }
+                let mut status = 0;
+                libc::waitpid(child, &mut status, 0);
+                status
+            }
+        });
+        while !WAITING.load(Ordering::Acquire) {
+            std::thread::yield_now();
+        }
+        let secret = Secret::with_capacity(16);
+        assert!(!mapping_name(&secret).starts_with("/secretmem"));
+        LOCKED.store(false, Ordering::Release);
+        assert_eq!(forking.join().unwrap(), 0);
     }
 
     /// The `forks` role: one thread makes and drops secrets, each of which holds a descriptor of

@@ -31,6 +31,11 @@ pub(crate) use windows::{
     worker_streams, write_secret,
 };
 
+/// How long a worker gets to end by itself once its pipes are closed, and again once it was
+/// killed.
+#[cfg(any(unix, windows))]
+const GRACE: std::time::Duration = std::time::Duration::from_secs(1);
+
 /// Where this crate knows no protection of the process, as in WebAssembly, it applies none.
 #[cfg(not(any(
     target_os = "linux",
@@ -61,8 +66,8 @@ thread_local! {
     static REFUSALS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
-/// For tests: the next `count` changes of access on this thread are refused, as a policy of the
-/// system would refuse them.
+/// Fault: the next `count` changes of access on this thread are refused, as the system refuses
+/// `mprotect` under a policy or without memory. No input causes that, so the tests ask for it.
 #[cfg(all(test, unix))]
 pub(crate) fn refuse_changes(count: u32) {
     REFUSALS.set(count);
@@ -209,8 +214,9 @@ mod unsupported {
             self.from = None;
         }
 
-        pub(crate) fn finish(&mut self) {
+        pub(crate) fn finish(&mut self) -> bool {
             self.close();
+            true
         }
     }
 

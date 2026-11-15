@@ -8,6 +8,8 @@ use crate::os::{Access, Region};
 /// Like [`Secret`], but its pages refuse all access between uses. The bytes are reachable only
 /// inside [`ClosedSecret::read`] and [`ClosedSecret::write`], so a stray read elsewhere in the
 /// program (a Heartbleed-style bug) crashes instead of leaking. Each use costs two system calls.
+/// The system may refuse to close the pages, and WebAssembly has none to close:
+/// [`ClosedSecret::is_closed`] says whether they are closed now.
 pub struct ClosedSecret {
     secret: Secret,
     /// What the pages allow now, as the system last confirmed.
@@ -200,7 +202,8 @@ mod tests {
         );
     }
 
-    /// When the system refuses to close the pages after a read, the secret says it is open and
+    /// Fault: the system refuses a change of access, as it does under a policy or without
+    /// memory. When it refuses to close the pages after a read, the secret says it is open and
     /// remembers that it is open for reading only; later uses work, and the next close counts.
     #[cfg(unix)]
     #[test]

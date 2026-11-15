@@ -14,9 +14,10 @@
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 #[cfg(target_os = "linux")]
 use std::ptr::NonNull;
+use std::sync::OnceLock;
 #[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicBool, AtomicU32};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::protect::{Findings, Isolation, Options};
 use crate::{Outcome, Protection};
@@ -87,14 +88,21 @@ pub(super) fn secret_pages(bytes: usize) -> Option<NonNull<u8>> {
 
 /// Keeps `fork` out while a descriptor of secret memory is open. A child made by `fork` at that
 /// moment would inherit the descriptor and could map the pages a secret is written to later.
-/// `fork` waits in its prepare handler; a child made by a raw `clone` call is not covered.
+/// `fork` waits in its prepare handler; a child made by a raw `clone` call is not covered. A
+/// process that already had other threads when the gate was first asked for gets none, and so
+/// no secret memory.
 #[cfg(target_os = "linux")]
 mod fork_gate {
     use std::ptr;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Once, OnceLock};
+    use std::time::{Duration, Instant};
 
     static HELD: AtomicBool = AtomicBool::new(false);
+    /// How long a secret waits for a `fork` that holds the gate. A fork handler of the program's
+    /// own may wait for a lock that the thread making the secret holds: past this, the secret
+    /// takes anonymous pages instead of waiting for ever.
+    const PATIENCE: Duration = Duration::from_millis(100);
 
     unsafe extern "C" {
         fn pthread_atfork(
@@ -119,13 +127,17 @@ mod fork_gate {
         HELD.store(false, Ordering::Release);
     }
 
-    /// Whether `fork` takes the gate: its handlers are registered once, for good.
+    /// Whether `fork` takes the gate. Its handlers are registered once, and only while the
+    /// process has one thread: a `fork` that another thread had already begun runs no handler
+    /// registered after it started, and would pass the gate. The caller blocks signals, so no
+    /// handler starts a thread in between.
     fn registered() -> bool {
         static REGISTERING: Once = Once::new();
         static REGISTERED: OnceLock<bool> = OnceLock::new();
         REGISTERING.call_once(|| {
             // SAFETY: registers three functions that live as long as the program.
-            let done = unsafe { pthread_atfork(Some(hold), Some(release), Some(release)) } == 0;
+            let done = super::one_thread()
+                && unsafe { pthread_atfork(Some(hold), Some(release), Some(release)) } == 0;
             let _ = REGISTERED.set(done);
         });
         REGISTERED.get().copied().unwrap_or(false)
@@ -136,21 +148,35 @@ mod fork_gate {
     pub(super) struct Gate(libc::sigset_t);
 
     impl Gate {
-        /// `None` when the handlers could not be registered: then no secret memory is taken.
+        /// `None` when `fork` does not take the gate: then no secret memory is taken.
         pub(super) fn take() -> Option<Self> {
-            if !registered() {
-                return None;
-            }
-            // SAFETY: the two sets are filled by the calls before they are read; the handler
-            // only changes an atomic flag.
-            unsafe {
+            // SAFETY: the two sets are filled by the calls before they are read.
+            let before = unsafe {
                 let mut all: libc::sigset_t = std::mem::zeroed();
                 let mut before: libc::sigset_t = std::mem::zeroed();
                 libc::sigfillset(&mut all);
                 libc::pthread_sigmask(libc::SIG_SETMASK, &all, &mut before);
-                hold();
-                Some(Self(before))
+                before
+            };
+            if !registered() {
+                // SAFETY: gives back the signal mask replaced above.
+                unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &before, ptr::null_mut()) };
+                return None;
             }
+            let deadline = Instant::now() + PATIENCE;
+            while HELD
+                .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+                .is_err()
+            {
+                if Instant::now() >= deadline {
+                    // SAFETY: gives back the signal mask replaced above.
+                    unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &before, ptr::null_mut()) };
+                    return None;
+                }
+                // SAFETY: sched_yield takes nothing and touches no memory.
+                unsafe { libc::sched_yield() };
+            }
+            Some(Self(before))
         }
     }
 
@@ -193,6 +219,10 @@ const REFUSED: i32 = libc::EACCES;
 
 pub(crate) fn enter(options: Options) -> Isolation {
     use Protection as P;
+    // A program isolates itself early, often while it has one thread: the gate of secret
+    // memory is asked for now, for the secrets that threads make later.
+    #[cfg(target_os = "linux")]
+    drop(fork_gate::Gate::take());
     let whole_process = one_thread();
     #[cfg(target_os = "linux")]
     let empty_network = whole_process && enter_own_namespaces() && network_empty();
@@ -221,14 +251,20 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // A pipe in core_pattern, as systemd-coredump and apport use, ignores RLIMIT_CORE: there
     // only a process that is not dumpable keeps a crash off the disk.
     found.check(P::NoCoreDumps, core_limit && !dumpable, true);
-    // A tracer attached before the call keeps reading, whatever the flag says.
+    // A tracer attached before the call keeps reading, whatever the flag says. One outside
+    // the PID namespace of /proc shows as none there.
     let reading = match (dumpable, traced()) {
-        (false, Some(false)) => Outcome::Confirmed,
-        (false, None) => Outcome::Unknown,
+        (false, Some(false)) if tracers_show() => Outcome::Confirmed,
+        (false, Some(false) | None) => Outcome::Unknown,
         _ => Outcome::Refused,
     };
     found.set(P::NoMemoryReading, reading, true);
-    found.check(P::NoNewSockets, sockets_refused(), whole_process);
+    let filter = held.is_some();
+    found.set(
+        P::NoNewSockets,
+        probed(filter, sockets_refused()),
+        whole_process,
+    );
     #[cfg(target_os = "linux")]
     found.check(P::EmptyNetwork, empty_network, true);
     // Only the filter refuses every change of a file, by the calls and the flags of an open;
@@ -239,22 +275,25 @@ pub(crate) fn enter(options: Options) -> Isolation {
         whole_process,
     );
     found.set(P::SpeculationLimited, speculation, whole_process);
-    found.check(
+    found.set(
         P::NoNewPrograms,
-        held.is_some() && programs_refused(),
+        probed(filter, programs_refused()),
         whole_process,
     );
     found.check(P::WholeProcess, whole_process, true);
-    found.option(
+    let rule = |bit: u32| held.is_some_and(|rules| rules & bit != 0);
+    found.set(
         P::FileLocksRefused,
-        options.file_locks,
-        file_locks_refused(),
+        option_probed(
+            options.file_locks,
+            rule(seccomp::FILE_LOCKS),
+            file_locks_refused(),
+        ),
         whole_process,
     );
-    found.option(
+    found.set(
         P::SendmsgRefused,
-        options.sendmsg,
-        sendmsg_refused(),
+        option_probed(options.sendmsg, rule(seccomp::SENDMSG), sendmsg_refused()),
         whole_process,
     );
     found.option(
@@ -273,25 +312,75 @@ pub(crate) fn enter(options: Options) -> Isolation {
     found.finish()
 }
 
-/// The process that locked all its memory. A child made by `fork` inherits this number and not
-/// the lock, so it reads as not locked there.
-static LOCKED_IN: AtomicI32 = AtomicI32::new(0);
+/// What a refused probe proves. With this crate's filter in place it confirms the protection.
+/// Without it the refusal is someone else's policy, which may refuse the probe and little else:
+/// unknown.
+fn probed(filter: bool, refused: bool) -> Outcome {
+    match (refused, filter) {
+        (true, true) => Outcome::Confirmed,
+        (true, false) => Outcome::Unknown,
+        (false, _) => Outcome::Refused,
+    }
+}
+
+/// As [`probed`] for an option: `rule` says whether the filter this thread holds has its rule.
+/// Neither a rule nor a refusal means refused when the call asked, and not requested otherwise.
+fn option_probed(asked: bool, rule: bool, refused: bool) -> Outcome {
+    match (rule, refused, asked) {
+        (true, true, _) => Outcome::Confirmed,
+        (true, false, _) | (false, true, _) => Outcome::Unknown,
+        (false, false, true) => Outcome::Refused,
+        (false, false, false) => Outcome::NotRequested,
+    }
+}
+
+/// The byte that says this process locked all its memory. It lies on a page that a child made
+/// by `fork` gets as zeros (`MADV_WIPEONFORK`), since the child inherits no lock. The process's
+/// number would not tell them apart: a child in a PID namespace of its own can have its
+/// parent's. `None` where the system gives no such page.
+fn lock_mark() -> Option<&'static AtomicU8> {
+    static PAGE: OnceLock<usize> = OnceLock::new();
+    let page = *PAGE.get_or_init(|| {
+        // SAFETY: sysconf takes an integer; the mapping is new, private and anonymous, and
+        // madvise and munmap name it whole.
+        unsafe {
+            let bytes = usize::try_from(libc::sysconf(libc::_SC_PAGESIZE)).unwrap_or(4096);
+            let page = libc::mmap(
+                std::ptr::null_mut(),
+                bytes,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                -1,
+                0,
+            );
+            if page == libc::MAP_FAILED {
+                return 0;
+            }
+            if libc::madvise(page, bytes, libc::MADV_WIPEONFORK) != 0 {
+                libc::munmap(page, bytes);
+                return 0;
+            }
+            page as usize
+        }
+    });
+    // SAFETY: the page lives as long as the process and is reached only as this atomic byte.
+    (page != 0).then(|| unsafe { &*(page as *const AtomicU8) })
+}
 
 /// Keeps every page of the process, now and later, out of swap when `asked`, and says whether
 /// the process holds such a lock, from this call or an earlier one. Pages are locked as they are
 /// first touched (`MCL_ONFAULT`), so a large reservation costs nothing until it is used.
 fn lock_memory(asked: bool) -> Outcome {
-    // SAFETY: getpid takes nothing and touches no memory.
-    let own = unsafe { libc::getpid() };
-    let lock = || {
-        // SAFETY: mlockall takes flags and touches no memory of this process.
-        unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | libc::MCL_ONFAULT) == 0 }
-    };
-    if asked && lock() {
-        LOCKED_IN.store(own, Ordering::Relaxed);
+    let mark = lock_mark();
+    // SAFETY: mlockall takes flags and touches no memory of this process.
+    let locked = asked
+        && unsafe { libc::mlockall(libc::MCL_CURRENT | libc::MCL_FUTURE | libc::MCL_ONFAULT) } == 0;
+    if let (true, Some(mark)) = (locked, mark) {
+        mark.store(1, Ordering::Relaxed);
     }
     // A refused call leaves an earlier lock as it was.
-    match (LOCKED_IN.load(Ordering::Relaxed) == own, asked) {
+    let held = locked || mark.is_some_and(|mark| mark.load(Ordering::Relaxed) == 1);
+    match (held, asked) {
         (true, _) => Outcome::Confirmed,
         (false, true) => Outcome::Refused,
         (false, false) => Outcome::NotRequested,
@@ -345,17 +434,12 @@ fn layer_bits(held: Option<u32>) -> u32 {
 }
 
 /// Gives this thread the Landlock layer and the seccomp filter, if it doesn't have them yet, and
-/// returns the bits of the filter it now holds (`None` if none).
-///
-/// Only what the kernel accepted is recorded, so a refusal is retried next time and nothing is
-/// stacked twice. A filter installed by someone else (Android, containers) doesn't count.
+/// returns the bits of the filter it now holds (`None` if none). Only what the kernel accepted
+/// is recorded, so a refused layer or filter is tried again by the next call; a filter goes in
+/// only when it adds a bit. A filter installed by someone else (Android, containers) doesn't
+/// count.
 fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
     let held = seccomp::held();
-    if let Some(rules) = held
-        && rules & wanted == wanted
-    {
-        return held;
-    }
     let layer = layer_bits(held);
     #[cfg(target_os = "linux")]
     let layer = if layer & seccomp::LAYER == 0 {
@@ -370,7 +454,11 @@ fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
     };
     #[cfg(target_os = "android")]
     let _ = whole_process;
-    seccomp::install(held.unwrap_or(0) | wanted | layer).or(held)
+    let rules = held.unwrap_or(0) | wanted | layer;
+    if held == Some(rules) {
+        return held;
+    }
+    seccomp::install(rules).or(held)
 }
 
 /// `prctl` options of linux/prctl.h for the processor's speculation, written out because libc
@@ -456,6 +544,13 @@ fn traced() -> Option<bool> {
         any |= tracer.trim() != "0";
     }
     Some(any)
+}
+
+/// Whether every tracer shows in /proc: only in the first PID namespace of the system. In a
+/// namespace of its own, as in a container, a tracer outside it reads as no tracer. The number
+/// is the kernel's PROC_PID_INIT_INO; a kernel that changed it would read as not the first.
+fn tracers_show() -> bool {
+    std::fs::read_link("/proc/self/ns/pid").is_ok_and(|name| name.as_os_str() == "pid:[4026531836]")
 }
 
 /// Whether the process has one thread: only then may it enter a user namespace of its own, and
@@ -572,361 +667,11 @@ fn writing_refused() -> bool {
     opened(file.into()) == Err(REFUSED)
 }
 
-/// The seccomp filter, for x86-64 and little-endian AArch64. It refuses (EACCES) new sockets and
-/// io_uring, file system changes, ioctls other than the terminal's, new peers for old sockets,
-/// System V IPC, POSIX queues, the keyring, `execve`, calls on other processes, kernel interfaces a
-/// secret command never needs, and the `prctl` options that undo the dump settings. Calls newer
-/// than its table get ENOSYS, so libc falls back to ones the filter can check.
 #[cfg(all(
     any(target_arch = "x86_64", target_arch = "aarch64"),
     target_endian = "little"
 ))]
-mod seccomp {
-    /// The numbers of Linux 7.0's arch/x86/entry/syscalls/syscall_64.tbl, written out because
-    /// libc 0.2.191 lacks some of them.
-    #[cfg(target_arch = "x86_64")]
-    mod calls {
-        /// AUDIT_ARCH_X86_64 of linux/audit.h.
-        pub(super) const ARCH: u32 = 0xC000_003E;
-        /// An x32 call carries this bit in its number (__X32_SYSCALL_BIT).
-        pub(super) const X32_BIT: u32 = 0x4000_0000;
-        /// rseq_slice_yield, the newest call of Linux 7.0.
-        pub(super) const NEWEST: u32 = 471;
-        pub(super) const OPENAT2: u32 = 437;
-        pub(super) const IOCTL: u32 = 16;
-        pub(super) const PRCTL: u32 = 157;
-        pub(super) const SENDTO: u32 = 44;
-        /// Refused with the options of the same names.
-        pub(super) const FLOCK: u32 = 73;
-        pub(super) const FCNTL: u32 = 72;
-        pub(super) const SENDMSG: u32 = 46;
-        /// kill and rt_sigqueueinfo, whose first argument is a process; tgkill and
-        /// rt_tgsigqueueinfo, whose first is a thread group; tkill and pidfd_send_signal.
-        pub(super) const SIGNAL_TO_PROCESS: [u32; 4] = [62, 129, 234, 297];
-        pub(super) const SIGNAL_OTHER: [u32; 2] = [200, 424];
-        /// open, whose flags are its second argument, and openat, whose flags are its third.
-        pub(super) const OPENS: &[(u32, u32)] = &[(2, 1), (257, 2)];
-        /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
-        /// `Secret`, and it changes only a file already open for writing, which `write` changes
-        /// anyway.
-        pub(super) const REFUSED: &[u32] = &[
-            41, 53, // socket, socketpair
-            425, 426, 427, // io_uring_setup, io_uring_enter, io_uring_register
-            101, 311, 438, // ptrace, process_vm_writev, pidfd_getfd
-            85, 304, // creat, open_by_handle_at
-            82, 264, 316, // rename, renameat, renameat2
-            87, 263, 84, // unlink, unlinkat, rmdir
-            83, 258, 133, 259, // mkdir, mkdirat, mknod, mknodat
-            86, 265, 88, 266, // link, linkat, symlink, symlinkat
-            76, 285, // truncate, fallocate
-            90, 91, 268, 452, // chmod, fchmod, fchmodat, fchmodat2
-            92, 93, 94, 260, // chown, fchown, lchown, fchownat
-            188, 189, 190, 463, // setxattr, lsetxattr, fsetxattr, setxattrat
-            197, 198, 199, 466, // removexattr, lremovexattr, fremovexattr, removexattrat
-            469, // file_setattr
-            132, 235, 261, 280, // utime, utimes, futimesat, utimensat
-            165, // mount
-            428, 429, 430, 431, 432, 433, 442, 467, // the new mount calls, from open_tree
-            42, 49, 50, 43, 288, 307, // connect, bind, listen, accept, accept4, sendmmsg
-            68, 69, 70, 71, // msgget, msgsnd, msgrcv, msgctl
-            29, 30, 31, 67, // shmget, shmat, shmctl, shmdt
-            64, 65, 220, 66, // semget, semop, semtimedop, semctl
-            240, 241, 242, 243, 244, 245, // mq_open to mq_getsetattr
-            248, 249, 250, // add_key, request_key, keyctl
-            310, // process_vm_readv
-            59, 322, // execve, execveat
-            323, 321, 298, // userfaultfd, bpf, perf_event_open
-        ];
-    }
-
-    /// The numbers of Linux 7.0's scripts/syscall.tbl as AArch64 has them, written out because
-    /// libc 0.2.191 lacks some of them. AArch64 has no open, creat, rename, unlink, rmdir, mkdir,
-    /// mknod, link, symlink, chmod, chown, lchown, utime, utimes or futimesat.
-    #[cfg(target_arch = "aarch64")]
-    mod calls {
-        /// AUDIT_ARCH_AARCH64 of linux/audit.h.
-        pub(super) const ARCH: u32 = 0xC000_00B7;
-        /// rseq_slice_yield, the newest call of Linux 7.0.
-        pub(super) const NEWEST: u32 = 471;
-        pub(super) const OPENAT2: u32 = 437;
-        pub(super) const IOCTL: u32 = 29;
-        pub(super) const PRCTL: u32 = 167;
-        pub(super) const SENDTO: u32 = 206;
-        /// Refused with the options of the same names.
-        pub(super) const FLOCK: u32 = 32;
-        pub(super) const FCNTL: u32 = 25;
-        pub(super) const SENDMSG: u32 = 211;
-        /// kill and rt_sigqueueinfo, whose first argument is a process; tgkill and
-        /// rt_tgsigqueueinfo, whose first is a thread group; tkill and pidfd_send_signal.
-        pub(super) const SIGNAL_TO_PROCESS: [u32; 4] = [129, 138, 131, 240];
-        pub(super) const SIGNAL_OTHER: [u32; 2] = [130, 424];
-        /// openat, whose flags are its third argument.
-        pub(super) const OPENS: &[(u32, u32)] = &[(56, 2)];
-        /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
-        /// `Secret`, and it changes only a file already open for writing, which `write` changes
-        /// anyway.
-        pub(super) const REFUSED: &[u32] = &[
-            198, 199, // socket, socketpair
-            425, 426, 427, // io_uring_setup, io_uring_enter, io_uring_register
-            117, 271, 438, // ptrace, process_vm_writev, pidfd_getfd
-            265, // open_by_handle_at
-            38, 276, // renameat, renameat2
-            35,  // unlinkat
-            34, 33, // mkdirat, mknodat
-            37, 36, // linkat, symlinkat
-            45, 47, // truncate, fallocate
-            52, 53, 452, // fchmod, fchmodat, fchmodat2
-            55, 54, // fchown, fchownat
-            5, 6, 7, 463, // setxattr, lsetxattr, fsetxattr, setxattrat
-            14, 15, 16, 466, // removexattr, lremovexattr, fremovexattr, removexattrat
-            469, // file_setattr
-            88,  // utimensat
-            40,  // mount
-            428, 429, 430, 431, 432, 433, 442, 467, // the new mount calls, from open_tree
-            203, 200, 201, 202, 242, 269, // connect, bind, listen, accept, accept4, sendmmsg
-            186, 189, 188, 187, // msgget, msgsnd, msgrcv, msgctl
-            194, 196, 195, 197, // shmget, shmat, shmctl, shmdt
-            190, 193, 192, 191, // semget, semop, semtimedop, semctl
-            180, 181, 182, 183, 184, 185, // mq_open to mq_getsetattr
-            217, 218, 219, // add_key, request_key, keyctl
-            270, // process_vm_readv
-            221, 281, // execve, execveat
-            282, 280, 241, // userfaultfd, bpf, perf_event_open
-        ];
-    }
-
-    /// The terminal's requests, which a program that reads a hidden line makes: TCGETS, TCSETS,
-    /// TCSETSW and TCSETSF, their termios2 forms, which newer C libraries use (glibc 2.42 and
-    /// later), and TIOCGWINSZ. Tracing a terminal program that reads hidden input with glibc 2.43
-    /// shows no other.
-    const TERMINAL_REQUESTS: [u32; 9] = [
-        libc::TCGETS as u32,
-        libc::TCSETS as u32,
-        libc::TCSETSW as u32,
-        libc::TCSETSF as u32,
-        libc::TCGETS2 as u32,
-        libc::TCSETS2 as u32,
-        libc::TCSETSW2 as u32,
-        libc::TCSETSF2 as u32,
-        libc::TIOCGWINSZ as u32,
-    ];
-
-    /// The flags of an open that can change a file.
-    const WRITE_FLAGS: u32 =
-        (libc::O_WRONLY | libc::O_RDWR | libc::O_CREAT | libc::O_TRUNC | libc::O_APPEND) as u32;
-
-    /// A `prctl` option that no kernel has: without this crate's filter the kernel answers EINVAL,
-    /// and another filter answers as it does; this crate's filter answers [`MARK`] with its
-    /// options. The four bytes read "SPC1".
-    const MARK_OPTION: u32 = 0x5350_4331;
-    /// The error numbers of that answer, beyond every one a kernel gives (MAX_ERRNO is 4095): this
-    /// base with the filter's bits in its low eight bits, the sign that a thread holds this
-    /// crate's filter, whoever installed it. A filter that refuses other calls gets another base.
-    const MARK: u32 = 0xE00;
-    const MARK_BITS: u32 = 0xFF;
-    /// The options of a filter, as bits of the mark.
-    pub(super) const FILE_LOCKS: u32 = 1;
-    pub(super) const SENDMSG: u32 = 2;
-    pub(super) const SIGNALS: u32 = 4;
-    /// Bits that add no rule: the Landlock layer went in before this filter, and that layer
-    /// limits signals. The threads that inherit the filter read them from its mark.
-    pub(super) const LAYER: u32 = 8;
-    pub(super) const SCOPE: u32 = 16;
-
-    /// The process the signal rule names: the one that built the filter. A child made by `fork`
-    /// inherits the rule and this number, which is then not its own.
-    static SIGNAL_OWNER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-
-    /// Whether the signal rule this process's filters carry names this very process.
-    pub(super) fn names_this_process() -> bool {
-        // SAFETY: getpid takes nothing and touches no memory.
-        SIGNAL_OWNER.load(std::sync::atomic::Ordering::Relaxed) == unsafe { libc::getpid() }
-    }
-    /// The lock commands of `fcntl`: F_SETLK, F_SETLKW, F_OFD_SETLK and F_OFD_SETLKW.
-    const LOCK_COMMANDS: [u32; 4] = [6, 7, 37, 38];
-
-    const ALLOW: u32 = libc::SECCOMP_RET_ALLOW;
-    const REFUSE: u32 = libc::SECCOMP_RET_ERRNO | super::REFUSED as u32;
-    const NO_SUCH_CALL: u32 = libc::SECCOMP_RET_ERRNO | libc::ENOSYS as u32;
-
-    /// Offsets in `struct seccomp_data` (linux/seccomp.h): `int nr`, `__u32 arch`, then from 16
-    /// the six `__u64` arguments.
-    const NUMBER_OFFSET: u32 = 0;
-    const ARCH_OFFSET: u32 = 4;
-
-    /// The offset of the low half of an argument, on a little-endian system: all that the kernel
-    /// reads of an `int` or `unsigned int` argument, such as the flags of an open or the request
-    /// of an ioctl.
-    const fn argument(index: u32) -> u32 {
-        16 + 8 * index
-    }
-
-    /// Instruction codes of linux/bpf_common.h, which libc does not give for Android.
-    const LOAD_WORD: u16 = 0x20; // BPF_LD | BPF_W | BPF_ABS
-    const IF_EQUAL: u16 = 0x15; // BPF_JMP | BPF_JEQ | BPF_K
-    const IF_ABOVE: u16 = 0x25; // BPF_JMP | BPF_JGT | BPF_K
-    #[cfg(target_arch = "x86_64")]
-    const IF_AT_LEAST: u16 = 0x35; // BPF_JMP | BPF_JGE | BPF_K
-    const IF_ANY_BIT: u16 = 0x45; // BPF_JMP | BPF_JSET | BPF_K
-    const RETURN: u16 = 0x06; // BPF_RET | BPF_K
-
-    fn instruction(code: u16, if_true: u8, if_false: u8, k: u32) -> libc::sock_filter {
-        libc::sock_filter {
-            code,
-            jt: if_true,
-            jf: if_false,
-            k,
-        }
-    }
-
-    /// Runs `body`, which ends in answers, for the call `number`, and skips it for any other.
-    fn for_call(number: u32, body: &[libc::sock_filter]) -> Vec<libc::sock_filter> {
-        let mut block = vec![instruction(IF_EQUAL, 0, body.len() as u8, number)];
-        block.extend_from_slice(body);
-        block
-    }
-
-    /// Returns `action` when the loaded value passes `test` with `value`, else goes on.
-    fn answer_if(test: u16, value: u32, action: u32) -> [libc::sock_filter; 2] {
-        [
-            instruction(test, 0, 1, value),
-            instruction(RETURN, 0, 0, action),
-        ]
-    }
-
-    /// The filter, in which every test is followed by the answer it leads to, or skips a block
-    /// that ends in answers, so that no jump goes further than the block it belongs to.
-    fn program(options: u32) -> Vec<libc::sock_filter> {
-        let mut program = vec![instruction(LOAD_WORD, 0, 0, ARCH_OFFSET)];
-        // A call of another ABI, such as a 32-bit one, has other numbers: it is refused.
-        program.extend([
-            instruction(IF_EQUAL, 1, 0, calls::ARCH),
-            instruction(RETURN, 0, 0, REFUSE),
-            instruction(LOAD_WORD, 0, 0, NUMBER_OFFSET),
-        ]);
-        #[cfg(target_arch = "x86_64")]
-        program.extend(answer_if(IF_AT_LEAST, calls::X32_BIT, REFUSE));
-        program.extend(answer_if(IF_ABOVE, calls::NEWEST, NO_SUCH_CALL));
-        program.extend(answer_if(IF_EQUAL, calls::OPENAT2, NO_SUCH_CALL));
-        for &number in calls::REFUSED {
-            program.extend(answer_if(IF_EQUAL, number, REFUSE));
-        }
-        if options & FILE_LOCKS != 0 {
-            program.extend(answer_if(IF_EQUAL, calls::FLOCK, REFUSE));
-            let mut commands = vec![instruction(LOAD_WORD, 0, 0, argument(1))];
-            for command in LOCK_COMMANDS {
-                commands.extend(answer_if(IF_EQUAL, command, REFUSE));
-            }
-            commands.push(instruction(RETURN, 0, 0, ALLOW));
-            program.extend(for_call(calls::FCNTL, &commands));
-        }
-        if options & SENDMSG != 0 {
-            program.extend(answer_if(IF_EQUAL, calls::SENDMSG, REFUSE));
-        }
-        if options & SIGNALS != 0 {
-            // The process's own number, as `kill` and `tgkill` take it.
-            // SAFETY: getpid takes nothing and touches no memory.
-            let own = unsafe { libc::getpid() };
-            SIGNAL_OWNER.store(own, std::sync::atomic::Ordering::Relaxed);
-            let own = own as u32;
-            for number in calls::SIGNAL_TO_PROCESS {
-                program.extend(for_call(
-                    number,
-                    &[
-                        instruction(LOAD_WORD, 0, 0, argument(0)),
-                        instruction(IF_EQUAL, 0, 1, own),
-                        instruction(RETURN, 0, 0, ALLOW),
-                        instruction(RETURN, 0, 0, REFUSE),
-                    ],
-                ));
-            }
-            for number in calls::SIGNAL_OTHER {
-                program.extend(answer_if(IF_EQUAL, number, REFUSE));
-            }
-        }
-        // The mark, which a probe reads, and the two options that would let other programs of
-        // the user read the memory again; every other prctl is allowed.
-        let marked = libc::SECCOMP_RET_ERRNO | MARK | options;
-        let mut prctl = vec![instruction(LOAD_WORD, 0, 0, argument(0))];
-        prctl.extend(answer_if(IF_EQUAL, MARK_OPTION, marked));
-        prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_DUMPABLE as u32, REFUSE));
-        prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_PTRACER as u32, REFUSE));
-        prctl.push(instruction(RETURN, 0, 0, ALLOW));
-        program.extend(for_call(calls::PRCTL, &prctl));
-        // A datagram with an address of its own, through a socket opened before: only a call
-        // without one, on a socket connected before, is allowed. The address is a 64-bit pointer.
-        program.extend(for_call(
-            calls::SENDTO,
-            &[
-                instruction(LOAD_WORD, 0, 0, argument(4)),
-                instruction(IF_EQUAL, 1, 0, 0),
-                instruction(RETURN, 0, 0, REFUSE),
-                instruction(LOAD_WORD, 0, 0, argument(4) + 4),
-                instruction(IF_EQUAL, 1, 0, 0),
-                instruction(RETURN, 0, 0, REFUSE),
-                instruction(RETURN, 0, 0, ALLOW),
-            ],
-        ));
-        for &(number, flags) in calls::OPENS {
-            program.extend([
-                instruction(IF_EQUAL, 0, 4, number),
-                instruction(LOAD_WORD, 0, 0, argument(flags)),
-                instruction(IF_ANY_BIT, 0, 1, WRITE_FLAGS),
-                instruction(RETURN, 0, 0, REFUSE),
-                instruction(RETURN, 0, 0, ALLOW),
-            ]);
-        }
-        // Last, as its final answer allows every other call: an ioctl is allowed only with a
-        // terminal request, each test of which jumps to that answer.
-        let requests = TERMINAL_REQUESTS.len() as u8;
-        program.extend([
-            instruction(IF_EQUAL, 0, requests + 2, calls::IOCTL),
-            instruction(LOAD_WORD, 0, 0, argument(1)),
-        ]);
-        for (index, &request) in (0..).zip(&TERMINAL_REQUESTS) {
-            program.push(instruction(IF_EQUAL, requests - index, 0, request));
-        }
-        program.extend([
-            instruction(RETURN, 0, 0, REFUSE),
-            instruction(RETURN, 0, 0, ALLOW),
-        ]);
-        program
-    }
-
-    /// The bits of this crate's filter that the calling thread holds, from its own call or from
-    /// the thread that started it, or `None` for none: only this filter answers [`MARK_OPTION`]
-    /// with [`MARK`]. Of two such filters, the newer answers.
-    pub(super) fn held() -> Option<u32> {
-        // SAFETY: prctl takes integers; with an option that no kernel has it changes nothing and
-        // touches no memory of this process.
-        let result = unsafe { libc::prctl(MARK_OPTION as libc::c_int, 0, 0, 0, 0) };
-        let error = std::io::Error::last_os_error().raw_os_error()?;
-        let error = u32::try_from(error).ok()?;
-        (result == -1 && error & !MARK_BITS == MARK).then_some(error & MARK_BITS)
-    }
-
-    /// Installs the filter with the bits `options` for the calling thread and the threads it
-    /// starts afterwards, and returns the bits of the filter it holds now.
-    pub(super) fn install(options: u32) -> Option<u32> {
-        let mut program = program(options);
-        let filter = libc::sock_fprog {
-            len: program.len() as u16,
-            filter: program.as_mut_ptr(),
-        };
-        // SAFETY: the filter points to `len` instructions that live for the call; the kernel
-        // copies them. It holds for the calling thread and the threads it starts afterwards.
-        let installed = unsafe {
-            libc::prctl(
-                libc::PR_SET_SECCOMP,
-                libc::SECCOMP_MODE_FILTER,
-                &raw const filter,
-                0,
-                0,
-            )
-        } == 0;
-        if installed { held() } else { None }
-    }
-}
+mod seccomp;
 
 /// No filter is written for other architectures: there Landlock alone restricts Linux.
 #[cfg(not(all(
@@ -999,11 +744,15 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE or the dumpable flag did not read back",
         (P::NoMemoryReading, O::Confirmed) => "not dumpable, and no thread has a tracer",
         (P::NoMemoryReading, O::Refused) => "the process is dumpable, or a thread has a tracer",
-        (P::NoMemoryReading, O::Unknown) => "the threads could not be read to look for a tracer",
-        (P::NoNewSockets, O::Confirmed) => "a new socket was refused",
+        (P::NoMemoryReading, O::Unknown) => {
+            "the threads could not be read, or a PID namespace of its own hides outside tracers"
+        }
+        (P::NoNewSockets, O::Confirmed) => "the filter answers its mark, and a socket was refused",
         (P::NoNewSockets, O::Refused) => "a new socket was not refused",
+        (P::NoNewSockets, O::Unknown) => "a socket was refused, but not by this crate's filter",
         (P::NoNewPrograms, O::Confirmed) => "the filter answers its mark, and execve was refused",
-        (P::NoNewPrograms, O::Refused) => "the filter is missing, or execve was not refused",
+        (P::NoNewPrograms, O::Refused) => "execve was not refused",
+        (P::NoNewPrograms, O::Unknown) => "execve was refused, but not by this crate's filter",
         (P::EmptyNetwork, O::Confirmed) => "namespaces of its own: only loopback, down, no route",
         (P::EmptyNetwork, O::Refused) => "no network namespace of its own",
         (P::NoFileChanges, O::Confirmed) => {
@@ -1019,10 +768,18 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::SpeculationLimited, O::Unknown) => "the kernel gives no control of a kind here",
         (P::WholeProcess, O::Confirmed) => "the process had one thread at the call",
         (P::WholeProcess, O::Refused) => "the process had other threads at the call",
-        (P::FileLocksRefused, O::Confirmed) => "a lock on /dev/null was refused",
+        (P::FileLocksRefused, O::Confirmed) => {
+            "the filter has the rule, and a lock on /dev/null was refused"
+        }
         (P::FileLocksRefused, O::Refused) => "a lock on /dev/null was not refused",
-        (P::SendmsgRefused, O::Confirmed) => "sendmsg was refused",
+        (P::FileLocksRefused, O::Unknown) => {
+            "a lock was refused without this crate's rule, or the rule could not be probed"
+        }
+        (P::SendmsgRefused, O::Confirmed) => "the filter has the rule, and sendmsg was refused",
         (P::SendmsgRefused, O::Refused) => "sendmsg was not refused",
+        (P::SendmsgRefused, O::Unknown) => {
+            "sendmsg was refused without this crate's rule, or the rule could not be probed"
+        }
         (P::SignalsToSelfOnly, O::Confirmed) => {
             "the filter answers its mark with the rule, which names this process"
         }
@@ -1044,6 +801,24 @@ mod tests {
     use super::*;
 
     /// Every answer of PR_GET_SPECULATION_CTRL, by the kernel's spec_ctrl documentation.
+    #[test]
+    fn a_refusal_confirms_only_with_this_crates_filter() {
+        assert_eq!(probed(true, true), Outcome::Confirmed);
+        assert_eq!(probed(false, true), Outcome::Unknown);
+        assert_eq!(probed(true, false), Outcome::Refused);
+        // An option: asked or not, the filter's rule or none, the probe refused or not.
+        for (asked, rule, refused, outcome) in [
+            (true, true, true, Outcome::Confirmed),
+            (false, true, true, Outcome::Confirmed),
+            (true, false, true, Outcome::Unknown),
+            (true, true, false, Outcome::Unknown),
+            (true, false, false, Outcome::Refused),
+            (false, false, false, Outcome::NotRequested),
+        ] {
+            assert_eq!(option_probed(asked, rule, refused), outcome);
+        }
+    }
+
     #[test]
     fn speculation_answers_are_read_as_the_kernel_defines_them() {
         let (prctl, enable, disable, force, noexec) = (1, 2, 4, 8, 16);

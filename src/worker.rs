@@ -59,7 +59,9 @@ impl Worker {
 
     /// As [`Worker::start`], but the worker keeps the terminal (Linux and macOS): its standard
     /// error and the terminal the program runs on, so that it can read a password from the
-    /// terminal itself, opened only for reading, and the parent never holds it.
+    /// terminal itself, opened only for reading, and the parent never holds it. It turns the
+    /// echo off through its standard error: a terminal opened after the isolation takes no
+    /// settings (Linux 6.10).
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],
@@ -72,6 +74,12 @@ impl Worker {
         required: &[Protection],
         terminal: bool,
     ) -> Result<Self, WorkerError> {
+        // A program whose `main` came here before `serve` would start itself without end.
+        if std::env::var_os(WORKER).is_some() {
+            return Err(WorkerError::Start(io::Error::other(
+                "a worker starts no worker: main calls serve first",
+            )));
+        }
         let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
         let mut process =
             crate::os::WorkerProcess::start(&setting, terminal).map_err(WorkerError::Start)?;
@@ -114,8 +122,9 @@ impl Worker {
 
     /// Sends `request` to the worker and returns its answer, read straight into a [`Secret`]. An
     /// answer longer than `most` bytes is refused with `InvalidData`. After that, or after any
-    /// failed read or write, the pipes are out of step: they are closed, the worker ends, and
-    /// every later call is refused.
+    /// failed read or write, the pipes are out of step: the worker is ended before this returns,
+    /// as [`Worker::end`] does, and every later call is refused. Neither this nor
+    /// [`Worker::start`] has a deadline of its own for a worker that is slow to answer.
     pub fn call(&mut self, request: &[u8], most: usize) -> io::Result<Secret> {
         if self.broken {
             return Err(io::Error::new(
@@ -129,9 +138,17 @@ impl Worker {
         let answer = self.exchange(length, request, most);
         if answer.is_err() {
             self.broken = true;
-            self.process.close();
+            self.process.finish();
         }
         answer
+    }
+
+    /// Ends the worker and says whether it ended: its pipes are closed, it gets a second to end
+    /// by itself, then is killed and given a second more. False when it is still there, as when
+    /// the program may no longer signal other processes; dropping a worker does the same and
+    /// cannot say so.
+    pub fn end(mut self) -> bool {
+        self.process.finish()
     }
 
     fn exchange(&mut self, length: u32, request: &[u8], most: usize) -> io::Result<Secret> {
@@ -169,8 +186,7 @@ fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
 }
 
 impl Drop for Worker {
-    /// Closes both pipes, which ends the worker's [`serve`], and waits for it; a worker that does
-    /// not end within a second is killed.
+    /// Ends the worker as [`Worker::end`] does.
     fn drop(&mut self) {
         self.process.finish();
     }

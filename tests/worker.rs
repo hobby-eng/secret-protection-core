@@ -34,6 +34,16 @@ const ROLE: &str = "SECRET_PROTECTION_CORE_TEST_ROLE";
 
 /// Set in a worker that was asked to stay after its pipes close.
 static LINGERS: AtomicBool = AtomicBool::new(false);
+/// How long such a worker stays, at most: beyond the two seconds its parent gives it.
+const LINGER_SECONDS: u32 = 4;
+
+/// AddressSanitizer asks the program for its options. Its leak check needs ptrace, which an
+/// isolated process refuses, and a worker gets no environment to turn it off in.
+#[cfg(target_os = "linux")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
+    c"detect_leaks=0".as_ptr()
+}
 
 /// The worker's answers, by request.
 fn answer(request: &[u8]) -> Secret {
@@ -92,8 +102,8 @@ fn descriptors() -> String {
 fn main() {
     if serve(MOST, answer) {
         // A worker that was asked to linger does not end when its pipes close.
-        while LINGERS.load(Ordering::Relaxed) {
-            std::thread::sleep(Duration::from_secs(1));
+        if LINGERS.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_secs(LINGER_SECONDS.into()));
         }
         return;
     }
@@ -113,6 +123,12 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("without-setsid") => return linux::without_setsid(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("unsignalling") => return linux::unsignalling(),
+        Ok("unserved") => return unserved(),
         _ => {}
     }
     if !cfg!(any(target_os = "linux", target_os = "macos", windows)) {
@@ -147,6 +163,10 @@ fn main() {
         "a worker that does not end by itself is killed after a second",
         a_worker_that_lingers_is_killed,
     );
+    run(
+        "a program that reaches the start of a worker before serve starts none",
+        a_worker_starts_no_worker,
+    );
     #[cfg(unix)]
     run(
         "a worker starts from a protected stack",
@@ -168,6 +188,10 @@ fn main() {
         run(
             "a worker that cannot leave the session, or dies before it reports, is refused",
             || linux::role("without-setsid"),
+        );
+        run(
+            "a program that may not signal others leaves a stubborn worker behind, in time",
+            || linux::role("unsignalling"),
         );
     }
 }
@@ -210,7 +234,7 @@ fn required() -> Vec<Protection> {
     if cfg!(windows) {
         required.extend([
             Protection::NoNewSockets,
-            Protection::KnownLibrariesOnly,
+            Protection::NoPlantedLibraries,
             Protection::DesktopRestricted,
             Protection::LowIntegrity,
         ]);
@@ -342,8 +366,34 @@ fn a_request_beyond_the_limit_ends_the_worker() {
     within(Duration::from_secs(20), move || drop(worker));
 }
 
-/// Dropping a worker never waits for ever: one that stays after its pipes close gets a second,
-/// then is killed and taken off the system's list.
+/// A program whose `main` reached `Worker::start` before `serve` would start itself without
+/// end, each copy waiting for the next. In a process started as a worker the start is refused.
+fn a_worker_starts_no_worker() {
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(ROLE, "unserved")
+        // No setting that `serve` takes: the program goes on as one that did not call it.
+        .env("SECRET_PROTECTION_CORE_WORKER", "none")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The `unserved` role: the worker's variable is set, and the program is past `serve`.
+fn unserved() {
+    let started = Instant::now();
+    match Worker::start(Options::new(), &[]) {
+        Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
+        other => panic!("{other:?}"),
+    }
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+/// Ending a worker never waits for ever: one that stays after its pipes close gets a second,
+/// then is killed and taken off the system's list, well before it would have ended by itself.
 fn a_worker_that_lingers_is_killed() {
     #[cfg(all(
         target_os = "linux",
@@ -352,9 +402,11 @@ fn a_worker_that_lingers_is_killed() {
     let before = linux::children();
     let mut worker = Worker::start(Options::new(), &[]).unwrap();
     assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
-    let taken = within(Duration::from_secs(20), move || drop(worker));
+    let started = Instant::now();
+    assert!(worker.end(), "the worker was not ended");
+    let taken = started.elapsed();
     assert!(
-        taken >= Duration::from_millis(900) && taken < Duration::from_secs(5),
+        taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
         "{taken:?}"
     );
     #[cfg(all(
@@ -394,36 +446,37 @@ mod linux {
             .collect()
     }
 
-    /// A failed call closes the pipes at once, so the worker ends while the program still holds
-    /// it: the kernel lists it as ended (`Z`) before it is dropped and reaped.
+    /// A failed call ends the worker before it returns: the worker is gone from the system's
+    /// list while the program still holds the `Worker`.
     pub(super) fn a_failed_call_ends_the_worker_before_it_is_dropped() {
         let before = children();
         let mut worker = Worker::start(Options::new(), &[]).unwrap();
-        let started: Vec<u32> = children()
-            .into_iter()
-            .filter(|pid| !before.contains(pid))
-            .collect();
-        let [pid] = started[..] else {
-            panic!("{started:?}");
-        };
+        assert_eq!(children().len(), before.len() + 1);
         assert!(worker.call(b"huge", 10).is_err());
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
-            // The state follows the name, which stands in brackets.
-            if stat
-                .rsplit(')')
-                .next()
-                .unwrap()
-                .trim_start()
-                .starts_with('Z')
-            {
-                break;
-            }
-            assert!(Instant::now() < deadline, "the worker still runs: {stat}");
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        assert_eq!(children(), before, "the worker is still listed");
         drop(worker);
+    }
+
+    /// The `unsignalling` role: a program that isolated itself so that it signals only itself
+    /// cannot kill a worker it started before. Ending the worker still returns in time, and
+    /// says that the worker is left behind.
+    pub(super) fn unsignalling() {
+        use secret_protection_core::Isolation;
+        let mut worker = Worker::start(Options::new(), &[]).unwrap();
+        assert_eq!(worker.call(b"linger", 10).unwrap().as_bytes(), b"lingers");
+        let isolation = Isolation::enter_with(Options::new().signals_to_self_only());
+        assert!(isolation.signals_to_self_only, "{isolation:?}");
+        let started = Instant::now();
+        let ended = worker.end();
+        let taken = started.elapsed();
+        assert!(
+            !ended,
+            "a process that signals only itself ended its worker"
+        );
+        assert!(
+            taken >= Duration::from_millis(900) && taken < Duration::from_millis(2500),
+            "{taken:?}"
+        );
     }
 
     /// Starts this program again in a part that runs under a filter of its own, and expects it

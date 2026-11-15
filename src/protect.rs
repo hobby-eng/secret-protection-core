@@ -240,7 +240,8 @@ pub struct Isolation {
     pub no_core_dumps: bool,
     /// Other programs of the same user cannot open the process to read or change its memory, nor
     /// on Windows its threads to read or change their registers; and no thread had a debugger
-    /// attached before, which would keep reading.
+    /// attached before, which would keep reading. Unknown on Linux in a PID namespace of its
+    /// own, as in a container, where a debugger outside it does not show.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it.
@@ -282,13 +283,14 @@ pub struct Isolation {
     /// input: on Linux and Android the filter refuses `execve`, on Windows the child-process
     /// policy holds. Unknown on macOS, whose sandbox allows it to no one but is not probed.
     pub no_new_programs: bool,
-    /// Libraries load only from the program's folder and System32, none from a remote share or
-    /// from where a low-integrity process could write, and other programs cannot put theirs in
-    /// through AppInit DLLs, window hooks or input methods (Windows).
-    pub known_libraries_only: bool,
+    /// No library that another program planted loads (Windows): one named without a path is
+    /// looked for only in the program's folder and System32, none loads from a remote share or
+    /// from where a low-integrity process could write, and none comes in through AppInit DLLs,
+    /// window hooks or input methods. A path the program itself names still loads.
+    pub no_planted_libraries: bool,
     /// A job keeps the process from writing the clipboard, from global atoms, from other
-    /// programs' windows and from changing the desktop (Windows). Reading the clipboard stays,
-    /// so that a secret can be pasted in.
+    /// programs' windows and from changing the desktop, and allows it one process (Windows).
+    /// Reading the clipboard stays, so that a secret can be pasted in.
     pub desktop_restricted: bool,
     /// The process runs at low integrity or below, as in an AppContainer: it writes only where a
     /// low label allows, not to the user's files or the user's other programs (Windows).
@@ -462,7 +464,7 @@ impl Findings {
             signals_within_layer: has(Protection::SignalsWithinLayer),
             memory_locked: has(Protection::MemoryLocked),
             no_new_programs: has(Protection::NoNewPrograms),
-            known_libraries_only: has(Protection::KnownLibrariesOnly),
+            no_planted_libraries: has(Protection::NoPlantedLibraries),
             desktop_restricted: has(Protection::DesktopRestricted),
             low_integrity: has(Protection::LowIntegrity),
             outcomes: self.outcomes,
