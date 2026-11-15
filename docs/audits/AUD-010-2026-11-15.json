@@ -1,0 +1,3533 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-010",
+  "auditNumber": 10,
+  "date": "2026-11-15",
+  "title": "Release audit of the signed Git dependency",
+  "reviewer": {
+    "name": "Codex, coordinator and four scoped read-only reviewers including an independent completeness pass",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+    "commitComplete": true,
+    "tree": "937e813cc30dd17e1ed2174cd3caa82040a43b16",
+    "workingTree": "Clean main at start and at final source validation, matched fetched origin/main and the published run. Only audit records were added after testing.",
+    "sourceFingerprint": "4d31eb22874aec26c675841af0842ab006a7fe293b66beff25aee6521b1e808f",
+    "cargoInputFingerprint": "6c6c37593c6fa0c9f871aeeffa3ab601f39ad42c7865c1dfc27ce1a5958712c6"
+  },
+  "scope": {
+    "verificationLevel": "release",
+    "distribution": "0.1.0 Git source, Cargo publish=false",
+    "procedures": {
+      "FULL_AUDIT_GUIDE.md": "179fc5e27bcc9f9c0eec75b38b910f4918041e79c904840ef68efa8210d20dd2",
+      "audits/AUDIT_STANDARD.md": "4483291a18714964597ef655bef04bf8629f654849589c8bd1e26a4560915dfa",
+      "audits/AUDIT_TEMPLATE.md": "8122777f8093b04119633459b9b2cc50bc6ca9258bfc6184b52136d3b8172210",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    },
+    "files": {
+      ".github/workflows/audit.yml": {
+        "sha256": "b217a43ecabc2cff9a40b48d064ffc45d566dd6f54db206cb6c3d17465905945",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      ".github/workflows/ci.yml": {
+        "sha256": "d38b8c42aaec03d32806281d5273d024157e3250e50257910b083e390becaddb",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      ".gitignore": {
+        "sha256": "b824220c6110f2b8ccb25db135e6f98ae6b54ef7ed3fd32c08ed8d5dbdf7ec10",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "AGENTS.md": {
+        "sha256": "c7fa4afd1352219cfd7cb812e5b287452f5dade22dfa73356adc5e587e0c5c0a",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "CHANGELOG.md": {
+        "sha256": "5a75839393a9c328b9552f6a0e96aea76774c4198f9a22e903343f99bf805706",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "Cargo.lock": {
+        "sha256": "8b9f902b97c4444b59431bb4cd6a9cb7f2d2c899ac284c3e2c93c6b18a77d388",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "Cargo.toml": {
+        "sha256": "5c0d509c27f272517b3e192c133c17522096d2cc5c7367ce1073ca595a593f19",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "LICENSE-APACHE": {
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "LICENSE-MIT": {
+        "sha256": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "README.md": {
+        "sha256": "fb5accc2a5ac3895aba56bfaba889f7812d378527f3a334b88ae58a564c5811c",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "THIRD_PARTY_NOTICES.md": {
+        "sha256": "26c040a8445d7b95c5239539080c8f51a3e9f75f795f4d4ff14bafd76f6691b9",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "clippy.toml": {
+        "sha256": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "docs/COVERAGE.md": {
+        "sha256": "f95f9748fe1f782d4b65e6c62108bd71ed303b2fff0aa588c236c96b3fc6e4ad",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "docs/README.md": {
+        "sha256": "b25826fcf35df5cfdfa36f526e84db6af933722f79d268f866907cad6e9198f0",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "docs/TECHNICAL.md": {
+        "sha256": "5ee70f23973af274682ef273c28e0426b073b4f15b72ee64f85e5751a85bfe5b",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "docs/audits/AUD-001-2026-11-15.json": {
+        "sha256": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-001-2026-11-15.md": {
+        "sha256": "962f3c601035f8052fe0f89d95639934183f6e2ff88df02af46e3eb5ed7450f3",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-001-harnesses/README.md": {
+        "sha256": "9c749018ba366f7570dae4714205d59a4ff1396516c121da84d6f647b2807b12",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-001-harnesses/report_state.rs": {
+        "sha256": "d2a796e7a69f2025fa16a9e977bafdd34a30030b8c819b2b38e051e4b360e2b7",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-2026-11-15.json": {
+        "sha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-2026-11-15.md": {
+        "sha256": "90105eb75934be43b957430954d8adbb7bf1ce2d3316fe6a0cc47793d7a482f8",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/.gitignore": {
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/Cargo.lock": {
+        "sha256": "e3a8e301aca1efa46e49b7ec555911287029bf1d539556499ad7762461229894",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/Cargo.toml": {
+        "sha256": "7f39ecea7c7879e5ca7106fe718cd711514e38dcd0394f4f0b46f21e64bac965",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/README.md": {
+        "sha256": "edfb199555744fb5b2ed92d7b9d750dc7a67987f325e776093838925efb821f6",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/src/linux.rs": {
+        "sha256": "3a127c006c20f71ccd85cf24d27f84b413650c871918bf3937f2448ecf287697",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-002-harnesses/src/main.rs": {
+        "sha256": "5bd62ffea1aaf8357c047cbb158a567123af193457c453b64f5bb396af15fa87",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-003-2026-11-15.json": {
+        "sha256": "bfafe93c07c0a6866f5e5f9ead52a616b23b68f0c11128bbeca8436fa4cd5329",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-003-2026-11-15.md": {
+        "sha256": "560620653344f8f6e6b87282263f94d34f97c0f9128bf0fed387ecf771f53b49",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-004-2026-11-15.json": {
+        "sha256": "9af1f50a2e3ca506aa3e9144c0f1b0628f7fccf30e409ec4d3171c9661a6ef90",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-004-2026-11-15.md": {
+        "sha256": "27cecc528238b1bc5f4ad79901906aac8a43c8794ac1a3b88b0284a81af5e63a",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-2026-11-15.json": {
+        "sha256": "a87abef95a64aa737238e447190d1f387528239bd150ffb0e43090238b5260d8",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-2026-11-15.md": {
+        "sha256": "3e95856d276ec7217f84c9cc7b2429e33dbcf740d149f08df9ef86b60baa0f8d",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-harnesses/.gitignore": {
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-harnesses/Cargo.lock": {
+        "sha256": "f4786e6b2fcf71788adc1da1db3ce332c74f1d3aabc0618c31a4198973ec1c46",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-harnesses/Cargo.toml": {
+        "sha256": "d8d6f2c63939093e85d6758d7ccd5a5ab737f3d5f0b3f4b043cf0929df9fcd1d",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-harnesses/README.md": {
+        "sha256": "8558c4e3ed39748a42b19b489ef83fac03011863c0537e19f62ecfd1521954a0",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-005-harnesses/src/main.rs": {
+        "sha256": "c5ef8445dbb6d221351370a25ea6508e3e48f74c775305a3f154ba9b187f5cc4",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-006-2026-11-15.json": {
+        "sha256": "0d660409c4cd0a8a60a00c8119f369292b9f348e3e6cd2e42a0104c9d3412a68",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-006-2026-11-15.md": {
+        "sha256": "47fb824e39ebecdb24a3a24ede1df4b0d278e79a8bdbe3d78bc3cb9f293f053f",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-006-harnesses/README.md": {
+        "sha256": "b8df7cfba84684728299c9a3e7117d568f63e700cb2dd3b9b8e4f42d1ce37e28",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-006-harnesses/fallback.mjs": {
+        "sha256": "e5a4ac007b4528f3c2fb69c18e1b6da9d9a7bf32aa6c68ab5a8204223bce56f6",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-006-harnesses/fallback.rs": {
+        "sha256": "09e246cde061d0badcd649208edefba1eb56a002ef700bf02cf2938ee18ee9f8",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-007-2026-11-15.json": {
+        "sha256": "7aa2ab92eb654eba0971ba3e4be1274e2a1aa147fbcfa553184c8ba902307f07",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-007-2026-11-15.md": {
+        "sha256": "c5deda6eaf30fbb764ef886aaaf579d4ba94405bb7ee29fe304b6fbfb7c98fe1",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-008-2026-11-15.json": {
+        "sha256": "0410d370687a22c67c3aa6b46870a32221ed366643392d492f8d2a33636fae2e",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-008-2026-11-15.md": {
+        "sha256": "10f737e8a6dde22f946ff6688a480cc9ac34402cc1dce11551ca6e496b53fd1e",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-009-2026-11-15.json": {
+        "sha256": "51a47b01783a8fef9fa456c921dcf38eed4886955effdeae35d3ec2018feca64",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/AUD-009-2026-11-15.md": {
+        "sha256": "3982142910e1891dd5847f4028229eee11778366cd9b8a3c1facd99095877ff0",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "docs/audits/README.md": {
+        "sha256": "ecc906ada362a2b4f40242ec131ec77cee136e707a068f7ec46385471027baf9",
+        "review": "Historical record provenance, schema, references or retained harness scope"
+      },
+      "dprint.json": {
+        "sha256": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "rust-toolchain.toml": {
+        "sha256": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+        "review": "Release composition, documentation, licenses, toolchain, CI and metadata"
+      },
+      "src/channels.rs": {
+        "sha256": "5c59253f2ce8c5a318a380c6d6582b5e43698318a58b27aadca748877c9ede73",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "src/input.rs": {
+        "sha256": "bfd5f6ba13848128d7f0ea0b3821fff91afcb814415d0df5b4186cba83912241",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "src/lib.rs": {
+        "sha256": "c104fdb9914cb770cdfd444aef06d748462507dc1ede697e76cf364e47e9483d",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/os.rs": {
+        "sha256": "28ac82cf79aa1702adb11c1f3291f57dd5802fa4dfe8741a4ea4bfb97d5919f0",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/os/apple.rs": {
+        "sha256": "e9079395c12108b73a4746be8235bc53e0932e03f33b1b3deab77098058d4b82",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "src/os/linux.rs": {
+        "sha256": "1b352242a7178722cf14352743be007ae5619c0d90daa8eef7293de214288a68",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "src/os/linux/seccomp.rs": {
+        "sha256": "e9420b015dd07ef108c9a7d6643a405cee929f3dc461c324a1df723e44b6e012",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "src/os/unix.rs": {
+        "sha256": "4949486b11ab6bcf40481f9b49bbdab8b5a9e721c42f819bdf02f674f6a9080a",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "src/os/windows.rs": {
+        "sha256": "51ab2d46df3eb2826b829cf705deee3bc986c405690377fdbe0714c75a3e9c6b",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "src/os/windows/worker.rs": {
+        "sha256": "cef5ef2de9988f3d6890ef0fd9526effb28f03b978692055d9fd36dfed9f9ac9",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "src/protect.rs": {
+        "sha256": "35c1363a9d5ef3e71e18431a530133003c419b72c8745de5c8de27801bef314b",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/protect/closed.rs": {
+        "sha256": "bb63ae154bb12e419a016bc9297978a850208542fbeb1981215fcee06cb7a1cb",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/protect/options.rs": {
+        "sha256": "931adeb8f10158b84a074b071113a2e9f084c1020200523b87693f4c51a41da2",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/stack.rs": {
+        "sha256": "8bd79e690fc4f862ee5ecd56420b9d2a82271af04be62a5242c9fec7b2d5b9e5",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "src/worker.rs": {
+        "sha256": "32bd3d734eba16f64676781a3021af859b121129056e7609f17c0fbda110e4c8",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "tests/isolation/linux.rs": {
+        "sha256": "1a47c679a0e30b90d1be7bc02f981c301ce20802a95159c4d4009006538e585c",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "tests/isolation/linux/roles.rs": {
+        "sha256": "0f1433b4dd4bacb13196f56d81e8c0bb973f9aa1794f56f7195b1302cb9cedf9",
+        "review": "Linux/Unix implementation and regression review"
+      },
+      "tests/isolation/main.rs": {
+        "sha256": "41ddd594709234afa02c1eb655356ddada47bb8b2e8d739e7eb83df76a6fd40a",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "tests/isolation/windows.rs": {
+        "sha256": "0b3e83cc0960f078d370b842dd15687d139c92136ef0b55e3d4bbe5c239f7913",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      },
+      "tests/secret_memory.rs": {
+        "sha256": "26340b8cbd435a825347fdabcd91b0f07f58c82dc936f91faa64d2cad746e78f",
+        "review": "Memory, public operations and fallback contracts"
+      },
+      "tests/worker.rs": {
+        "sha256": "74c9518992e9505aa7b4d64956c951f8ea01b31874fc6c26771461e733eed0f9",
+        "review": "Platform contracts, worker admission/teardown and native tests"
+      }
+    },
+    "archivedHarnesses": {
+      "AUD-001": "Historical lock-report diagnostic, inspected only.",
+      "AUD-002": "Historical isolation and cleanup harness, inspected only.",
+      "AUD-005": "Historical filter-authority harness, inspected only.",
+      "AUD-006": "Current candidate linked and executed through its four public-data WASM operations."
+    },
+    "publicDeclarationsAndTraitImplementations": {
+      "src/channels.rs": [
+        {
+          "line": 7,
+          "declaration": "pub enum ChannelKind {"
+        },
+        {
+          "line": 29,
+          "declaration": "pub struct Channel {"
+        },
+        {
+          "line": 31,
+          "declaration": "pub descriptor: i32,"
+        },
+        {
+          "line": 33,
+          "declaration": "pub kind: ChannelKind,"
+        },
+        {
+          "line": 35,
+          "declaration": "pub writable: Option<bool>,"
+        },
+        {
+          "line": 40,
+          "declaration": "pub struct OpenChannels {"
+        },
+        {
+          "line": 42,
+          "declaration": "pub channels: Vec<Channel>,"
+        },
+        {
+          "line": 45,
+          "declaration": "pub complete: bool,"
+        },
+        {
+          "line": 52,
+          "declaration": "pub fn open_channels() -> io::Result<OpenChannels> {"
+        }
+      ],
+      "src/input.rs": [
+        {
+          "line": 13,
+          "declaration": "pub enum Keystroke {"
+        },
+        {
+          "line": 25,
+          "declaration": "pub fn to_bytes(self) -> KeystrokeBytes {"
+        },
+        {
+          "line": 45,
+          "declaration": "pub fn from_bytes(bytes: &[u8]) -> Option<Self> {"
+        },
+        {
+          "line": 62,
+          "declaration": "pub struct KeystrokeBytes {"
+        },
+        {
+          "line": 69,
+          "declaration": "pub fn as_bytes(&self) -> &[u8] {"
+        },
+        {
+          "line": 74,
+          "declaration": "impl Drop for KeystrokeBytes {"
+        },
+        {
+          "line": 80,
+          "declaration": "impl std::fmt::Debug for KeystrokeBytes {"
+        },
+        {
+          "line": 86,
+          "declaration": "impl std::fmt::Debug for Keystroke {"
+        },
+        {
+          "line": 98,
+          "declaration": "pub struct SecretLine {"
+        },
+        {
+          "line": 105,
+          "declaration": "pub fn with_capacity(bytes: usize) -> Self {"
+        },
+        {
+          "line": 114,
+          "declaration": "pub fn apply(&mut self, keystroke: Keystroke) -> Result<(), SecretError> {"
+        },
+        {
+          "line": 129,
+          "declaration": "pub fn push(&mut self, character: char) -> Result<(), SecretError> {"
+        },
+        {
+          "line": 141,
+          "declaration": "pub fn remove_last(&mut self) {"
+        },
+        {
+          "line": 151,
+          "declaration": "pub fn clear(&mut self) {"
+        },
+        {
+          "line": 157,
+          "declaration": "pub fn characters(&self) -> usize {"
+        },
+        {
+          "line": 162,
+          "declaration": "pub fn as_secret(&self) -> &Secret {"
+        },
+        {
+          "line": 167,
+          "declaration": "pub fn as_str(&self) -> &str {"
+        },
+        {
+          "line": 172,
+          "declaration": "impl std::fmt::Debug for SecretLine {"
+        }
+      ],
+      "src/lib.rs": [
+        {
+          "line": 14,
+          "declaration": "pub use channels::{Channel, ChannelKind, OpenChannels, open_channels};"
+        },
+        {
+          "line": 15,
+          "declaration": "pub use input::{Keystroke, KeystrokeBytes, SecretLine};"
+        },
+        {
+          "line": 17,
+          "declaration": "pub use protect::write_secret;"
+        },
+        {
+          "line": 18,
+          "declaration": "pub use protect::{"
+        },
+        {
+          "line": 22,
+          "declaration": "pub use stack::{StackError, StackProperties, StackRun, run_on_protected_stack};"
+        },
+        {
+          "line": 23,
+          "declaration": "pub use worker::{Worker, WorkerError, serve};"
+        }
+      ],
+      "src/os.rs": [
+        {
+          "line": 251,
+          "declaration": "impl io::Read for WorkerStreams {"
+        },
+        {
+          "line": 257,
+          "declaration": "impl io::Write for WorkerStreams {"
+        }
+      ],
+      "src/os/linux.rs": [
+        {
+          "line": 187,
+          "declaration": "impl Drop for Gate {"
+        }
+      ],
+      "src/os/unix.rs": [
+        {
+          "line": 101,
+          "declaration": "impl Drop for Pages {"
+        },
+        {
+          "line": 597,
+          "declaration": "impl io::Read for WorkerStreams {"
+        },
+        {
+          "line": 603,
+          "declaration": "impl io::Write for WorkerStreams {"
+        },
+        {
+          "line": 613,
+          "declaration": "impl Drop for WorkerStreams {"
+        }
+      ],
+      "src/os/windows.rs": [
+        {
+          "line": 137,
+          "declaration": "impl Drop for Pages {"
+        }
+      ],
+      "src/os/windows/worker.rs": [
+        {
+          "line": 387,
+          "declaration": "impl Drop for Container {"
+        },
+        {
+          "line": 452,
+          "declaration": "impl Drop for Attributes {"
+        },
+        {
+          "line": 474,
+          "declaration": "impl io::Read for WorkerStreams {"
+        },
+        {
+          "line": 480,
+          "declaration": "impl io::Write for WorkerStreams {"
+        }
+      ],
+      "src/protect.rs": [
+        {
+          "line": 16,
+          "declaration": "pub use closed::ClosedSecret;"
+        },
+        {
+          "line": 17,
+          "declaration": "pub use options::{Missing, Options, Outcome, Protection};"
+        },
+        {
+          "line": 21,
+          "declaration": "pub enum SecretError {"
+        },
+        {
+          "line": 35,
+          "declaration": "impl fmt::Display for SecretError {"
+        },
+        {
+          "line": 45,
+          "declaration": "impl std::error::Error for SecretError {}"
+        },
+        {
+          "line": 52,
+          "declaration": "pub struct Secret {"
+        },
+        {
+          "line": 61,
+          "declaration": "pub fn with_capacity(bytes: usize) -> Self {"
+        },
+        {
+          "line": 73,
+          "declaration": "pub fn locked(bytes: usize) -> Result<Self, SecretError> {"
+        },
+        {
+          "line": 84,
+          "declaration": "pub fn push(&mut self, bytes: &[u8]) -> Result<(), SecretError> {"
+        },
+        {
+          "line": 100,
+          "declaration": "pub fn truncate(&mut self, len: usize) {"
+        },
+        {
+          "line": 108,
+          "declaration": "pub fn as_bytes(&self) -> &[u8] {"
+        },
+        {
+          "line": 113,
+          "declaration": "pub fn as_str(&self) -> Option<&str> {"
+        },
+        {
+          "line": 118,
+          "declaration": "pub fn capacity(&self) -> usize {"
+        },
+        {
+          "line": 123,
+          "declaration": "pub fn is_locked(&self) -> bool {"
+        },
+        {
+          "line": 128,
+          "declaration": "pub fn is_out_of_dumps(&self) -> bool {"
+        },
+        {
+          "line": 134,
+          "declaration": "pub fn is_out_of_children(&self) -> bool {"
+        },
+        {
+          "line": 139,
+          "declaration": "pub fn zeroed(bytes: usize) -> Self {"
+        },
+        {
+          "line": 146,
+          "declaration": "pub fn as_mut_bytes(&mut self) -> &mut [u8] {"
+        },
+        {
+          "line": 151,
+          "declaration": "impl Drop for Secret {"
+        },
+        {
+          "line": 158,
+          "declaration": "impl fmt::Debug for Secret {"
+        },
+        {
+          "line": 169,
+          "declaration": "pub struct WorkArea {"
+        },
+        {
+          "line": 175,
+          "declaration": "pub fn new(bytes: usize) -> Option<Self> {"
+        },
+        {
+          "line": 183,
+          "declaration": "pub fn locked(bytes: usize) -> Result<Self, SecretError> {"
+        },
+        {
+          "line": 193,
+          "declaration": "pub fn as_slice(&self) -> &[u8] {"
+        },
+        {
+          "line": 198,
+          "declaration": "pub fn as_mut_slice(&mut self) -> &mut [u8] {"
+        },
+        {
+          "line": 203,
+          "declaration": "pub fn is_locked(&self) -> bool {"
+        },
+        {
+          "line": 208,
+          "declaration": "pub fn is_out_of_dumps(&self) -> bool {"
+        },
+        {
+          "line": 213,
+          "declaration": "pub fn is_out_of_children(&self) -> bool {"
+        },
+        {
+          "line": 218,
+          "declaration": "impl Drop for WorkArea {"
+        },
+        {
+          "line": 224,
+          "declaration": "impl fmt::Debug for WorkArea {"
+        },
+        {
+          "line": 235,
+          "declaration": "pub struct Isolation {"
+        },
+        {
+          "line": 240,
+          "declaration": "pub no_core_dumps: bool,"
+        },
+        {
+          "line": 245,
+          "declaration": "pub no_memory_reading: bool,"
+        },
+        {
+          "line": 248,
+          "declaration": "pub no_new_sockets: bool,"
+        },
+        {
+          "line": 251,
+          "declaration": "pub empty_network: bool,"
+        },
+        {
+          "line": 256,
+          "declaration": "pub no_file_changes: bool,"
+        },
+        {
+          "line": 261,
+          "declaration": "pub speculation_limited: bool,"
+        },
+        {
+          "line": 263,
+          "declaration": "pub whole_process: bool,"
+        },
+        {
+          "line": 265,
+          "declaration": "pub file_locks_refused: bool,"
+        },
+        {
+          "line": 267,
+          "declaration": "pub sendmsg_refused: bool,"
+        },
+        {
+          "line": 270,
+          "declaration": "pub dynamic_code_refused: bool,"
+        },
+        {
+          "line": 272,
+          "declaration": "pub microsoft_signed_only: bool,"
+        },
+        {
+          "line": 275,
+          "declaration": "pub signals_to_self_only: bool,"
+        },
+        {
+          "line": 278,
+          "declaration": "pub signals_within_layer: bool,"
+        },
+        {
+          "line": 281,
+          "declaration": "pub memory_locked: bool,"
+        },
+        {
+          "line": 285,
+          "declaration": "pub no_new_programs: bool,"
+        },
+        {
+          "line": 291,
+          "declaration": "pub no_planted_libraries: bool,"
+        },
+        {
+          "line": 295,
+          "declaration": "pub desktop_restricted: bool,"
+        },
+        {
+          "line": 298,
+          "declaration": "pub low_integrity: bool,"
+        },
+        {
+          "line": 311,
+          "declaration": "pub fn enter() -> Self {"
+        },
+        {
+          "line": 316,
+          "declaration": "pub fn enter_with(options: Options) -> Self {"
+        },
+        {
+          "line": 323,
+          "declaration": "pub fn enter_requiring(options: Options, required: &[Protection]) -> Result<Self, Missing> {"
+        },
+        {
+          "line": 328,
+          "declaration": "pub fn require(self, required: &[Protection]) -> Result<Self, Missing> {"
+        },
+        {
+          "line": 344,
+          "declaration": "pub fn has(&self, protection: Protection) -> bool {"
+        },
+        {
+          "line": 349,
+          "declaration": "pub fn outcome(&self, protection: Protection) -> Outcome {"
+        },
+        {
+          "line": 355,
+          "declaration": "pub fn measures(&self) -> Vec<Measure> {"
+        },
+        {
+          "line": 479,
+          "declaration": "pub enum Reach {"
+        },
+        {
+          "line": 488,
+          "declaration": "pub struct Measure {"
+        },
+        {
+          "line": 490,
+          "declaration": "pub protection: Protection,"
+        },
+        {
+          "line": 492,
+          "declaration": "pub outcome: Outcome,"
+        },
+        {
+          "line": 494,
+          "declaration": "pub reach: Reach,"
+        },
+        {
+          "line": 496,
+          "declaration": "pub evidence: &'static str,"
+        },
+        {
+          "line": 502,
+          "declaration": "pub fn write_secret(text: &str) -> io::Result<()> {"
+        }
+      ],
+      "src/protect/closed.rs": [
+        {
+          "line": 13,
+          "declaration": "pub struct ClosedSecret {"
+        },
+        {
+          "line": 21,
+          "declaration": "pub fn with_capacity(bytes: usize) -> Self {"
+        },
+        {
+          "line": 27,
+          "declaration": "pub fn locked(bytes: usize) -> Result<Self, SecretError> {"
+        },
+        {
+          "line": 42,
+          "declaration": "pub fn push(&mut self, bytes: &[u8]) -> Result<(), SecretError> {"
+        },
+        {
+          "line": 52,
+          "declaration": "pub fn truncate(&mut self, len: usize) {"
+        },
+        {
+          "line": 63,
+          "declaration": "pub fn read<R>(&mut self, use_bytes: impl FnOnce(&[u8]) -> R) -> R {"
+        },
+        {
+          "line": 70,
+          "declaration": "pub fn write<R>(&mut self, change: impl FnOnce(&mut [u8]) -> R) -> R {"
+        },
+        {
+          "line": 80,
+          "declaration": "pub fn len(&self) -> usize {"
+        },
+        {
+          "line": 85,
+          "declaration": "pub fn is_empty(&self) -> bool {"
+        },
+        {
+          "line": 90,
+          "declaration": "pub fn capacity(&self) -> usize {"
+        },
+        {
+          "line": 96,
+          "declaration": "pub fn is_closed(&self) -> bool {"
+        },
+        {
+          "line": 101,
+          "declaration": "pub fn is_locked(&self) -> bool {"
+        },
+        {
+          "line": 106,
+          "declaration": "pub fn is_out_of_dumps(&self) -> bool {"
+        },
+        {
+          "line": 111,
+          "declaration": "pub fn is_out_of_children(&self) -> bool {"
+        },
+        {
+          "line": 116,
+          "declaration": "impl Drop for ClosedSecret {"
+        },
+        {
+          "line": 128,
+          "declaration": "impl fmt::Debug for ClosedSecret {"
+        },
+        {
+          "line": 172,
+          "declaration": "impl Drop for Open<'_> {"
+        }
+      ],
+      "src/protect/options.rs": [
+        {
+          "line": 11,
+          "declaration": "pub struct Options {"
+        },
+        {
+          "line": 23,
+          "declaration": "pub const fn new() -> Self {"
+        },
+        {
+          "line": 38,
+          "declaration": "pub const fn refuse_file_locks(mut self) -> Self {"
+        },
+        {
+          "line": 47,
+          "declaration": "pub const fn refuse_sendmsg(mut self) -> Self {"
+        },
+        {
+          "line": 56,
+          "declaration": "pub const fn refuse_dynamic_code(mut self) -> Self {"
+        },
+        {
+          "line": 65,
+          "declaration": "pub const fn microsoft_signed_only(mut self) -> Self {"
+        },
+        {
+          "line": 74,
+          "declaration": "pub const fn signals_to_self_only(mut self) -> Self {"
+        },
+        {
+          "line": 84,
+          "declaration": "pub const fn lock_all_memory(mut self) -> Self {"
+        },
+        {
+          "line": 116,
+          "declaration": "pub enum Protection {"
+        },
+        {
+          "line": 160,
+          "declaration": "pub const ALL: [Self; Self::COUNT] = ["
+        },
+        {
+          "line": 210,
+          "declaration": "impl fmt::Display for Protection {"
+        },
+        {
+          "line": 219,
+          "declaration": "pub enum Outcome {"
+        },
+        {
+          "line": 258,
+          "declaration": "pub struct Missing {"
+        },
+        {
+          "line": 260,
+          "declaration": "pub missing: Vec<Protection>,"
+        },
+        {
+          "line": 262,
+          "declaration": "pub isolation: Isolation,"
+        },
+        {
+          "line": 265,
+          "declaration": "impl fmt::Display for Missing {"
+        },
+        {
+          "line": 276,
+          "declaration": "impl std::error::Error for Missing {}"
+        }
+      ],
+      "src/stack.rs": [
+        {
+          "line": 8,
+          "declaration": "pub struct StackProperties {"
+        },
+        {
+          "line": 10,
+          "declaration": "pub locked: bool,"
+        },
+        {
+          "line": 13,
+          "declaration": "pub out_of_dumps: bool,"
+        },
+        {
+          "line": 15,
+          "declaration": "pub out_of_children: bool,"
+        },
+        {
+          "line": 30,
+          "declaration": "pub enum StackError {"
+        },
+        {
+          "line": 41,
+          "declaration": "impl fmt::Display for StackError {"
+        },
+        {
+          "line": 52,
+          "declaration": "impl std::error::Error for StackError {}"
+        },
+        {
+          "line": 56,
+          "declaration": "pub struct StackRun<R> {"
+        },
+        {
+          "line": 58,
+          "declaration": "pub value: R,"
+        },
+        {
+          "line": 60,
+          "declaration": "pub properties: StackProperties,"
+        },
+        {
+          "line": 68,
+          "declaration": "pub fn run_on_protected_stack<R: Send>("
+        }
+      ],
+      "src/worker.rs": [
+        {
+          "line": 26,
+          "declaration": "pub struct Worker {"
+        },
+        {
+          "line": 36,
+          "declaration": "pub enum WorkerError {"
+        },
+        {
+          "line": 47,
+          "declaration": "impl fmt::Display for WorkerError {"
+        },
+        {
+          "line": 57,
+          "declaration": "impl std::error::Error for WorkerError {}"
+        },
+        {
+          "line": 63,
+          "declaration": "pub fn start(options: Options, required: &[Protection]) -> Result<Self, WorkerError> {"
+        },
+        {
+          "line": 72,
+          "declaration": "pub fn start_on_terminal("
+        },
+        {
+          "line": 127,
+          "declaration": "pub fn isolation(&self) -> Isolation {"
+        },
+        {
+          "line": 136,
+          "declaration": "pub fn call(&mut self, request: &[u8], most: usize) -> io::Result<Secret> {"
+        },
+        {
+          "line": 167,
+          "declaration": "pub fn end(mut self) -> bool {"
+        },
+        {
+          "line": 205,
+          "declaration": "impl Drop for Worker {"
+        },
+        {
+          "line": 215,
+          "declaration": "impl fmt::Debug for Worker {"
+        },
+        {
+          "line": 248,
+          "declaration": "pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {"
+        }
+      ]
+    },
+    "enumAndOptionDeclarations": {
+      "src/channels.rs": [
+        {
+          "line": 9,
+          "text": "Socket,"
+        },
+        {
+          "line": 11,
+          "text": "File,"
+        },
+        {
+          "line": 13,
+          "text": "Pipe,"
+        },
+        {
+          "line": 16,
+          "text": "Terminal,"
+        },
+        {
+          "line": 18,
+          "text": "Device,"
+        },
+        {
+          "line": 20,
+          "text": "Directory,"
+        },
+        {
+          "line": 22,
+          "text": "Other,"
+        },
+        {
+          "line": 24,
+          "text": "Unknown,"
+        }
+      ],
+      "src/input.rs": [
+        {
+          "line": 15,
+          "text": "Char(char),"
+        },
+        {
+          "line": 17,
+          "text": "RemoveLast,"
+        },
+        {
+          "line": 19,
+          "text": "Clear,"
+        }
+      ],
+      "src/lib.rs": [
+        {
+          "line": 19,
+          "text": "ClosedSecret, Isolation, Measure, Missing, Options, Outcome, Protection, Reach, Secret,"
+        },
+        {
+          "line": 20,
+          "text": "SecretError, WorkArea,"
+        }
+      ],
+      "src/os.rs": [
+        {
+          "line": 21,
+          "text": "WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean, worker_streams,"
+        },
+        {
+          "line": 26,
+          "text": "WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean, worker_streams,"
+        },
+        {
+          "line": 30,
+          "text": "WorkerProcess, enter, evidence, leave_terminal, open_channels, run_on_stack, starts_clean,"
+        },
+        {
+          "line": 90,
+          "text": "Nothing,"
+        },
+        {
+          "line": 91,
+          "text": "Read,"
+        },
+        {
+          "line": 92,
+          "text": "ReadWrite,"
+        }
+      ],
+      "src/os/linux.rs": [
+        {
+          "line": 86,
+          "text": "Some(start)"
+        },
+        {
+          "line": 505,
+          "text": "Off,"
+        },
+        {
+          "line": 507,
+          "text": "On,"
+        },
+        {
+          "line": 509,
+          "text": "Unknown,"
+        },
+        {
+          "line": 571,
+          "text": "Some(any)"
+        },
+        {
+          "line": 651,
+          "text": "Ok(())"
+        },
+        {
+          "line": 765,
+          "text": "Some(match (protection, outcome) {"
+        }
+      ],
+      "src/os/unix.rs": [
+        {
+          "line": 97,
+          "text": "Secret,"
+        },
+        {
+          "line": 98,
+          "text": "Work,"
+        },
+        {
+          "line": 330,
+          "text": "Some(numbers)"
+        },
+        {
+          "line": 406,
+          "text": "Open(crate::Channel),"
+        },
+        {
+          "line": 408,
+          "text": "Gone,"
+        },
+        {
+          "line": 409,
+          "text": "Failed,"
+        },
+        {
+          "line": 483,
+          "text": "Ok(crate::OpenChannels { channels, complete })"
+        },
+        {
+          "line": 639,
+          "text": "Some(read)"
+        },
+        {
+          "line": 656,
+          "text": "Ok(unsafe {"
+        },
+        {
+          "line": 702,
+          "text": "Ok(())"
+        }
+      ],
+      "src/os/windows.rs": [
+        {
+          "line": 20,
+          "text": "CloseHandle, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, ERROR_SUCCESS, GetLastError, HANDLE,"
+        },
+        {
+          "line": 24,
+          "text": "ConvertStringSecurityDescriptorToSecurityDescriptorW, ConvertStringSidToSidW, GetSecurityInfo,"
+        },
+        {
+          "line": 29,
+          "text": "GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation,"
+        },
+        {
+          "line": 32,
+          "text": "TokenCapabilities, TokenDefaultDacl, TokenIntegrityLevel, TokenIsAppContainer,"
+        },
+        {
+          "line": 36,
+          "text": "GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE, WriteConsoleW,"
+        },
+        {
+          "line": 44,
+          "text": "WerUnregisterExcludedMemoryBlock,"
+        },
+        {
+          "line": 47,
+          "text": "AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,"
+        },
+        {
+          "line": 52,
+          "text": "JobObjectBasicLimitInformation, JobObjectBasicUIRestrictions, QueryInformationJobObject,"
+        },
+        {
+          "line": 53,
+          "text": "SetInformationJobObject,"
+        },
+        {
+          "line": 59,
+          "text": "GetProcessWorkingSetSizeEx, MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_NOACCESS,"
+        },
+        {
+          "line": 61,
+          "text": "VirtualFree, VirtualLock, VirtualProtect, VirtualUnlock,"
+        },
+        {
+          "line": 65,
+          "text": "GetCurrentProcess, GetCurrentProcessId, GetProcessIdOfThread, GetProcessMitigationPolicy,"
+        },
+        {
+          "line": 66,
+          "text": "OpenProcessToken, OpenThread, PROCESS_MITIGATION_POLICY, ProcessChildProcessPolicy,"
+        },
+        {
+          "line": 67,
+          "text": "ProcessDynamicCodePolicy, ProcessExtensionPointDisablePolicy, ProcessImageLoadPolicy,"
+        },
+        {
+          "line": 68,
+          "text": "ProcessSideChannelIsolationPolicy, ProcessSignaturePolicy, SetProcessMitigationPolicy,"
+        },
+        {
+          "line": 852,
+          "text": "Ok(())"
+        },
+        {
+          "line": 857,
+          "text": "Err(io::ErrorKind::Unsupported.into())"
+        },
+        {
+          "line": 866,
+          "text": "Err(crate::StackError::Unsupported)"
+        },
+        {
+          "line": 873,
+          "text": "Some(match (protection, outcome) {"
+        }
+      ],
+      "src/os/windows/worker.rs": [
+        {
+          "line": 177,
+          "text": "Ok((unsafe { OwnedHandle::from_raw_handle(pipe.cast()) }, name))"
+        },
+        {
+          "line": 225,
+          "text": "Ok(())"
+        },
+        {
+          "line": 529,
+          "text": "Ok(WorkerStreams(unsafe { File::from_raw_handle(pipe.cast()) }))"
+        }
+      ],
+      "src/protect.rs": [
+        {
+          "line": 23,
+          "text": "Full {"
+        },
+        {
+          "line": 30,
+          "text": "NotLocked,"
+        },
+        {
+          "line": 32,
+          "text": "NoMemory,"
+        },
+        {
+          "line": 481,
+          "text": "Thread,"
+        },
+        {
+          "line": 483,
+          "text": "Process,"
+        }
+      ],
+      "src/protect/closed.rs": [],
+      "src/protect/options.rs": [
+        {
+          "line": 118,
+          "text": "NoCoreDumps,"
+        },
+        {
+          "line": 120,
+          "text": "NoMemoryReading,"
+        },
+        {
+          "line": 122,
+          "text": "NoNewSockets,"
+        },
+        {
+          "line": 124,
+          "text": "EmptyNetwork,"
+        },
+        {
+          "line": 126,
+          "text": "NoFileChanges,"
+        },
+        {
+          "line": 128,
+          "text": "SpeculationLimited,"
+        },
+        {
+          "line": 130,
+          "text": "WholeProcess,"
+        },
+        {
+          "line": 132,
+          "text": "FileLocksRefused,"
+        },
+        {
+          "line": 134,
+          "text": "SendmsgRefused,"
+        },
+        {
+          "line": 136,
+          "text": "DynamicCodeRefused,"
+        },
+        {
+          "line": 138,
+          "text": "MicrosoftSignedOnly,"
+        },
+        {
+          "line": 140,
+          "text": "SignalsToSelfOnly,"
+        },
+        {
+          "line": 142,
+          "text": "SignalsWithinLayer,"
+        },
+        {
+          "line": 144,
+          "text": "MemoryLocked,"
+        },
+        {
+          "line": 146,
+          "text": "NoNewPrograms,"
+        },
+        {
+          "line": 148,
+          "text": "NoPlantedLibraries,"
+        },
+        {
+          "line": 150,
+          "text": "DesktopRestricted,"
+        },
+        {
+          "line": 152,
+          "text": "LowIntegrity,"
+        },
+        {
+          "line": 221,
+          "text": "Confirmed,"
+        },
+        {
+          "line": 223,
+          "text": "Refused,"
+        },
+        {
+          "line": 225,
+          "text": "NotRequested,"
+        },
+        {
+          "line": 228,
+          "text": "Unsupported,"
+        },
+        {
+          "line": 230,
+          "text": "Unknown,"
+        }
+      ],
+      "src/stack.rs": [
+        {
+          "line": 32,
+          "text": "Unsupported,"
+        },
+        {
+          "line": 34,
+          "text": "Size,"
+        },
+        {
+          "line": 36,
+          "text": "NotProtected(StackProperties),"
+        },
+        {
+          "line": 38,
+          "text": "System(io::Error),"
+        }
+      ],
+      "src/worker.rs": [
+        {
+          "line": 38,
+          "text": "Start(io::Error),"
+        },
+        {
+          "line": 42,
+          "text": "Unclean,"
+        },
+        {
+          "line": 44,
+          "text": "Missing(Missing),"
+        },
+        {
+          "line": 202,
+          "text": "Some((Isolation::from_bytes(outcomes)?, clean))"
+        }
+      ]
+    },
+    "operationGroups": [
+      "Secret, WorkArea, ClosedSecret and their views, allocation, mutation, reporting and Drop",
+      "Keystroke, KeystrokeBytes, SecretLine, text output and redacted formatting",
+      "Isolation::enter/enter_with/enter_strict, options, measures, strict outcomes, reach and public fields",
+      "open_channels and per-platform completeness",
+      "run_on_protected_stack, requirement validation, return, unwind and wipe",
+      "Worker::start/start_on_terminal/call/isolation/end, peer admission, service frames and cleanup",
+      "Unavailability and fallbacks on mobile, native Unix, Windows and WebAssembly"
+    ],
+    "licensesAndLockedPackageChecksums": {
+      "enumflags2@0.7.12": "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef",
+      "enumflags2_derive@0.7.12": "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827",
+      "landlock@0.4.7": "4cca98e95f35b29d469dade6724c6f96cec9236640f745a0e99b0334ec320ab1",
+      "libc@0.2.191": "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a",
+      "proc-macro2@1.0.107": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "quote@1.0.47": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "syn@2.0.119": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297",
+      "syn@3.0.10": "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79",
+      "thiserror@2.0.21": "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e",
+      "thiserror-impl@2.0.21": "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524",
+      "unicode-ident@1.0.27": "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563",
+      "windows-link@0.2.1": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
+      "windows-sys@0.61.2": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
+      "zeroize@1.9.1": "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+    },
+    "archive": {
+      "AUD-001": {
+        "json": "abcb3df22ed02c6cd6f7e522778c1197f4df29ffb09e428ebb92fdc13d73e079",
+        "markdown": "962f3c601035f8052fe0f89d95639934183f6e2ff88df02af46e3eb5ed7450f3",
+        "findingCount": 22,
+        "observationCount": 0
+      },
+      "AUD-002": {
+        "json": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+        "markdown": "90105eb75934be43b957430954d8adbb7bf1ce2d3316fe6a0cc47793d7a482f8",
+        "findingCount": 6,
+        "observationCount": 0
+      },
+      "AUD-003": {
+        "json": "bfafe93c07c0a6866f5e5f9ead52a616b23b68f0c11128bbeca8436fa4cd5329",
+        "markdown": "560620653344f8f6e6b87282263f94d34f97c0f9128bf0fed387ecf771f53b49",
+        "findingCount": 7,
+        "observationCount": 0
+      },
+      "AUD-004": {
+        "json": "9af1f50a2e3ca506aa3e9144c0f1b0628f7fccf30e409ec4d3171c9661a6ef90",
+        "markdown": "27cecc528238b1bc5f4ad79901906aac8a43c8794ac1a3b88b0284a81af5e63a",
+        "findingCount": 4,
+        "observationCount": 0
+      },
+      "AUD-005": {
+        "json": "a87abef95a64aa737238e447190d1f387528239bd150ffb0e43090238b5260d8",
+        "markdown": "3e95856d276ec7217f84c9cc7b2429e33dbcf740d149f08df9ef86b60baa0f8d",
+        "findingCount": 1,
+        "observationCount": 0
+      },
+      "AUD-006": {
+        "json": "0d660409c4cd0a8a60a00c8119f369292b9f348e3e6cd2e42a0104c9d3412a68",
+        "markdown": "47fb824e39ebecdb24a3a24ede1df4b0d278e79a8bdbe3d78bc3cb9f293f053f",
+        "findingCount": 6,
+        "observationCount": 0
+      },
+      "AUD-007": {
+        "json": "7aa2ab92eb654eba0971ba3e4be1274e2a1aa147fbcfa553184c8ba902307f07",
+        "markdown": "c5deda6eaf30fbb764ef886aaaf579d4ba94405bb7ee29fe304b6fbfb7c98fe1",
+        "findingCount": 0,
+        "observationCount": 0
+      },
+      "AUD-008": {
+        "json": "0410d370687a22c67c3aa6b46870a32221ed366643392d492f8d2a33636fae2e",
+        "markdown": "10f737e8a6dde22f946ff6688a480cc9ac34402cc1dce11551ca6e496b53fd1e",
+        "findingCount": 3,
+        "observationCount": 0
+      },
+      "AUD-009": {
+        "json": "51a47b01783a8fef9fa456c921dcf38eed4886955effdeae35d3ec2018feca64",
+        "markdown": "3982142910e1891dd5847f4028229eee11778366cd9b8a3c1facd99095877ff0",
+        "findingCount": 6,
+        "observationCount": 2
+      }
+    },
+    "oldToPublished": {
+      "60adba5b2f2d144ccdd61cb4829e8e5abc9bc1ca": "8081d010b8040483d3ede458f522fad0fa81c571",
+      "6aa7e56fb39dc21c09ac939020423ec13896b2eb": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "370c651b6ef03a8f15ed17330b1e86e9e817a804": "22855bfae09b4c57c782cf518c45c15618018eb6",
+      "f3c2401d1b5b2ee5dfd98eaec298d74da53b765f": "c57018a9888fb84335332ed49580e59724217e5c",
+      "bd7506328244970891fc230a4abca03824a1bd94": "7d356f69d5fb79fb72fc4be7380f632a3fddf57d",
+      "4c3de34eed462c7a85f875467a7bfcdb421e082b": "2f28cb3e2cc317c339f0c7ddbdfcf8a1e89c980b",
+      "f855148fadb9e0aa80b0ff7bc88fb923f0cc9ac0": "d418974b238e17c9a4f70290da95bf83b14db85c",
+      "cb63252fb3fa4bf15b682a10f6eb202d47b00a54": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "c60d17e3bd03bff03529987352867654059887e3": "709a5a21dca4c57a7f05943d34f4f52786317765"
+    },
+    "positiveEvidence": [
+      "The Windows worker creates non-inheritable handles, starts with bInheritHandles false, checks the OS peer PID before admission and owns the client file through RAII. A normal native exchange succeeded in run 4. The first competing-client test was executed, with the attribution limit in BLD003. Repeated same-user contention remains a documented accepted availability risk.",
+      "The Apple initializer declares the section type. The macOS native job exercised inherited descriptors and the clean-before-serve decision. An independent external process memory-read denial on macOS was not demonstrated by the stock integration suite.",
+      "Linux records signal ownership from the calling thread’s installed filter. The fork gate refuses kernel secret pages when signal masking fails. The process-wide unmarked memory-lock outcome is conservative. Fallback-path availability and strict Unsupported/Unknown outcomes are deliberately distinct.",
+      "Fixed-capacity append, truncation and wiping, strict lock constructors, closed-secret access restoration, stack-property admission, worker bounded frames, orderly teardown under normal resources, and the fallback heap contract were traced through their public entries. Retained historical tests belong to their old snapshots unless explicitly cross-checked."
+    ]
+  },
+  "checks": {
+    "verdict": "FAIL for unrestricted production use under the published API contract",
+    "commands": {
+      "advisories": {
+        "command": "cargo audit --no-fetch --db <cargo-home>/advisory-db --no-yanked",
+        "startUTC": "2026-11-15T12:18:47.974397+00:00",
+        "endUTC": "2026-11-15T12:18:48.294714+00:00",
+        "exit": 0,
+        "logSHA256": "8a42a4df92253530832e6226b39229ca643b97d0fa9cfc6e26230ae6719309ae",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Offline scan; yanked-package lookup excluded in this check only."
+      },
+      "asan-recheck": {
+        "command": "cargo +nightly test --offline --locked --target x86_64-unknown-linux-gnu -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip 'locking all memory' --skip 'a secret works under every lock limit' --skip 'the work area lies on pages of its own'",
+        "startUTC": "2026-11-15T12:31:48.572278+00:00",
+        "endUTC": "2026-11-15T12:32:02.827995+00:00",
+        "exit": 0,
+        "logSHA256": "5317b99b257241f232ca2ea8c1811b471b9183b260713b98ebf14cb8395fbae8",
+        "overrides": {
+          "RUSTFLAGS": "-Zsanitizer=address",
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-rerun-asan",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Repeat with identical ASan flags and the same exclusions.",
+        "reportedOkEntries": 59
+      },
+      "asan": {
+        "command": "cargo +nightly test --offline --locked --target x86_64-unknown-linux-gnu -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip 'locking all memory' --skip 'a secret works under every lock limit' --skip 'the work area lies on pages of its own'",
+        "startUTC": "2026-11-15T12:18:48.378026+00:00",
+        "endUTC": "2026-11-15T12:20:12.350246+00:00",
+        "exit": 101,
+        "logSHA256": "fa7118b72a3bdc96f0eb9ca4f4eb4ac0f29db9d9cb54d5481f63b92fbaf322c0",
+        "overrides": {
+          "RUSTFLAGS": "-Zsanitizer=address"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Nightly AddressSanitizer; four lock-dependent test exclusions. The test executables opt out of LeakSanitizer.",
+        "reportedOkEntries": 49,
+        "diagnostic": [
+          "thread 'main' (1339667) panicked at tests/worker.rs:603:5:",
+          "29.721582115s",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "audit-current": {
+        "command": "cargo audit --db <cargo-home>/advisory-db",
+        "startUTC": "2026-11-15T11:59:31.466451+00:00",
+        "endUTC": "2026-11-15T11:59:41.075191+00:00",
+        "exit": 0,
+        "logSHA256": "e21ef1235c153b7404801fdcf3476d56b1831252ce394e6319e46cbf858b9cd9",
+        "overrides": {
+          "CARGO_NET_OFFLINE": "false"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-supply",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Network-updated RustSec database and registry check."
+      },
+      "clippy-aarch64-apple-darwin": {
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-apple-darwin -- -D warnings",
+        "startUTC": "2026-11-15T11:59:10.385831+00:00",
+        "endUTC": "2026-11-15T11:59:11.325579+00:00",
+        "exit": 0,
+        "logSHA256": "098b5242b6bd5f421d0b110076c5cc1a1cb813ccb1635488ba0838a0bde91258",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "clippy-aarch64-apple-ios": {
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-apple-ios -- -D warnings",
+        "startUTC": "2026-11-15T11:59:11.325873+00:00",
+        "endUTC": "2026-11-15T11:59:20.634781+00:00",
+        "exit": 0,
+        "logSHA256": "65d9055a2f70500485e9dafc8bb33984723308b59ca1ab8d714b21215f8440b7",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "clippy-aarch64-linux-android": {
+        "command": "cargo clippy --all-targets --locked --offline --target aarch64-linux-android -- -D warnings",
+        "startUTC": "2026-11-15T11:59:25.842124+00:00",
+        "endUTC": "2026-11-15T11:59:28.758226+00:00",
+        "exit": 0,
+        "logSHA256": "ba4577b9f0ae8b6b7bba1eb9dcb256f5ccf77f352589e4a9137bbc11d9b591a4",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "clippy-wasm32-unknown-unknown": {
+        "command": "cargo clippy --all-targets --locked --offline --target wasm32-unknown-unknown -- -D warnings",
+        "startUTC": "2026-11-15T11:59:28.758458+00:00",
+        "endUTC": "2026-11-15T11:59:29.254733+00:00",
+        "exit": 0,
+        "logSHA256": "1f01c0931648847f85c0dc7a70b35429bd1969b980e679da7f96ab793c947eb2",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "clippy-x86_64-pc-windows-gnu": {
+        "command": "cargo clippy --all-targets --locked --offline --target x86_64-pc-windows-gnu -- -D warnings",
+        "startUTC": "2026-11-15T11:59:20.635078+00:00",
+        "endUTC": "2026-11-15T11:59:25.841749+00:00",
+        "exit": 0,
+        "logSHA256": "877904092511bebb2253da6b6868735d9629b366b70c69d5fd0936bbe7f6ce39",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "clippy-x86_64-unknown-linux-gnu": {
+        "command": "cargo clippy --all-targets --locked --offline --target x86_64-unknown-linux-gnu -- -D warnings",
+        "startUTC": "2026-11-15T11:58:55.174001+00:00",
+        "endUTC": "2026-11-15T11:59:10.385594+00:00",
+        "exit": 0,
+        "logSHA256": "5fee4e82e769f36152f6afacf33f387ba0fbefbf53ef0bd5b34a2f0849a239a8",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Clippy on all targets for the named platform, denying warnings."
+      },
+      "cov-split-doc": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline --doc'",
+        "startUTC": "2026-11-15T12:33:50.086036+00:00",
+        "endUTC": "2026-11-15T12:33:50.315960+00:00",
+        "exit": 0,
+        "logSHA256": "9db1227cc070a63f32585321f68dcc97d8900e423364860de40cb872f0c83cf1",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-split",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Zero Rust doctests.",
+        "reportedOkEntries": 0
+      },
+      "cov-split-rest": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline --lib --test isolation --test secret_memory'",
+        "startUTC": "2026-11-15T12:33:48.965292+00:00",
+        "endUTC": "2026-11-15T12:33:50.085736+00:00",
+        "exit": 0,
+        "logSHA256": "2e554895a3ffe7033209a34f09f11acd58823084fea028e57fe73e2780969e80",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-split",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "The unit, memory and isolation binaries measured with the same inputs and counters.",
+        "reportedOkEntries": 47
+      },
+      "cov-split-summary": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo llvm-cov report --summary-only'",
+        "startUTC": "2026-11-15T12:33:50.316426+00:00",
+        "endUTC": "2026-11-15T12:33:50.588523+00:00",
+        "exit": 0,
+        "logSHA256": "ed5f8b705809f72e75c56613d0b0f6637211a6a3c7757e1b4ef02e874ab14879",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-split",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Aggregate of successful jobs in a fresh profile set."
+      },
+      "cov-split-worker": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline --test worker -- --skip \"nothing of its parent'\"'\"'s\" '",
+        "startUTC": "2026-11-15T12:33:44.576444+00:00",
+        "endUTC": "2026-11-15T12:33:48.964726+00:00",
+        "exit": 0,
+        "logSHA256": "b87988509a205b4c6b216b0c26bcd93fd22c649eb6427e0d4d7045d6949b033b",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-split",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Worker binary measured first, using the documented single exclusion.",
+        "reportedOkEntries": 15
+      },
+      "coverage-recheck": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline -- --skip \"nothing of its parent'\"'\"'s\"\ncargo llvm-cov report --summary-only'",
+        "startUTC": "2026-11-15T12:31:38.038432+00:00",
+        "endUTC": "2026-11-15T12:31:48.431906+00:00",
+        "exit": 101,
+        "logSHA256": "c75e2f3a6a9932d1059a7e27f8650395eb893021dac1de982a3bc740f4e9efc5",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-rerun-cov",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Repeat of the documented coverage suite with fresh counters and the same one exclusion.",
+        "reportedOkEntries": 51,
+        "diagnostic": [
+          "thread '<unnamed>' (1381125) panicked at src/stack.rs:131:63:",
+          "thread 'main' (1383182) panicked at tests/worker.rs:467:5:",
+          "9.12001104s",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "coverage": {
+        "command": "bash -ec 'source <(cargo llvm-cov show-env --sh)\nexport RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"\nexport LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"\ncargo test --locked --offline -- --skip \"nothing of its parent'\"'\"'s\"\ncargo llvm-cov report --summary-only'",
+        "startUTC": "2026-11-15T11:57:38.983951+00:00",
+        "endUTC": "2026-11-15T11:59:38.017023+00:00",
+        "exit": 101,
+        "logSHA256": "661d7d88e88e33efa64693dcb23ff2a5738ff70ba4acaaa8a33e7ea997781e07",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/cov"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "First coverage pass in a capped scope. An unsuccessful test prevents a coverage summary.",
+        "reportedOkEntries": 52,
+        "diagnostic": [
+          "thread '<unnamed>' (1240341) panicked at src/stack.rs:131:63:",
+          "thread 'main' (1242912) panicked at tests/worker.rs:603:5:",
+          "27.9703501s",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "doc": {
+        "command": "cargo doc --no-deps --locked --offline",
+        "startUTC": "2026-11-15T12:18:46.867156+00:00",
+        "endUTC": "2026-11-15T12:18:47.863293+00:00",
+        "exit": 0,
+        "logSHA256": "797925be97cdf53217946e803cc2d5ae4a0a07c7cc835905cea0345815a734ba",
+        "overrides": {
+          "RUSTDOCFLAGS": "-D warnings"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Build public rustdoc with warnings denied."
+      },
+      "fmt": {
+        "command": "cargo fmt --check",
+        "startUTC": "2026-11-15T11:56:03.292070+00:00",
+        "endUTC": "2026-11-15T11:56:03.456588+00:00",
+        "exit": 0,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Formatting check."
+      },
+      "github-commit": {
+        "command": "gh api repos/hobby-eng/secret-protection-core/commits/39e462e946cc300a8a3d3e145517957094eb7c8c --jq '{sha, verification:.commit.verification.verified,reason:.commit.verification.reason,tree:.commit.tree.sha}'",
+        "startUTC": "2026-11-15T11:56:30.890002+00:00",
+        "endUTC": "2026-11-15T11:56:33.266491+00:00",
+        "exit": 0,
+        "logSHA256": "56dcd6a6deb93085fa975b4926f5a2d41fa56fbff697f7ee27b91ad1a94cebb1",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Remote commit signature and tree via GitHub."
+      },
+      "github-logs": {
+        "command": "gh run view 43696186406 -R hobby-eng/secret-protection-core --log",
+        "startUTC": "2026-11-15T11:56:28.139022+00:00",
+        "endUTC": "2026-11-15T11:56:29.857162+00:00",
+        "exit": 0,
+        "logSHA256": "0ff12a655b590381e4f5d8971812ababb7a07c229255e8f082f6a601983c36e8",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Download the existing per-platform job logs. No workflow dispatch."
+      },
+      "github-release": {
+        "command": "gh api repos/hobby-eng/secret-protection-core/releases --jq 'map({tag_name, draft, prerelease})'",
+        "startUTC": "2026-11-15T11:56:29.857876+00:00",
+        "endUTC": "2026-11-15T11:56:30.889412+00:00",
+        "exit": 0,
+        "logSHA256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Check list of published GitHub releases. Empty."
+      },
+      "github-run": {
+        "command": "gh run view 43696186406 -R hobby-eng/secret-protection-core --json attempt,number,conclusion,headSha,databaseId,jobs,status,url,workflowName,updatedAt",
+        "startUTC": "2026-11-15T11:56:25.960353+00:00",
+        "endUTC": "2026-11-15T11:56:28.138667+00:00",
+        "exit": 0,
+        "logSHA256": "df9ed956dd5d85aa5577d1acb489f607a1f1b69afdda63bb9990fac8c24b2df3",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Fetch the job status, tested commit and attempt of existing CI run 4."
+      },
+      "library-hash": {
+        "command": "sha256sum <audit-output>/target-basic/release/libsecret_protection_core.rlib",
+        "startUTC": "2026-11-15T12:14:53.885963+00:00",
+        "endUTC": "2026-11-15T12:14:53.890706+00:00",
+        "exit": 0,
+        "logSHA256": "ec7eac88bd0723bff1d58f51bb21352824e715330b8d15a431a1428244282850",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-evidence",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Supplemental command."
+      },
+      "metadata": {
+        "command": "cargo metadata --format-version 1 --locked --offline",
+        "startUTC": "2026-11-15T12:18:47.907745+00:00",
+        "endUTC": "2026-11-15T12:18:47.973865+00:00",
+        "exit": 0,
+        "logSHA256": "92d114c50c5149de126f5bde026bbede5d08b3282d216d82f078c12ba5c6e43c",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Resolve the locked target-conditional crate graph."
+      },
+      "miri": {
+        "command": "cargo +nightly miri test --locked --offline --lib os::tests::unwritten_bytes_are_wiped_without_being_read -- --exact",
+        "startUTC": "2026-11-15T12:20:12.350855+00:00",
+        "endUTC": "2026-11-15T12:31:26.165216+00:00",
+        "exit": 0,
+        "logSHA256": "2f186391c0d54341c53c0454617cdb518b317e7ecdea7c8776c3457d5b9407c9",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "One exact test exercising the potentially uninitialized stack wipe.",
+        "reportedOkEntries": 1
+      },
+      "native": {
+        "command": "cargo test --locked --offline",
+        "startUTC": "2026-11-15T11:56:03.456823+00:00",
+        "endUTC": "2026-11-15T11:58:55.173574+00:00",
+        "exit": 101,
+        "logSHA256": "063d8d42be09024525ab8860adb76f5bc8fd6c226f7bcd77bdf6600052812dd7",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Initial Linux test-profile run in a capped scope.",
+        "reportedOkEntries": 61,
+        "diagnostic": [
+          "thread '<unnamed>' (1236179) panicked at src/stack.rs:131:63:",
+          "thread 'main' (1238320) panicked at tests/worker.rs:685:9:",
+          "thread 'main' (1238559) panicked at tests/worker.rs:667:9:",
+          "a process that signals only itself ended its worker",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "nightly-version": {
+        "command": "rustc +nightly -vV",
+        "startUTC": "2026-11-15T12:31:26.870424+00:00",
+        "endUTC": "2026-11-15T12:31:26.889933+00:00",
+        "exit": 0,
+        "logSHA256": "072391379b408a5c6c30ef78ad74e86d15c0eebf2c02c1e70ba1992bdae7752b",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Nightly compiler identity for sanitizer and Miri."
+      },
+      "origin": {
+        "command": "git ls-remote origin refs/heads/main 'refs/tags/*'",
+        "startUTC": "2026-11-15T11:56:23.377226+00:00",
+        "endUTC": "2026-11-15T11:56:25.959981+00:00",
+        "exit": 0,
+        "logSHA256": "40f448ec4a86dd2df3911cdbb11fe97c7d1da45e3befb57a5fb49a6a7bc82a25",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Read remote branch and tag refs."
+      },
+      "package-members": {
+        "command": "cargo package --list --locked --offline",
+        "startUTC": "2026-11-15T12:18:47.863550+00:00",
+        "endUTC": "2026-11-15T12:18:47.907538+00:00",
+        "exit": 0,
+        "logSHA256": "365884dafc0de3df68fa8fedfae3f66ff1d5c9bcd52feb6a57054f85e361a72f",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Cargo listed the draft package members and warned that documentation, homepage or repository metadata is absent. No registry archive was released."
+      },
+      "pinned-nightly": {
+        "command": "rustc +nightly -vV",
+        "startUTC": "2026-11-15T12:14:53.842054+00:00",
+        "endUTC": "2026-11-15T12:14:53.859929+00:00",
+        "exit": 0,
+        "logSHA256": "072391379b408a5c6c30ef78ad74e86d15c0eebf2c02c1e70ba1992bdae7752b",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-evidence",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Supplemental command."
+      },
+      "pinned-rust": {
+        "command": "rustc -vV",
+        "startUTC": "2026-11-15T12:14:53.803344+00:00",
+        "endUTC": "2026-11-15T12:14:53.841659+00:00",
+        "exit": 0,
+        "logSHA256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-evidence",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Supplemental command."
+      },
+      "release-bytes": {
+        "command": "sha256sum <audit-output>/target-basic/release/libsecret_protection_core.rlib",
+        "startUTC": "2026-11-15T12:18:48.345500+00:00",
+        "endUTC": "2026-11-15T12:18:48.348867+00:00",
+        "exit": 0,
+        "logSHA256": "ec7eac88bd0723bff1d58f51bb21352824e715330b8d15a431a1428244282850",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Local SHA-256 of the optimized rlib. No published hash for comparison."
+      },
+      "release-disassembly": {
+        "command": "llvm-objdump-21 -d --demangle --no-show-raw-insn <audit-output>/target-basic/release/libsecret_protection_core.rlib",
+        "startUTC": "2026-11-15T12:06:51.046343+00:00",
+        "endUTC": "2026-11-15T12:06:51.099889+00:00",
+        "exit": 0,
+        "logSHA256": "505f8aa1f4f7c90eca1d0cf55d37c178278f3f5c7b974abe77adbb7df25e2027",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-inspect",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Inspect the exact optimized native library with llvm-objdump."
+      },
+      "release-recheck": {
+        "command": "cargo test --release --offline --locked",
+        "startUTC": "2026-11-15T12:32:06.541397+00:00",
+        "endUTC": "2026-11-15T12:32:18.935292+00:00",
+        "exit": 101,
+        "logSHA256": "a62eaea5eb8bd5d15661c9e7b60778fb9ba4483fe79fc2a799f3c94472be7e2b",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-release-recheck",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Separate full release-profile repeat with previously built files and the same assertions.",
+        "reportedOkEntries": 61,
+        "diagnostic": [
+          "thread '<unnamed>' (1386511) panicked at src/stack.rs:131:63:",
+          "thread 'main' (1388601) panicked at tests/worker.rs:685:9:",
+          "thread 'main' (1388769) panicked at tests/worker.rs:667:9:",
+          "a process that signals only itself ended its worker",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "release-tests": {
+        "command": "cargo test --release --locked --offline",
+        "startUTC": "2026-11-15T12:18:34.415982+00:00",
+        "endUTC": "2026-11-15T12:18:46.866696+00:00",
+        "exit": 101,
+        "logSHA256": "09c3599d1e2878459722e4ac7b56d6353431e4a66d72e354c4047deb83d20000",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Full Linux release-profile suite.",
+        "reportedOkEntries": 61,
+        "diagnostic": [
+          "thread '<unnamed>' (1332016) panicked at src/stack.rs:131:63:",
+          "thread 'main' (1334120) panicked at tests/worker.rs:685:9:",
+          "thread 'main' (1334297) panicked at tests/worker.rs:667:9:",
+          "a process that signals only itself ended its worker",
+          "error: test failed, to rerun pass `--test worker`"
+        ]
+      },
+      "release-worker-split": {
+        "command": "cargo test --release --locked --offline --test worker",
+        "startUTC": "2026-11-15T12:33:50.588844+00:00",
+        "endUTC": "2026-11-15T12:33:56.896466+00:00",
+        "exit": 0,
+        "logSHA256": "7bce080349a76db094c0927be0c5bdde11e800cb57ce5c0edeaf26f37969a28c",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-split",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Optimized worker test binary retried separately after earlier timing failures.",
+        "reportedOkEntries": 16
+      },
+      "release": {
+        "command": "cargo build --release --locked --offline --lib",
+        "startUTC": "2026-11-15T11:59:29.255011+00:00",
+        "endUTC": "2026-11-15T11:59:37.630781+00:00",
+        "exit": 0,
+        "logSHA256": "c464487d7a2a4fb12ed68b1b45220b5e9ce42fd2bb153151b31757595701fa0d",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Optimized native Rust library build."
+      },
+      "rustsec-head-current": {
+        "command": "git -C <cargo-home>/advisory-db rev-parse HEAD",
+        "startUTC": "2026-11-15T11:59:41.075761+00:00",
+        "endUTC": "2026-11-15T11:59:41.079480+00:00",
+        "exit": 0,
+        "logSHA256": "c4d4cc788df36f59f7d458e5e450f7e1a86d53eaedabb0453aa38e979bc95617",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-supply",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Installed RustSec database after the update."
+      },
+      "rustsec-head": {
+        "command": "git -C <cargo-home>/advisory-db rev-parse HEAD",
+        "startUTC": "2026-11-15T12:18:48.294989+00:00",
+        "endUTC": "2026-11-15T12:18:48.297952+00:00",
+        "exit": 0,
+        "logSHA256": "c4d4cc788df36f59f7d458e5e450f7e1a86d53eaedabb0453aa38e979bc95617",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Installed database during the offline scan."
+      },
+      "rustsec-origin": {
+        "command": "git ls-remote https://github.com/RustSec/advisory-db.git HEAD",
+        "startUTC": "2026-11-15T11:56:33.266836+00:00",
+        "endUTC": "2026-11-15T11:56:34.474078+00:00",
+        "exit": 0,
+        "logSHA256": "c2f1b9b95ca772b89a9a30d1a59989cc7685087a74128606a387192c312c7b9e",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-remote",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Authoritative advisory repository HEAD."
+      },
+      "signature": {
+        "command": "git -c gpg.ssh.allowedSignersFile=<public-signers> verify-commit 39e462e946cc300a8a3d3e145517957094eb7c8c",
+        "startUTC": "2026-11-15T12:18:48.298138+00:00",
+        "endUTC": "2026-11-15T12:18:48.314378+00:00",
+        "exit": 0,
+        "logSHA256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Local SSH signature validation using the workspace public signing identity."
+      },
+      "signed-snapshot": {
+        "command": "git -c gpg.ssh.allowedSignersFile=<public-signers> verify-commit 39e462e946cc300a8a3d3e145517957094eb7c8c",
+        "startUTC": "2026-11-15T12:14:53.860282+00:00",
+        "endUTC": "2026-11-15T12:14:53.885590+00:00",
+        "exit": 0,
+        "logSHA256": "fca42384695af562f2de8fb8b781a86d2d8be00a0384c97796bd662e62b1a202",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-evidence",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Supplemental command."
+      },
+      "source": {
+        "command": "git diff --exit-code 39e462e946cc300a8a3d3e145517957094eb7c8c -- .",
+        "startUTC": "2026-11-15T11:56:03.289593+00:00",
+        "endUTC": "2026-11-15T11:56:03.291922+00:00",
+        "exit": 0,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Compare the starting working tree against the exact tested commit."
+      },
+      "stack-disassembly": {
+        "command": "llvm-objdump-21 -d --no-show-raw-insn --disassemble-symbols=_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackTNtNtCsgFX3jaOk65H_5alloc6string6StringB14_B14_ENCNvNtNtB6_5stack5testss_51work_runs_on_a_protected_stack_and_panics_come_back0EB6_,_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackuNCNvNtNtB6_5stack5testss_36a_size_beyond_every_stack_is_refused0EB6_,_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackzNCNCNvNtNtB6_5stack5testss_51work_runs_on_a_protected_stack_and_panics_come_backs_00EB6_ <audit-output>/target-basic/release/deps/secret_protection_core-0fa61b1cab75a644",
+        "startUTC": "2026-11-15T12:08:55.979409+00:00",
+        "endUTC": "2026-11-15T12:09:00.980788+00:00",
+        "exit": 0,
+        "logSHA256": "cbc9bbdde06194f270202d6fcbc368b3c9a052e82c7e388706e990dd22727dc6",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-stack-code",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Inspect the release-mode, monomorphized protected stack routine."
+      },
+      "stack-test-bytes": {
+        "command": "sha256sum <audit-output>/target-basic/release/deps/secret_protection_core-0fa61b1cab75a644",
+        "startUTC": "2026-11-15T12:09:00.981267+00:00",
+        "endUTC": "2026-11-15T12:09:00.986326+00:00",
+        "exit": 0,
+        "logSHA256": "8adc57959e956ebbeb5ccaa97c4845b5933e6ce9a67ab6c4c1d1882bd8018687",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-stack-code",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Identify the optimized test binary containing the stack routine."
+      },
+      "version": {
+        "command": "rustc -vV",
+        "startUTC": "2026-11-15T12:18:48.314708+00:00",
+        "endUTC": "2026-11-15T12:18:48.345284+00:00",
+        "exit": 0,
+        "logSHA256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Version and LLVM identity of the pinned host compiler."
+      },
+      "wasm-build": {
+        "command": "cargo build --lib --locked --offline --target wasm32-unknown-unknown",
+        "startUTC": "2026-11-15T12:31:26.165536+00:00",
+        "endUTC": "2026-11-15T12:31:26.729915+00:00",
+        "exit": 0,
+        "logSHA256": "9abc7cbc25ab1d7ddf08c2eeb295d10c919fa20ee0d0698271574efb5de7acc7",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Build library for wasm32-unknown-unknown."
+      },
+      "wasm-link": {
+        "command": "rustc --edition=2024 --crate-type=cdylib --target wasm32-unknown-unknown docs/audits/AUD-006-harnesses/fallback.rs -L dependency=<audit-output>/target-instrument/wasm32-unknown-unknown/debug/deps --extern secret_protection_core=<audit-output>/target-instrument/wasm32-unknown-unknown/debug/libsecret_protection_core.rlib -o <audit-output>/target-instrument/fallback.wasm",
+        "startUTC": "2026-11-15T12:31:26.730277+00:00",
+        "endUTC": "2026-11-15T12:31:26.827741+00:00",
+        "exit": 0,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Link the stock public-data WASM harness against this candidate."
+      },
+      "wasm-runtime": {
+        "command": "node docs/audits/AUD-006-harnesses/fallback.mjs <audit-output>/target-instrument/fallback.wasm",
+        "startUTC": "2026-11-15T12:31:26.828093+00:00",
+        "endUTC": "2026-11-15T12:31:26.870035+00:00",
+        "exit": 0,
+        "logSHA256": "d1c89560c2089b377cf50545bc2dba001c7923a45b5510e796a90bc769935a4e",
+        "overrides": {},
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-instrument",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Run four existing public fallback checks in Node/V8."
+      },
+      "worker-recheck": {
+        "command": "cargo test --locked --offline --test worker",
+        "startUTC": "2026-11-15T12:31:28.490005+00:00",
+        "endUTC": "2026-11-15T12:31:32.812629+00:00",
+        "exit": 0,
+        "logSHA256": "c495b5367a443cccc21431e9b38ba3d46a1be2e809f5dde7d01d6b3c074567e8",
+        "overrides": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-basic"
+        },
+        "environment": {
+          "CARGO_TARGET_DIR": "<audit-output>/target-rerun",
+          "CARGO_BUILD_JOBS": "2",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_HOME": "<cargo-home>",
+          "RUSTUP_HOME": "<rustup-home>"
+        },
+        "interpretation": "Ordinary worker test binary, run separately with the original assertions.",
+        "reportedOkEntries": 16
+      }
+    },
+    "ci": {
+      "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/43696186406",
+      "number": 4,
+      "attempt": 1,
+      "reportedOk": {
+        "native (ubuntu-24.04-arm)": 63,
+        "checks": 63,
+        "native (macos-latest)": 30,
+        "native (windows-latest)": 27
+      },
+      "jobs": [
+        {
+          "id": 132757115132,
+          "name": "native (ubuntu-24.04-arm)",
+          "conclusion": "success"
+        },
+        {
+          "id": 132757115252,
+          "name": "checks",
+          "conclusion": "success"
+        },
+        {
+          "id": 132757115338,
+          "name": "native (macos-latest)",
+          "conclusion": "success"
+        },
+        {
+          "id": 132757115381,
+          "name": "native (windows-latest)",
+          "conclusion": "success"
+        }
+      ]
+    },
+    "coverage": {
+      "documentedPercentage": 90.22,
+      "documentedCovered": 1900,
+      "documentedTotal": 2106,
+      "inputFingerprint": "6c6c37593c6fa0c9f871aeeffa3ab601f39ad42c7865c1dfc27ce1a5958712c6",
+      "exclusions": "One environment-sensitive worker case excluded, worker-side profile unavailable, other targets outside this Linux measurement, in-src unit tests included.",
+      "completedRun": "cov-split-summary",
+      "measuredPercentage": 90.22,
+      "measuredTotal": 2106,
+      "measuredCovered": 1900,
+      "summary": "TOTAL                            3397               341    89.96%         289                25    91.35%        2106               206    90.22%           0                 0         -",
+      "byFile": {
+        "src/channels.rs": [
+          40,
+          40,
+          "100.00%"
+        ],
+        "src/input.rs": [
+          117,
+          120,
+          "97.50%"
+        ],
+        "src/os.rs": [
+          38,
+          41,
+          "92.68%"
+        ],
+        "src/os/linux.rs": [
+          426,
+          462,
+          "92.21%"
+        ],
+        "src/os/linux/seccomp.rs": [
+          145,
+          145,
+          "100.00%"
+        ],
+        "src/os/unix.rs": [
+          323,
+          392,
+          "82.40%"
+        ],
+        "src/protect.rs": [
+          368,
+          378,
+          "97.35%"
+        ],
+        "src/protect/closed.rs": [
+          116,
+          129,
+          "89.92%"
+        ],
+        "src/protect/options.rs": [
+          76,
+          101,
+          "75.25%"
+        ],
+        "src/stack.rs": [
+          81,
+          88,
+          "92.05%"
+        ],
+        "src/worker.rs": [
+          170,
+          210,
+          "80.95%"
+        ]
+      },
+      "allElevenRowsMatch": true,
+      "retainedLocalLogSha256": "a01f1c046401143cb5c1a5a02656232fb4a74e40b726a332ed636788005377b5",
+      "retainedCases": 62,
+      "retainedTotalRow": "TOTAL                            3397               341    89.96%         289                25    91.35%        2106               206    90.22%           0                 0         -"
+    },
+    "localArtifacts": {
+      "libsecret_protection_core.rlib": {
+        "bytes": 727472,
+        "sha256": "70f1630150a0910413ff2ffe5e1df8f734f94b411bc585e6414d1da41ffcd9ff",
+        "source": "native release Rust library"
+      },
+      "fallback.wasm": {
+        "bytes": 2410954,
+        "sha256": "ee5ff1929de2872e6cb898879e4796958a1c948d7093e562447927e3ce567d8c",
+        "source": "audit-only wasm harness linked to the reviewed library"
+      }
+    },
+    "assembly": [
+      {
+        "symbol": "<secret_protection_core::protect::closed::ClosedSecret>::truncate",
+        "storeExamples": [
+          "80:      \tmovb\t$0x0, -0x7(%rdx,%rcx)",
+          "85:      \tmovb\t$0x0, -0x6(%rdx,%rcx)"
+        ],
+        "sourceLogSHA256": "505f8aa1f4f7c90eca1d0cf55d37c178278f3f5c7b974abe77adbb7df25e2027"
+      },
+      {
+        "symbol": "<secret_protection_core::protect::Secret>::truncate",
+        "storeExamples": [
+          "50:      \tmovb\t$0x0, -0x7(%r9,%r8)",
+          "56:      \tmovb\t$0x0, -0x6(%r9,%r8)"
+        ],
+        "sourceLogSHA256": "505f8aa1f4f7c90eca1d0cf55d37c178278f3f5c7b974abe77adbb7df25e2027"
+      },
+      {
+        "symbol": "<secret_protection_core::protect::Secret as core::ops::drop::Drop>::drop",
+        "storeExamples": [
+          "30:      \tmovb\t$0x0, (%rax,%rsi)",
+          "34:      \tmovb\t$0x0, 0x1(%rax,%rsi)"
+        ],
+        "sourceLogSHA256": "505f8aa1f4f7c90eca1d0cf55d37c178278f3f5c7b974abe77adbb7df25e2027"
+      },
+      {
+        "symbol": "<secret_protection_core::protect::WorkArea as core::ops::drop::Drop>::drop",
+        "storeExamples": [
+          "30:      \tmovb\t$0x0, (%rax,%rsi)",
+          "34:      \tmovb\t$0x0, 0x1(%rax,%rsi)"
+        ],
+        "sourceLogSHA256": "505f8aa1f4f7c90eca1d0cf55d37c178278f3f5c7b974abe77adbb7df25e2027"
+      },
+      {
+        "symbol": "_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackTNtNtCsgFX3jaOk65H_5alloc6string6StringB14_B14_ENCNvNtNtB6_5stack5testss_51work_runs_on_a_protected_stack_and_panics_come_back0EB6_",
+        "storeExamples": [
+          "42c00:      \tmovb\t$0x0, (%r14,%rdx)",
+          "42c05:      \tmovb\t$0x0, 0x1(%r14,%rdx)"
+        ],
+        "sourceLogSHA256": "cbc9bbdde06194f270202d6fcbc368b3c9a052e82c7e388706e990dd22727dc6"
+      },
+      {
+        "symbol": "_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackuNCNvNtNtB6_5stack5testss_36a_size_beyond_every_stack_is_refused0EB6_",
+        "storeExamples": [
+          "43170:      \tmovb\t$0x0, (%r14,%rdx)",
+          "43175:      \tmovb\t$0x0, 0x1(%r14,%rdx)"
+        ],
+        "sourceLogSHA256": "cbc9bbdde06194f270202d6fcbc368b3c9a052e82c7e388706e990dd22727dc6"
+      },
+      {
+        "symbol": "_RINvNtNtCs3iPnd0lg7d_22secret_protection_core2os4unix12run_on_stackzNCNCNvNtNtB6_5stack5testss_51work_runs_on_a_protected_stack_and_panics_come_backs_00EB6_",
+        "storeExamples": [
+          "43560:      \tmovb\t$0x0, (%r14,%rcx)",
+          "43565:      \tmovb\t$0x0, 0x1(%r14,%rcx)"
+        ],
+        "sourceLogSHA256": "cbc9bbdde06194f270202d6fcbc368b3c9a052e82c7e388706e990dd22727dc6"
+      }
+    ],
+    "interruptedOutputs": {
+      "asan.interrupted-121848.log": {
+        "sha256": "bd673a79b74f88a09564d8201a977e8cd95a53995f711cf79e5abb0ab986d0cd",
+        "cause": "The capped scope ended before its inner command wrote an exit record. This partial output is retained separately from the resumed invocation."
+      },
+      "release-tests.interrupted-121834.log": {
+        "sha256": "7ffdef803977efd28d1bdd7bdf7caddb166c08ff665d16cb00c269a3f733f029",
+        "cause": "The capped scope ended before its inner command wrote an exit record. This partial output is retained separately from the resumed invocation."
+      }
+    },
+    "downstreamSpotCheck": {
+      "repository": "reed-solomon-core",
+      "purpose": "Pin and WorkArea wrapper only",
+      "paths": {
+        "Cargo.toml": "107375249e97ad238e83fea323c6fc51e1c2215c6a84aaadae526bc234100d8c",
+        "src/buffer.rs": "b38428ae8aa15caae536a33ee008cf60960ede9dd80a88bd3dfc12ed8408474e",
+        "src/buffer/pages.rs": "a8cf59a15b9b663bee1138d9e8bb068329298ea548f897fffe73892fad4ff754"
+      },
+      "dirtyAtInspection": true
+    },
+    "advisoryDatabase": "02e2517f457a359fc6d3440ea4560c8ea188fee8",
+    "ledger": [
+      {
+        "id": "CHECK-SEC-001",
+        "title": "Threat model and secret ownership",
+        "result": "reviewed",
+        "evidence": "Buffer and borrowed-view ownership across fork, forced access and Drop. SEC001."
+      },
+      {
+        "id": "CHECK-SEC-002",
+        "title": "Secret Vault, CSP, sandbox, and transport",
+        "result": "reviewed",
+        "evidence": "Worker activation, isolation, descriptor ownership and platform startup. SEC002, AUD-009-SEC002."
+      },
+      {
+        "id": "CHECK-SEC-003",
+        "title": "Network egress and secret guards",
+        "result": "reviewed",
+        "evidence": "Linux policies and probes, Apple sandbox, Windows capability/PID checks; Windows socket contract remains broader. API001."
+      },
+      {
+        "id": "CHECK-SEC-004",
+        "title": "Randomness, encryption, and authentication",
+        "result": "reviewed",
+        "evidence": "Windows pipe nonce comes from the OS generator and startup checks failure; PID gates the actual connection. No wallet cryptography or key derivation is implemented."
+      },
+      {
+        "id": "CHECK-SEC-005",
+        "title": "Secret lifecycle and exceptional paths",
+        "result": "reviewed",
+        "evidence": "Release and wiping paths, sealed transitions, protected stacks, input and IPC buffers, process exit, fork and unsupported hosts."
+      },
+      {
+        "id": "CHECK-SEC-006",
+        "title": "Browser injection, persistence, and sensitive APIs",
+        "result": "not-applicable",
+        "evidence": "No browser application, DOM, providers or UI is shipped. The WASM library fallback is handled separately."
+      },
+      {
+        "id": "CHECK-SEC-007",
+        "title": "Read-only guarantees and availability bounds",
+        "result": "reviewed",
+        "evidence": "Framing bounds, allocation, child liveness, reported status, wrong client handling, timing tests and alternate stream cleanup."
+      },
+      {
+        "id": "CHECK-FUN-001",
+        "title": "BIP39, entropy, and seed interpretation",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-002",
+        "title": "HD derivation and every coin/profile",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-003",
+        "title": "BIP85, BIP38, messages, and Silent Payments",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-004",
+        "title": "Scripts, descriptors, Miniscript, and multisig",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-005",
+        "title": "Transactions, PSBT version context, and commitments",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-006",
+        "title": "Recovery and backup formats",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-FUN-007",
+        "title": "Discovery, providers, proofs, and accounting",
+        "result": "not-applicable",
+        "evidence": "No wallet derivation, transactions, wallet recovery records or provider operations are implemented."
+      },
+      {
+        "id": "CHECK-API-001",
+        "title": "Actual dependency call contracts",
+        "result": "reviewed",
+        "evidence": "OS handles, mappings, WER, AppContainer, Unix spawn, locks, Drop and platform contracts."
+      },
+      {
+        "id": "CHECK-API-002",
+        "title": "Async state, cancellation, and revisions",
+        "result": "reviewed",
+        "evidence": "Admission before the first call, error/close/end, ownership at launch, threads and continuing children."
+      },
+      {
+        "id": "CHECK-API-003",
+        "title": "Public export schema and monetary fidelity",
+        "result": "reviewed",
+        "evidence": "Public declarations and operation inventory for the crate; protection outcomes and supported operating systems."
+      },
+      {
+        "id": "CHECK-API-004",
+        "title": "Encoding and import/export interoperability",
+        "result": "reviewed",
+        "evidence": "Worker configuration/frame validation, UTF-8 keystrokes, public reports and WASM fallbacks."
+      },
+      {
+        "id": "CHECK-BLD-001",
+        "title": "Manifest, flags, and feature composition",
+        "result": "reviewed",
+        "evidence": "Manifest, target-conditional dependencies, lint profile and pinned Rust toolchain; Git-only packaging."
+      },
+      {
+        "id": "CHECK-BLD-002",
+        "title": "Matrix depth and runtime sampling",
+        "result": "reviewed",
+        "evidence": "Individual native CI logs, local gates, instrumentation, cross-target Clippy and WASM execution; conditional pass counts."
+      },
+      {
+        "id": "CHECK-BLD-003",
+        "title": "Lockfiles, source provenance, and licenses",
+        "result": "reviewed",
+        "evidence": "Locked Cargo metadata and archive hashes, current RustSec scan, source Git signature and third-party inventory."
+      },
+      {
+        "id": "CHECK-BLD-004",
+        "title": "Canonical WASM and Docker bytes",
+        "result": "reviewed",
+        "evidence": "Native library artifact, WebAssembly fallback harness, Git-only distribution. No project-defined canonical Docker artifact or published binary."
+      },
+      {
+        "id": "CHECK-BLD-005",
+        "title": "Artifacts, CI, and release workflows",
+        "result": "reviewed",
+        "evidence": "Two workflows and actual four-job CI including direct job logs for the exact signed SHA; registry publication disabled."
+      },
+      {
+        "id": "CHECK-UI-001",
+        "title": "Real files and representative viewports",
+        "result": "not-applicable",
+        "evidence": "No browser application, DOM, providers or UI is shipped. The WASM library fallback is handled separately."
+      },
+      {
+        "id": "CHECK-UI-002",
+        "title": "Navigation, inputs, and state preservation",
+        "result": "not-applicable",
+        "evidence": "No browser application, DOM, providers or UI is shipped. The WASM library fallback is handled separately."
+      },
+      {
+        "id": "CHECK-UI-003",
+        "title": "Secret visibility, help, QR, and accessibility",
+        "result": "not-applicable",
+        "evidence": "No browser application, DOM, providers or UI is shipped. The WASM library fallback is handled separately."
+      },
+      {
+        "id": "CHECK-ARC-001",
+        "title": "Ownership, imports, and composition seams",
+        "result": "reviewed",
+        "evidence": "Module and exported API map, RAII, raw mapping boundaries and the worker privilege boundary."
+      },
+      {
+        "id": "CHECK-ARC-002",
+        "title": "Dead code, duplication, and false positives",
+        "result": "reviewed",
+        "evidence": "Reviewed platform-specific implementation separately from shared structures. Related historical fork, startup and VC ownership issues de-duplicated."
+      },
+      {
+        "id": "CHECK-ARC-003",
+        "title": "Comments, tests, and production-path fidelity",
+        "result": "reviewed",
+        "evidence": "Compared stock test content to the guarantees and result summaries; conditional checks, counted waits and target-scoped tests."
+      },
+      {
+        "id": "CHECK-DOC-001",
+        "title": "User-facing capability and safety descriptions",
+        "result": "reviewed",
+        "evidence": "README, technical and public API claims checked against native and WASM code."
+      },
+      {
+        "id": "CHECK-DOC-002",
+        "title": "Commands, metadata, links, and legal materials",
+        "result": "reviewed",
+        "evidence": "Manifest/package distribution, license files, dependency notices and snapshot-bound links."
+      },
+      {
+        "id": "CHECK-DOC-003",
+        "title": "Audit records and evidence consistency",
+        "result": "reviewed",
+        "evidence": "All nine archived Markdown/JSON pairs checked, draft/published tree aliases matched, coverage fingerprint recomputed and evidence pinned."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "AUD-010-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "severity": "high",
+      "status": "open",
+      "releaseBlocking": true,
+      "title": "A continuing Unix child inherits buffer owners after the OS removes or unlocks their pages",
+      "evidence": [
+        "src/os/linux.rs:80",
+        "src/os/unix.rs:219",
+        "src/os/unix.rs:101",
+        "src/os.rs:149",
+        "src/os.rs:153",
+        "src/protect.rs:108",
+        "src/protect.rs:151",
+        "src/protect.rs:218",
+        "src/protect/closed.rs:117",
+        "docs/audits/AUD-001-2026-11-15.md:383"
+      ],
+      "expected": "Public views, destruction and lock reports must remain valid throughout the supported object lifetime.",
+      "observed": "On Linux DONTFORK secret mappings and Darwin VM_INHERIT_NONE memory, the child keeps the Rust pointer/length while losing the data mapping. A read or automatic drop can form a slice over absent memory. If the address is reused, cleanup can touch unrelated child memory. On anonymous Linux WIPEONFORK pages, bytes become zero but cached is_locked can stay true after the lock is lost.",
+      "impact": "A single-threaded application continuing after fork with a live object can suffer undefined behavior or put new child data on unlocked pages. ClosedSecret and SecretLine wrap Secret. Darwin WorkArea also omits the pages. Ordinary immediate exec or _exit has a separate lifetime. No disclosure of a parent secret was observed. This blocks an unrestricted production guarantee.",
+      "recommendedFix": "Settle the supported fork contract for consumers and their borrowed slices. Provide a child-safe memory/ownership design for supported continuation, including release and lock reporting. Until then keep such owners and all issued views out of continuing children. Explicitly document the boundary in the API.",
+      "requiredVerification": "Verify destruction, fresh child use, and lock evidence across the supported mapping types on Linux and macOS, including the documented rule for pre-fork borrowed views and a fresh-image control.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": [
+        "https://man7.org/linux/man-pages/man2/fork.2.html",
+        "https://man7.org/linux/man-pages/man2/madvise.2.html",
+        "https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/minherit.2.html",
+        "https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html#safety"
+      ]
+    },
+    {
+      "id": "AUD-010-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The ELF worker initializer can close descriptors already owned by a linked library",
+      "evidence": [
+        "src/os/unix.rs:333",
+        "src/os/unix.rs:349",
+        "src/os/unix.rs:375",
+        "src/os/unix.rs:390",
+        "tests/worker.rs:491"
+      ],
+      "expected": "The bootstrap must distinguish descriptors inherited across exec from objects owned in the new executable.",
+      "observed": "The executable uses an ordinary init array for bulk descriptor closure. ELF initializes dependent shared objects first. A normal dependency can therefore own an open file before this code closes it. The later descriptor scan cannot observe a descriptor already closed.",
+      "impact": "Ordinary native integration can lose a live descriptor or later use or close a reused number. The main-time descriptor regression covers a different ordering. This is a separate variant of AUD-006-SEC001.",
+      "recommendedFix": "Arrange inheritance cleanup at the spawn/exec boundary, then validate the new image without closing descriptors its dependencies own.",
+      "requiredVerification": "Check a representative native dependency with legitimate pre-main initialization and the current tests for inheritance and late service.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": [
+        "https://gabi.xinuos.com/elf/09-dynamic.html#initialization-and-termination-functions"
+      ]
+    },
+    {
+      "id": "AUD-010-API001",
+      "category": "API",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Windows strict socket reporting describes a stronger guarantee than its evidence",
+      "evidence": [
+        "src/protect.rs:246",
+        "src/os/windows.rs:342",
+        "src/os/windows.rs:383",
+        "src/os/windows.rs:884",
+        "tests/worker.rs:294",
+        "docs/audits/AUD-001-2026-11-15.md:382"
+      ],
+      "expected": "A confirmed measure should identify the guarantee its observation establishes.",
+      "observed": "The public measure states socket creation is prohibited. Windows derives it from a capability-free AppContainer token. A native stock worker enforces the required token-based measure.",
+      "impact": "A caller can interpret the result as proof that every socket object creation fails. No network transfer or successful connection was observed in this review.",
+      "recommendedFix": "Describe the Windows guarantee as the applicable network capability policy, or provide separate evidence for the stronger primitive.",
+      "requiredVerification": "Align strict-mode and measure descriptions and test the precise native Windows property being advertised.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer"
+      ]
+    },
+    {
+      "id": "AUD-010-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The secret-memory fork tests can count a failed fork or wait as success",
+      "evidence": [
+        "tests/secret_memory.rs:389",
+        "tests/secret_memory.rs:394",
+        "tests/secret_memory.rs:434",
+        "tests/secret_memory.rs:442",
+        "tests/secret_memory.rs:456"
+      ],
+      "expected": "Each counted child observation must come from a successfully created and reaped child.",
+      "observed": "One test ignores waitpid’s return. The 2,000-iteration test compares waitpid with child without requiring a positive child. Both can be -1 with a zero-initialized status. The descriptor scan also covers only numbers 3 through 63.",
+      "impact": "A resource-limited runner can overstate completed checks. No evidence indicates that the reviewed CI actually failed to create a child. AUD-006-BLD001 addressed another test.",
+      "recommendedFix": "Require a positive PID and a successful wait for exactly that PID. Account for interruptions and report the number and descriptor range actually tested.",
+      "requiredVerification": "Verify failure/skip reporting and require all claimed child observations.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Test summaries count some skipped conditions and empty platform tests as passed",
+      "evidence": [
+        "tests/isolation/linux/roles.rs:169",
+        "tests/isolation/linux/roles.rs:210",
+        "tests/isolation/linux.rs:514",
+        "tests/isolation/main.rs:264",
+        "tests/worker.rs:266",
+        "tests/worker.rs:377"
+      ],
+      "expected": "CI should distinguish a checked assertion from an inapplicable or skipped test.",
+      "observed": "Child roles can return early on Linux and the successful child’s diagnostic is discarded. The worker option test registers everywhere but its substantive body is Linux-only.",
+      "impact": "Neither aggregate counts nor native green badges establish those specific namespace, Landlock retry or non-Linux option checks. The Windows and macOS jobs do contain other substantive tests.",
+      "recommendedFix": "Propagate skipped outcomes into the test summary and register tests only on applicable targets.",
+      "requiredVerification": "Show separate passing, skipped and inapplicable counts on the affected jobs.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-BLD003",
+      "category": "BLD",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The Windows competing-client regression can count a different instance",
+      "evidence": [
+        "tests/worker.rs:543",
+        "tests/worker.rs:565",
+        "tests/worker.rs:575"
+      ],
+      "expected": "The test must associate each counted event with its own server.",
+      "observed": "The test matches names by a common pipe prefix and counts all successful opens. A concurrent instance of this application can satisfy the counter.",
+      "impact": "A false pass or disturbance to an unrelated test instance is possible. The genuine round-trip on Windows is covered separately.",
+      "recommendedFix": "Coordinate the exact synthetic worker instance with the test and scope its counter to that instance.",
+      "requiredVerification": "Run isolated and concurrent test instances and verify separate attribution.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-BLD004",
+      "category": "BLD",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Worker timing tests confuse wall-clock pauses with backend behavior",
+      "evidence": [
+        "tests/worker.rs:144",
+        "tests/worker.rs:446",
+        "tests/worker.rs:603",
+        "tests/worker.rs:667",
+        "src/os/unix.rs:295"
+      ],
+      "expected": "A failure should identify a failed cleanup guarantee or record that scheduling invalidated its timing assumptions.",
+      "observed": "The test worker lingers for four wall-clock seconds. Other checks impose wall-clock limits. Two first local runs failed at different assertions in this group under the capped scheduler. Run 4 passed on both Linux runners.",
+      "impact": "A delayed process can finish naturally before the assertion that assumes it still lives, or a measured second can include a long suspension. The local failures do not establish that a disallowed signal succeeded.",
+      "recommendedFix": "Use explicit lifecycle synchronization for the stubborn-worker scenario and separate behavioral checks from timing under resource constraints.",
+      "requiredVerification": "Compare normal and suspended scheduling with the stock grace bound and record failures independently.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The all-platform buffer table promises guard pages in WebAssembly",
+      "evidence": [
+        "README.md:46",
+        "README.md:54",
+        "README.md:103",
+        "src/protect.rs:47",
+        "src/os.rs:272"
+      ],
+      "expected": "The public summary should describe the same WebAssembly protection as the implementation.",
+      "observed": "WebAssembly uses an ordinary boxed heap buffer. The table claims all buffers have guard pages.",
+      "impact": "A consumer can rely on a memory boundary unavailable in WebAssembly. Wiping remains implemented.",
+      "recommendedFix": "Separate the all-platform wipe guarantee from native guard pages in the summary and rustdoc.",
+      "requiredVerification": "Compare the summary against the implementation and WebAssembly public-API checks.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Windows Error Reporting heap exclusion is presented as assured",
+      "evidence": [
+        "src/protect.rs:236",
+        "src/os/windows.rs:280",
+        "docs/TECHNICAL.md:86"
+      ],
+      "expected": "Documentation should distinguish a successful OS setting from a request whose result is unknown.",
+      "observed": "WerSetFlags(NOHEAP) returns HRESULT. The implementation discards it and does not read back the process flag, while the public field description says the heap is excluded.",
+      "impact": "Callers cannot know whether process-wide exclusion succeeded. This is independent of the separate per-region WER capability and of arbitrary dump generators.",
+      "recommendedFix": "Qualify the documentation as best effort, or report the effective WER flag separately after checking the result.",
+      "requiredVerification": "Verify both success and refusal with native Windows API evidence.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": [
+        "https://learn.microsoft.com/en-us/windows/win32/api/werapi/nf-werapi-wersetflags"
+      ]
+    },
+    {
+      "id": "AUD-010-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "Third-party notices omit the Windows linkage dependency",
+      "evidence": [
+        "THIRD_PARTY_NOTICES.md:3",
+        "Cargo.lock:119",
+        "Cargo.lock:130"
+      ],
+      "expected": "The dependency inventory should include the locked Windows dependency chain it describes.",
+      "observed": "windows-sys 0.61.2 depends on windows-link 0.2.1. The manifest bundled with that version declares MIT OR Apache-2.0. The notices omit it.",
+      "impact": "The release inventory is incomplete for Windows. No conclusion about legal compliance was drawn.",
+      "recommendedFix": "Add the exact package, version and license to the notices.",
+      "requiredVerification": "Compare the published inventory with all unique locked package/version pairs.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    },
+    {
+      "id": "AUD-010-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "title": "The historical audit index and two source links need corrections",
+      "evidence": [
+        "docs/audits/AUD-001-2026-11-15.md:271",
+        "docs/audits/README.md:94",
+        "src/os/unix.rs:615"
+      ],
+      "expected": "Historical source references must resolve to the reviewed snapshot and the present-day index must describe the current teardown.",
+      "observed": "Two AUD-001 links use a tests/isolation.rs path absent at the audited HEAD. Their lines exist at the published old snapshot. The AUD-009 index entry describes closing descriptors outright although the current implementation retargets them.",
+      "impact": "Readers cannot follow the old links from HEAD or reliably infer current cleanup behavior from the index.",
+      "recommendedFix": "Add dated errata linking the original commit and describe the current mechanism in the index. Preserve historical source records.",
+      "requiredVerification": "Resolve every published source link and compare the amended current-status note to the cited implementation.",
+      "reproduction": "Static review of the referenced source and applicable platform contract. Where noted, existing tests and CI logs are supporting evidence.",
+      "references": []
+    }
+  ],
+  "observations": [],
+  "remediation": [
+    {
+      "id": "AUD-001-SEC001",
+      "title": "Linux secret-memory allocation and concurrent fork share an inheritance window",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC002",
+      "title": "Unix worker acknowledges isolation after incomplete descriptor cleanup",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC003",
+      "title": "Linux tracer evidence for one thread is reported process-wide",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC004",
+      "title": "Windows worker pipe ends are briefly inheritable by unrelated launches",
+      "status": "verified",
+      "fixCommit": "2f28cb3e2cc317c339f0c7ddbdfcf8a1e89c980b",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "Windows creates non-inheritable endpoints, uses FALSE for bInheritHandles and checks client PID before the application exchange. Run 4 completed a genuine AppContainer exchange and isolated parent state."
+    },
+    {
+      "id": "AUD-001-SEC005",
+      "title": "macOS accepts local probe denials without a confirmed sandbox profile",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. A refused probe counts only with this crate's sandbox profile in place. Not run on macOS."
+    },
+    {
+      "id": "AUD-001-SEC006",
+      "title": "Signal-domain isolation can satisfy a stricter self-only claim",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC007",
+      "title": "Unsupported speculation control is accepted as confirmed mitigation",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC008",
+      "title": "Protected stack properties cannot be required before secret work",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC009",
+      "title": "Stack wiping assumes every post-pthread byte is an initialized Rust u8",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC010",
+      "title": "ClosedSecret forgets the previous access mode after a refused reseal",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-SEC011",
+      "title": "Windows dynamic-code status ignores permitted exemptions",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The dynamic-code policy holds only without a way out for a thread or another process. Not run on Windows."
+    },
+    {
+      "id": "AUD-001-FUN001",
+      "title": "Dropping a worker can wait forever after rejecting a large reply",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-FUN002",
+      "title": "Fork-based work inside a protected stack may lose its active stack",
+      "status": "fixed",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The worker is started from a thread with an ordinary stack. `worker`: a worker starts from a protected stack. The `fork` path of an old C library was not run."
+    },
+    {
+      "id": "AUD-001-API001",
+      "title": "MemoryLocked loses a successful process lock on re-entry",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The new unmarked lock outcome is conservative. The relevant pure regression passed on Linux. External munlockall remains a documented limit."
+    },
+    {
+      "id": "AUD-001-API002",
+      "title": "open_channels can return an apparently complete partial inventory",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-API003",
+      "title": "Detailed protection reports describe possible proofs as if observed",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. Each measure carries the words of its own outcome. The Windows read-backs were not run."
+    },
+    {
+      "id": "AUD-001-FUN003",
+      "title": "Oversized protected stack requests overflow during rounding",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-FUN004",
+      "title": "Hard-coded MCL_ONFAULT is incorrect on some Linux architectures",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The lock flag comes from the C library's own definition. No architecture with another value was run."
+    },
+    {
+      "id": "AUD-001-FUN005",
+      "title": "Windows work areas skip a potentially available page lock",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. A work area is locked whenever Windows takes the lock. Not run on Windows."
+    },
+    {
+      "id": "AUD-001-FUN006",
+      "title": "Windows cleanup is attempted on a potentially uninitialized attribute list",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The attribute list is deleted only when it was initialized. Not run on Windows."
+    },
+    {
+      "id": "AUD-001-DOC001",
+      "title": "Keystroke serialization leaves wiping to a caller that is promised a wipe",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-001-DOC002",
+      "title": "Usage guidance overstates disk guarantees and lists shipped restrictions as planned",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-002-SEC001",
+      "title": "Worker keeps inherited channels when both descriptor-closing methods fail",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-002-SEC002",
+      "title": "Sequential namespace calls leave IPC shared while network isolation succeeds",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-002-SEC003",
+      "title": "Several advertised Windows protections discard their read-back results",
+      "status": "fixed",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The Windows measures are read back and have fields of their own. Not run on Windows."
+    },
+    {
+      "id": "AUD-002-FUN001",
+      "title": "Dropping a worker after an oversized answer can deadlock both processes",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-002-API001",
+      "title": "Overflowing protected-stack size panics instead of returning an error",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-002-DOC001",
+      "title": "Technical notes still describe shipped options as future work",
+      "status": "verified",
+      "fixCommit": "960647c5ccbcfe7bd93175d1c6266f17f4d66db2",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-003-SEC001",
+      "title": "A selective host policy can satisfy strict socket checks",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-003-SEC002",
+      "title": "A tracer can be invisible to the procfs PID namespace",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-003-SEC003",
+      "title": "Signal-filter ownership is recorded before installation succeeds",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "Linux signal ownership comes from the installed per-thread filter. The child and sibling regression entries pass in both Linux jobs."
+    },
+    {
+      "id": "AUD-003-FUN001",
+      "title": "Worker teardown can wait indefinitely after termination is requested",
+      "status": "fixed",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. A kill that fails is not waited for, and both waits are bounded. `worker`: the program that may not signal others. The Windows code was not run."
+    },
+    {
+      "id": "AUD-003-API001",
+      "title": "A previously refused Landlock layer is not retried on identical entry",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-003-DOC001",
+      "title": "The technical notes describe an obsolete seccomp marker",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-003-BLD001",
+      "title": "A fatal child sanitizer diagnostic can coexist with a green test run",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-004-SEC001",
+      "title": "Default DLL search policy is presented as a universal allow-list",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The API now describes default DLL lookup and explicitly documents the override through per-load flags. This closes the original contract discrepancy."
+    },
+    {
+      "id": "AUD-004-API001",
+      "title": "Concurrent macOS isolation calls can erase confirmation of the sandbox",
+      "status": "fixed",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. One sandbox call at a time, and a success never goes back to false. Not run on macOS."
+    },
+    {
+      "id": "AUD-004-API002",
+      "title": "The child-process policy ignores its secure-process exception",
+      "status": "fixed",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The exception for secure processes counts as a way out of the child-process policy. Not run on Windows."
+    },
+    {
+      "id": "AUD-004-DOC001",
+      "title": "ClosedSecret availability of page sealing is overstated",
+      "status": "verified",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "evidence": "Disposition retained from AUD-006. The patch does not address the specific mechanism. See the linked prior record for evidence and limits."
+    },
+    {
+      "id": "AUD-005-DOC001",
+      "title": "Existing Windows job need not confirm the documented one-process limit",
+      "status": "fixed",
+      "fixCommit": "c57018a9888fb84335332ed49580e59724217e5c",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The job's limits of the desktop and its one process are read back together. Not run on Windows."
+    },
+    {
+      "id": "AUD-006-FUN001",
+      "title": "Worker::end runs the teardown sequence twice",
+      "status": "fixed",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. A worker is ended once: `end`, a failed call and the drop share one wait. `worker`: one second, not two, where the worker cannot be killed."
+    },
+    {
+      "id": "AUD-006-SEC001",
+      "title": "Safe Unix worker bootstrap can close descriptors still owned by application code",
+      "status": "fixed",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": null,
+      "evidence": "The original descriptor owned by main is preserved and admission rejects it. New initializer-order ownership variant is tracked independently as AUD-010-SEC002."
+    },
+    {
+      "id": "AUD-006-FUN002",
+      "title": "The allocation gate ignores failure to block signals",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The Linux fork gate checks pthread_sigmask before acquiring kernel secret memory and the stock refusal case returns as expected."
+    },
+    {
+      "id": "AUD-006-DOC001",
+      "title": "The terminal worker API claims it disables echo",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "Worker::start_on_terminal and its docs describe the inherited terminal and who owns echo management."
+    },
+    {
+      "id": "AUD-006-DOC002",
+      "title": "The Linux file-change outcome differs from the documented external-denial case",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The technical guide now distinguishes file-change outcomes from socket outcomes."
+    },
+    {
+      "id": "AUD-006-BLD001",
+      "title": "A failed grandchild creation or wait can pass the same-PID regression",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The previously cited namespace test now checks the successful inner fork and wait results. Other tests with this error are recorded under AUD-010-BLD001. Runtime coverage of conditional namespaces is limited."
+    },
+    {
+      "id": "AUD-008-SEC001",
+      "title": "The pipe access list admits ordinary processes of the same user",
+      "status": "fixed",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. The documents describe the access list as it is and what another process of the user can do: take the place first, get nothing, and make the start fail. The list itself is unchanged."
+    },
+    {
+      "id": "AUD-008-FUN001",
+      "title": "The client endpoint has no owner that closes it when serve returns",
+      "status": "verified",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "The Windows client endpoint has a single File owner. The Windows job exercises a still-live worker after service and subsequent channel teardown."
+    },
+    {
+      "id": "AUD-008-API001",
+      "title": "Malformed worker settings can still activate worker mode",
+      "status": "open",
+      "fixCommit": "0b0aa7fd417e0d0c5d126c831bdffaebaa955977",
+      "verificationCommit": null,
+      "evidence": "A nonempty platform-inapplicable channel can pass the generic parser. The Unix initializer then closes inherited descriptors, although the Unix channel factory rejects that setting. Options and terminal flags are now strictly checked. Validate the complete platform grammar before any destructive action. See AUD-009-SEC002 in this review."
+    },
+    {
+      "id": "AUD-009-SEC001",
+      "title": "A worker is called clean without a look at what it holds when it comes to serve",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "starts_clean always lists after launch; the own-file-before-serve tests are present in Linux and macOS logs. This is the scope of its original claim."
+    },
+    {
+      "id": "AUD-009-SEC002",
+      "title": "Any text in the worker's variable closes the inherited descriptors before main",
+      "status": "open",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "A nonempty platform-inapplicable channel can pass the generic parser. The Unix initializer then closes inherited descriptors, although the Unix channel factory rejects that setting. Options and terminal flags are now strictly checked. Validate the complete platform grammar before any destructive action. See AUD-009-SEC002 in this review."
+    },
+    {
+      "id": "AUD-009-SEC003",
+      "title": "A process of the same user that takes the worker's pipe first stops the start",
+      "status": "accepted",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "The PID check and reaccept/retry code plus native CI support ordinary recovery. Repeated same-user contention remains explicitly accepted. See AUD-010-BLD003 for the stock test’s attribution limit."
+    },
+    {
+      "id": "AUD-009-FUN001",
+      "title": "The Apple section of the function that runs before main does not name its kind",
+      "status": "verified",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": "39e462e946cc300a8a3d3e145517957094eb7c8c",
+      "evidence": "Explicit Apple initializer section and macOS native worker inherited-descriptor scenario on run 4."
+    },
+    {
+      "id": "AUD-009-FUN002",
+      "title": "Without /dev/null the worker's streams do not end when it serves no more",
+      "status": "open",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "When both /dev/null and the ended-pipe fallback are unavailable, initialization still returns Ok. Drop has no replacement, so a living process can retain the channel. The results of dup2 are also discarded. Refuse startup when the teardown prerequisite is unavailable. The stock fallback test exercises a successful backup. See AUD-009-FUN002 in this review."
+    },
+    {
+      "id": "AUD-009-SEC004",
+      "title": "Anonymous secret pages may be joined into huge pages",
+      "status": "fixed",
+      "fixCommit": "bebf3ff1db7fd84e41f892c258733aa92a7db87e",
+      "verificationCommit": null,
+      "evidence": "Published register, retained as scoped historical evidence. A secret's anonymous pages are marked `MADV_NOHUGEPAGE` before they are locked. `secret_memory`: the mapping of such a secret has the flag and a work area's has not; both seen failing when the code is changed. A work area keeps the huge pages the system gives it, on purpose: a large computation is much slower without them; docs/TECHNICAL.md, What is not covered."
+    }
+  ],
+  "reopenedOriginals": {
+    "AUD-009-SEC002": {
+      "severity": "medium",
+      "title": "Unix rejects the transport field after the pre-main cleanup",
+      "evidence": [
+        "src/worker.rs:225",
+        "src/worker.rs:240",
+        "src/os/unix.rs:342",
+        "src/os/unix.rs:643",
+        "tests/worker.rs:510"
+      ],
+      "assessment": "A nonempty platform-inapplicable channel can pass the generic parser. The Unix initializer then closes inherited descriptors, although the Unix channel factory rejects that setting. Options and terminal flags are now strictly checked. Validate the complete platform grammar before any destructive action."
+    },
+    "AUD-009-FUN002": {
+      "severity": "low",
+      "title": "Unix admits a worker without a usable stream replacement",
+      "evidence": [
+        "src/os/unix.rs:615",
+        "src/os/unix.rs:629",
+        "src/os/unix.rs:647",
+        "tests/worker.rs:781"
+      ],
+      "assessment": "When both /dev/null and the ended-pipe fallback are unavailable, initialization still returns Ok. Drop has no replacement, so a living process can retain the channel. The results of dup2 are also discarded. Refuse startup when the teardown prerequisite is unavailable. The stock fallback test exercises a successful backup."
+    }
+  },
+  "limitations": [
+    "The exact pinned Rust 1.99.1 was used. Rust 1.99.0 was not separately exercised. No runtime test on an Android or iOS device, no browser UI/runtime integration acceptance and no downstream Reed–Solomon algorithm audit. The WebAssembly exercise uses V8/Node. A Windows/macOS native runtime was available through published CI, not on the Linux audit host.",
+    "The points about post-fork mapping ownership, loader constructor order and platform guarantees are supported by source and primary platform contracts. No secret disclosure or attack execution was observed. The high finding concerns continuing Unix children; ordinary spawn with immediate exec has a different lifetime.",
+    "Historical mutation, performance trials and earlier adversarial harnesses were not replayed. The exact source trees, reports and individual earlier evidence remain identifiable. Native sanitizer/Miri scopes, excluded tests and target-specific limitations are recorded per job.",
+    "There is no release tag, published binary, registry package or canonical bit-for-bit artifact acceptance procedure in this Git-only draft. The native library has a local SHA-256; binary reproducibility against an independent build was not established. A remote signature and branch identity apply to source, not a registry artifact.",
+    "The official GitHub CI and local test counts are reported separately. Skips hidden behind successful custom subprocesses and empty target-specific bodies are explicitly tracked. Timing assertions use wall clock and can fail while the host job is paused. A passing retry cannot establish the cause of an earlier failure."
+  ]
+}

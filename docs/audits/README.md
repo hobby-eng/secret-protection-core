@@ -93,3 +93,9 @@ Where a row says that the fix was not run on Windows or macOS, that was so when 
 | AUD-009-FUN001 | fixed | `bebf3ff1db7fd84e41f892c258733aa92a7db87e` | none | The section is `__DATA,__mod_init_func,mod_init_funcs`: it names its kind, pointers to functions run before `main`, whatever the compiler and linker made before. The static had `#[used]` already, which the report took to be missing. Not run on macOS when this record was filed. |
 | AUD-009-FUN002 | fixed | `bebf3ff1db7fd84e41f892c258733aa92a7db87e` | none | Where /dev/null could not be opened, the two descriptors are closed outright. `worker`: under a filter that refuses opening for reading and writing, a call to a worker that serves no more and lives on fails at once; seen failing without the fix. |
 | AUD-009-SEC004 | fixed | `bebf3ff1db7fd84e41f892c258733aa92a7db87e` | none | A secret's anonymous pages are marked `MADV_NOHUGEPAGE` before they are locked. `secret_memory`: the mapping of such a secret has the flag and a work area's has not; both seen failing when the code is changed. A work area keeps the huge pages the system gives it, on purpose: a large computation is much slower without them; docs/TECHNICAL.md, What is not covered. |
+
+## Release audit of the published Git source
+
+| Audit | Date (UTC) | Source | Outcome |
+| --- | --- | --- | --- |
+| [AUD-010](AUD-010-2026-11-15.md) and [JSON](AUD-010-2026-11-15.json) | 2026-11-15 | `39e462e946cc300a8a3d3e145517957094eb7c8c` | Unrestricted production use is blocked by the lifetime of protected buffer owners in a continuing Unix child. Native CI run 4 passed on four runners. See the release report for the limits, independent results and remediation. |
