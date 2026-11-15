@@ -4,7 +4,7 @@
 | --- | --- | --- | --- | --- |
 | [AUD-001](AUD-001-2026-11-15.md) · [JSON](AUD-001-2026-11-15.json) | 2026-11-15 | `8081d010b8040483d3ede458f522fad0fa81c571` | Secret memory, process isolation and worker IPC | 22: 5 high, 11 medium, 6 low |
 | [AUD-002](AUD-002-2026-11-15.md) · [JSON](AUD-002-2026-11-15.json) | 2026-11-15 | `8081d010b8040483d3ede458f522fad0fa81c571` | Full crate security review with Linux runtime probes and six-target compilation | 6: 1 high, 3 medium, 2 low |
-| [AUD-015](AUD-015-2026-11-15.md) · [JSON](AUD-015-2026-11-15.json) | 2026-11-15 | Working tree on `fb2a6d345caf` | Verify 16 findings and five earlier partial fixes | Native Windows, macOS and Linux AArch64 pending |
+| [AUD-015](AUD-015-2026-11-15.md) · [JSON](AUD-015-2026-11-15.json) | 2026-11-15 | Working tree on `fb2a6d345caf` | Verify 16 findings and five earlier partial fixes | Native checks completed on `3d914c8`; see the follow-up below |
 
 Both reviews read the same commit at the same time, and both were first written as AUD-001, the second over the first. The first report is restored byte for byte: its SHA-256 is the one its own validation recorded. Its JSON companion was found afterwards and is the original too, with the SHA-256 that validation recorded; commit 22855bf holds a copy rebuilt from the report in its place. The second report became AUD-002 before publication: its identifiers and paths changed, nothing else.
 
@@ -155,4 +155,8 @@ AUD-013 found the same points: AUD-013-SEC001 stands as AUD-012-SEC001, and AUD-
 
 ## Verification of AUD-014 fixes
 
-[AUD-015](AUD-015-2026-11-15.md) and its [JSON companion](AUD-015-2026-11-15.json) record fixes to 16 findings and revisit five older partial verifications. The source manifest identifies the uncommitted revision. Native Windows, macOS and Linux AArch64 acceptance is pending.
+[AUD-015](AUD-015-2026-11-15.md) and its [JSON companion](AUD-015-2026-11-15.json) record fixes to 16 findings and revisit five older partial verifications. The source manifest identifies the original audit snapshot. Native acceptance for the corrected code completed on `3d914c82e0e5921f0c89dbfb4beb842e87662445`.
+
+Windows passed 41 checks. The strict AppContainer worker answered a public request. A separate process held an above-low impersonation token on a sibling while the primary token was low and its parent supplied the thread list. The integrity check refused the process. The handle-rights test confirmed that the launcher retains only synchronization and termination rights on the worker process. [Windows CI](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745335323/job/132907272414)
+
+macOS passed 44 checks, including descriptor cleanup before startup, cooperative shutdown and collection after a late exit. Linux x86-64 and ARM64 each ran 84 checks. Both hosted Linux runners refused creation of a second PID namespace. The nested lock-ownership check ran in full on local x86-64 Linux. Clippy passed on the host and all configured targets. Both RustSec jobs passed on the preceding revision with identical manifests and lockfiles. [Native CI](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745335323) · [RustSec](https://github.com/hobby-eng/secret-protection-core/actions/runs/43744780442) · [Linux coverage](../COVERAGE.md)

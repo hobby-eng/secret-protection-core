@@ -88,6 +88,6 @@ assert_eq!(secret.as_bytes(), b"public example");
 
 ## Tests and license
 
-Linux x86-64 line coverage was **95.07%** (2,468 of 2,596 measured lines) on 2026-11-15 at revision `a4fd4c5`. The run included the unit tests, all three integration programs and their workers. [Per-file coverage and platform scope](docs/COVERAGE.md).
+Linux x86-64 line coverage was **95.18%** (2,471 of 2,596 measured lines) on 2026-11-15 at revision `3d914c8`. The run included the unit tests, all three integration programs and their workers. [Per-file coverage and platform scope](docs/COVERAGE.md).
 
 Licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. [Third-party notices](THIRD_PARTY_NOTICES.md).

@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-15 covered **95.07%** (2,468 of 2,596 measured source lines). All 84 checks passed (33 unit · 20 isolation · 9 secret-memory · 22 worker).
+The Linux x86-64 run on 2026-11-15 covered **95.18%** (2,471 of 2,596 measured source lines). All 84 checks passed (33 unit · 20 isolation · 9 secret-memory · 22 worker).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov measured the source later committed as `a4fd4c5eed7d762018310bc18969dc6aa11b29c3`, before the Windows thread-list changes. The fingerprint of the measured inputs is `89ac61b27cd6a2cb87ad0266a6d97b07b6344540f574ab27d50056bd6f8660ad`. LLVM reported 11 functions have mismatched data. The previous measurement was 97.19% (2,281 of 2,347 lines) at `fb2a6d345caf8eb58097f013f12e43985402150f`. The two source trees have different denominators. [Verification record](audits/AUD-015-2026-11-15.md)
+Rust 1.99.1 and cargo-llvm-cov measured revision `3d914c82e0e5921f0c89dbfb4beb842e87662445`. The measured inputs have SHA-256 `5b126b808dbee3fdeaf228fd8b4155f4f5ebff87c64f4a1fe9189b881a645121`. LLVM reported mismatched profile data for 13 functions. The preceding measurement at `a4fd4c5` covered 2,468 of 2,596 lines (95.07%). [Earlier verification record](audits/AUD-015-2026-11-15.md)
 
 ## Scope and exclusions
 
@@ -44,4 +44,4 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/protect/closed.rs`   |           131 |            132 |   99.24% |
 | `src/protect/options.rs`  |           139 |            139 |  100.00% |
 | `src/stack.rs`            |            98 |             98 |  100.00% |
-| `src/worker.rs`           |           237 |            250 |   94.80% |
+| `src/worker.rs`           |           240 |            250 |   96.00% |
