@@ -7,11 +7,15 @@
 
 `secret-protection-core` is a Rust library for protecting passwords, API tokens and private keys from exposure in swap files and crash dumps, and from other processes trying to read them from memory. An application can keep a secret in a protected buffer or run sensitive work in a separate process and require specific OS protections before sending it any data.
 
-Only AI tools have reviewed the code for security. The project has not undergone an independent third-party security audit.
-
 The crate requires Rust 1.99 or later. Add it to `Cargo.toml` as a Git dependency pinned to a reviewed revision. See the [documentation index](docs/README.md).
 
-[Protected memory](#protected-memory) · [Process isolation](#process-isolation) · [Platform support](#platform-support)
+| Section                                 | Description                                                          |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| [Protected memory](#protected-memory)   | Keep passwords and keys in locked buffers and handle copies safely.  |
+| [Process isolation](#process-isolation) | Require OS restrictions before sending secrets to a worker.          |
+| [Platform support](#platform-support)   | Check the protections available on the target OS.                    |
+| [Security reviews](#security-reviews)   | See which findings were cross-checked and which fixes were retested. |
+| [License](#license)                     | Find the crate and dependency licenses.                              |
 
 ## Protected memory
 
@@ -41,6 +45,10 @@ A GUI can send individual keystrokes to a worker that holds the password in a `S
 | WebAssembly | Fixed-capacity heap buffers that wipe their own storage on drop. The browser controls paging and process isolation.                           |
 
 Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows. CI checks that the Android, iOS and WebAssembly targets compile. On 2026-11-15, all 84 checks passed on Linux x86-64 and covered **95.18%** of the measured source lines (2,471 of 2,596).
+
+## Security reviews
+
+AI reviewers cross-checked findings across multiple revisions and retested the fixes. The 15 published reports cover memory protection, worker isolation and platform-specific behavior. An independent human security audit is still outstanding. [Audit reports and fix history](docs/audits/README.md).
 
 ---
 
