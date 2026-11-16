@@ -9,17 +9,24 @@
 
 The crate requires Rust 1.99 or later. Add it to `Cargo.toml` as a Git dependency pinned to a reviewed revision. See the [documentation index](docs/README.md).
 
-| Section                                 | Description                                                          |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| [Protected memory](#protected-memory)   | Keep passwords and keys in locked buffers and handle copies safely.  |
-| [Process isolation](#process-isolation) | Require OS restrictions before sending secrets to a worker.          |
-| [Platform support](#platform-support)   | Check the protections available on the target OS.                    |
-| [Security reviews](#security-reviews)   | See which findings were cross-checked and which fixes were retested. |
-| [License](#license)                     | Find the crate and dependency licenses.                              |
-
 ## Protected memory
 
-Use `Secret` for a password or key and `WorkArea` for temporary storage, such as the memory used by a password hash. Both wipe their own storage on normal drop. If a password must stay out of swap, call `Secret::locked` before reading it. The call returns an error if the OS refuses the lock. Dump exclusion and inheritance across a Unix fork have separate checks.
+If an application reads a 32-byte key from a file, it can read directly into a locked buffer. The caller receives the buffer and can pass `key.as_slice()` to the operation that needs the key.
+
+```rust
+use secret_protection_core::WorkArea;
+use std::{error::Error, fs::File, io::Read, path::Path};
+
+fn load_key(path: &Path) -> Result<WorkArea, Box<dyn Error>> {
+    let mut key = WorkArea::locked(32)?;
+    File::open(path)?.read_exact(key.as_mut_slice())?;
+    Ok(key)
+}
+```
+
+If the OS refuses the lock, `load_key` returns before opening the file. A short read returns an error. The buffer wipes its storage when dropped, including on a read error. The key file on disk has its own lifetime.
+
+Use `WorkArea` for fixed-size data and `Secret` for input that grows up to a fixed capacity, such as a password. Locking keeps memory out of swap. If you also require dump exclusion or protection across a Unix fork, check those properties separately.
 
 `ClosedSecret` asks the OS to make the buffer inaccessible between uses. If closure is required, check `is_closed()` before storing the secret and after each use. On Unix, a computation can also run on a separate thread whose stack the library wipes after it exits. Avoid forking while that stack is active, and leave previously borrowed secret bytes unused in a continuing child.
 
@@ -48,7 +55,7 @@ Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows. CI checks 
 
 ## Security reviews
 
-AI reviewers cross-checked findings across multiple revisions and retested the fixes. The 15 published reports cover memory protection, worker isolation and platform-specific behavior. An independent human security audit is still outstanding. [Audit reports and fix history](docs/audits/README.md).
+AI reviewers cross-checked findings about memory protection and worker isolation across multiple revisions, then retested the fixes on the affected platforms. An independent human security audit is still outstanding. [Audit reports and fix history](docs/audits/README.md).
 
 ---
 

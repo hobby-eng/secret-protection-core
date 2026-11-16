@@ -17,7 +17,3 @@ A continuing Unix child must discard any references it borrowed before `fork`. A
 A worker trusts its launcher, its executable and the libraries loaded at startup. The parent checks the clean-start report, whole-process isolation and the process-wide protections it requires before sending an application request. On Windows the worker checks its threads' access controls and effective tokens using the lists supplied by the parent. If a standalone process cannot see its own thread list, it cannot confirm a protection that depends on that list. The report does not revoke a handle another process already has.
 
 Privileged debuggers, a compromised OS and malicious code already running inside the application are outside this boundary. A trusted GUI still sees the keystrokes it forwards. A Unix worker that reads directly from a terminal can keep the input out of the parent, provided the application also manages terminal echo. [Worker startup and input](docs/TECHNICAL.md#the-worker-process)
-
-## Reporting a problem
-
-The repository's issue tracker is public. Include the source revision, operating system, the protection or API involved, and the expected and observed result. Use invented input. If a dump, log or screenshot contains a real secret, leave it out of the report. [GitHub Issues](https://github.com/hobby-eng/secret-protection-core/issues)

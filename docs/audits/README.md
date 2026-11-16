@@ -1,6 +1,6 @@
 # Security audits
 
-All 15 reports were completed on 2026-11-15 (UTC). [Finding status and verification commits](HISTORY.md)
+Each report identifies the source revision it examined. The [fix history](HISTORY.md) tracks the status of each finding and its verification.
 
 | Report | Source reviewed | What the review found or verified |
 | --- | --- | --- |
