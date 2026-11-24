@@ -1,0 +1,1213 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-016",
+  "auditNumber": 16,
+  "date": "2026-11-24",
+  "title": "Four reviews of secret-protection-core 0.1.1 and their remediation",
+  "reviewer": {
+    "name": "Copilot; Claude (independent read-only agent); Gemini; Codex",
+    "model": null,
+    "reasoningEffort": null,
+    "reviews": [
+      {
+        "review": 1,
+        "name": "Copilot",
+        "note": "A Microsoft AI agent: a security review (16 min 48 s) and a code-quality assessment (34 min 59 s).",
+        "model": null,
+        "reasoningEffort": null,
+        "snapshot": "fcca0b2"
+      },
+      {
+        "review": 2,
+        "name": "Claude, independent read-only agent",
+        "model": "claude-opus-5-5",
+        "reasoningEffort": null,
+        "snapshot": "fcca0b2"
+      },
+      {
+        "review": 3,
+        "name": "Gemini",
+        "model": "gemini-4-hydrogen",
+        "reasoningEffort": "xhigh",
+        "note": "Three parallel reviews and a cross-check.",
+        "snapshot": "working tree on fcca0b2, manifest 022a7e4529e1e0bb5e4716301305ae3180f3bdbb10038a81114534037ed86340"
+      },
+      {
+        "review": 4,
+        "name": "Codex",
+        "model": "gpt-6.2-sol",
+        "reasoningEffort": null,
+        "completed": "2026-11-24T22:56:18Z",
+        "note": "Three scoped reviewers and a challenge pass; its report used the IDs AUD-017-..., kept as legacyId.",
+        "snapshot": "working tree on fcca0b2, 32 files, manifest e28a3dab96f7301ae0c7b7d59d6f129340ca13509033051d177ebb4090b7388b"
+      }
+    ]
+  },
+  "snapshot": {
+    "commit": "fcca0b234266163ab2d7e0fc8d5aa2a4a0f66940",
+    "commitComplete": true,
+    "tag": "v0.1.1",
+    "tree": "a4caa9a4f24a8f0a22236e7a2badabbbbfb084a4",
+    "workingTree": "Reviews 1 and 2 read the commit; review 3 read the working tree with the fixes for reviews 1 and 2 (manifest SHA-256 022a7e4529e1e0bb5e4716301305ae3180f3bdbb10038a81114534037ed86340).",
+    "sourceFingerprint": null
+  },
+  "scope": {
+    "repository": "secret-protection-core",
+    "reviewed": "Source, documentation, dependencies and workflows.",
+    "conversion": "Reviews 1 and 3 arrived as text, review 2 as its agent's report; finding IDs, categories and wording are this record's; severities as given.",
+    "procedureSha256": {
+      "AUDIT_STANDARD.md": "c43e25bbcbdd6d22d52a38f571a759f5b688af062b980c3adecd5326efc082ec",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    }
+  },
+  "checks": [
+    {
+      "id": "REVIEW-1",
+      "command": "static read-only review",
+      "outcome": "completed",
+      "evidence": "Six findings; nothing run."
+    },
+    {
+      "id": "REVIEW-2",
+      "command": "static read-only review of unsafe and FFI code and the rest",
+      "outcome": "completed",
+      "evidence": "Seven findings; lengths, alignment, join before wipe, drop order, access-list and token parsing found correct."
+    },
+    {
+      "id": "REVIEW-3",
+      "command": "manifest check; cargo fmt --check (both workspaces); dprint check; cargo clippy --locked --all-targets -D warnings on the host and five targets, and the fuzz bins; cargo test --locked",
+      "outcome": "passed",
+      "evidence": "26 of 26 files; every command exit 0; 87 of 87 tests."
+    },
+    {
+      "id": "REVIEW-4",
+      "command": "cargo fmt --check (both); dprint check; cargo clippy on six targets and the fuzz bins; notices check; cargo test --locked; cargo audit on both lockfiles; cargo package --list; coverage; cargo zigbuild --tests",
+      "outcome": "passed",
+      "evidence": "87 of 87 tests; no advisory (database 1d328b6b, 2026-11-24); coverage 2,659 of 2,794 lines (95.17%); the plain GNU Windows link lacked dlltool, Zig linked."
+    },
+    {
+      "id": "REMEDIATION",
+      "command": "cargo clippy on six targets and the fuzz bins; cargo test --locked; notices check against cargo tree; cargo zigbuild --tests for x86_64-pc-windows-gnu",
+      "outcome": "passed",
+      "evidence": "Clean on every target; 87 of 87 tests on Linux x86-64; the Windows test programs link."
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-016-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A same-user process can open the Windows worker before its access lists are set",
+      "severity": "high",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        "src/os/windows/worker.rs:406",
+        "src/os/windows.rs:330"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Start a worker on Windows; from another process of the same user, call OpenProcess with PROCESS_VM_READ on it before it isolates itself.",
+      "expected": "No process other than the parent can open the worker for memory access at any time.",
+      "observed": "CreateProcessW received null security attributes; the restricted list came later, and a new list does not revoke an open handle.",
+      "impact": "The other process keeps PROCESS_VM_READ and reads the worker's memory, the secret included.",
+      "recommendedFix": "Create the worker with its access lists, or suspended and restricted before it runs.",
+      "requiredVerification": "A native Windows test that opens the new process for memory reading and is refused.",
+      "reviewerConfidence": "8/10"
+    },
+    {
+      "id": "AUD-016-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A macOS terminal worker can type into the user's shell and change other terminals",
+      "severity": "high",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/apple.rs:60-68",
+        "src/worker.rs:288-290",
+        "src/os/unix.rs:375-383"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "From compromised code in a terminal worker on macOS, call ioctl(TIOCSTI) on the terminal, or open another /dev/ttysN for writing or chmod it.",
+      "expected": "A sandboxed worker cannot make anything outside the sandbox run and cannot change other terminals.",
+      "observed": "The profile granted file-write* and file-ioctl on every terminal; the terminal worker kept its controlling terminal and an inherited standard error.",
+      "impact": "A command typed into the user's shell runs outside the sandbox after the program exits; fake prompts and mode changes on other terminals.",
+      "recommendedFix": "No controlling terminal for any worker; the terminal descriptor only; data writes and ioctls on the own terminal's path only.",
+      "requiredVerification": "TIOCSTI from a worker on a pseudo-terminal is refused and no input arrives."
+    },
+    {
+      "id": "AUD-016-SEC003",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux enters the user namespace before it forbids reading its memory",
+      "severity": "high",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/linux.rs:240-252"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "While a process isolates itself, keep opening /proc/<pid>/mem from another process of the user with ptrace_scope=1.",
+      "expected": "No other process of the user can open the memory at any point of the isolation.",
+      "observed": "unshare(CLONE_NEWUSER) ran before PR_SET_DUMPABLE 0; in the user's own namespace every process of the user holds CAP_SYS_PTRACE, which passes Yama.",
+      "impact": "The other process keeps a descriptor to the memory while NoMemoryReading reads Confirmed.",
+      "recommendedFix": "Clear the dumpable flag and the core limit before the namespace step.",
+      "requiredVerification": "The isolation clears the flag before unshare."
+    },
+    {
+      "id": "AUD-016-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "Worker start and calls can block without end",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        "src/worker.rs:60-64",
+        "src/worker.rs:109-120",
+        "src/worker.rs:129-186"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Start a worker whose start stalls, or call one whose handler never returns.",
+      "expected": "The caller can bound the wait and get control back.",
+      "observed": "No deadline and no cancellation.",
+      "impact": "The calling thread hangs; no secret leaves the worker.",
+      "recommendedFix": "Deadlines with one clear lifecycle.",
+      "requiredVerification": "A call past its deadline fails in bounded time and leaves no usable worker.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "enter_requiring accepts protection confirmed for one thread",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        "src/protect.rs:324-355",
+        "docs/API.md:153-177"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Call Isolation::enter_requiring with a protection confirmed only for the calling thread.",
+      "expected": "A caller can require every thread without reading each measure.",
+      "observed": "A thread-scoped Confirmed outcome passes.",
+      "impact": "A caller can believe a restriction covers the process when it covers one thread.",
+      "recommendedFix": "A fail-closed variant such as enter_requiring_process_wide.",
+      "requiredVerification": "A thread-scoped outcome fails the process-wide rule.",
+      "reviewerConfidence": "8/10"
+    },
+    {
+      "id": "AUD-016-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "A release does not wait for the full test matrix, fuzzing and the advisory check",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        ".github/workflows/release.yml:3-57",
+        ".github/workflows/ci.yml:5-9"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Push a release tag.",
+      "expected": "Packaging waits for the native tests, fuzzing and RustSec on the tagged commit.",
+      "observed": "Packaging ran independently of them.",
+      "impact": "The attestation proves origin, not acceptance on the supported platforms.",
+      "recommendedFix": "Make the release depend on the full acceptance matrix and the advisory check.",
+      "requiredVerification": "The packaging job needs the test, audit and fuzz jobs.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-SEC004",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "SignalsToSelfOnly passes signals sent through fcntl ownership",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:265-282"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "With signals_to_self_only, set F_SETOWN or F_SETOWN_EX to another process and O_ASYNC on a descriptor.",
+      "expected": "No signal reaches another process.",
+      "observed": "The kernel signals any process or group of the user; sigio_perm checks only user IDs.",
+      "impact": "Another process of the user can be killed.",
+      "recommendedFix": "Refuse fcntl commands 8 and 15 with the option.",
+      "requiredVerification": "Both commands are refused with EACCES under the option."
+    },
+    {
+      "id": "AUD-016-API005",
+      "category": "API",
+      "kind": "finding",
+      "title": "A deadline can be lost: an unrepresentable one and the Unix launch wait",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "src/worker.rs:88-98",
+        "src/worker.rs:170-177",
+        "src/os/unix.rs:312"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Call start_within or call_within with Duration::MAX, or let posix_spawn stall under start_within on Unix.",
+      "expected": "The deadline bounds every wait, or the contract says where it does not.",
+      "observed": "checked_add gives no deadline for an unrepresentable Duration; the Unix launch ignored the deadline.",
+      "impact": "A caller can wait longer than the deadline it gave.",
+      "recommendedFix": "Bound or refuse such a Duration and the launch wait, or document them.",
+      "requiredVerification": "A start with a zero deadline fails with TimedOut; the documentation states the unrepresentable case.",
+      "reviewerConfidence": "10/10"
+    },
+    {
+      "id": "AUD-016-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The README describes the terminal worker, installation and coverage wrongly",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "README.md:10",
+        "README.md:46",
+        "README.md:61",
+        "docs/COVERAGE.md"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Read the README against the code.",
+      "expected": "The README matches the code and links its evidence.",
+      "observed": "It promised a controlling terminal, named only a Git dependency and gave coverage without its revision and report.",
+      "impact": "Readers rely on behaviour the crate no longer has.",
+      "recommendedFix": "Bring the README in line (DOC-06 to DOC-09).",
+      "requiredVerification": "The README matches the code.",
+      "reviewerConfidence": "10/10"
+    },
+    {
+      "id": "AUD-016-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Third-party notices name older versions than the lockfile",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        "THIRD_PARTY_NOTICES.md:3-10",
+        "Cargo.lock"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Compare the notices with Cargo.lock.",
+      "expected": "The notices name the locked versions.",
+      "observed": "They named zeroize 1.9.1 and landlock 0.4.7; the lock holds 1.9.2 and 0.4.8.",
+      "impact": "An inaccurate dependency inventory.",
+      "recommendedFix": "Update the notices and check them.",
+      "requiredVerification": "CI compares the notices with the dependency tree.",
+      "reviewerConfidence": "10/10"
+    },
+    {
+      "id": "AUD-016-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Compatible version ranges can resolve to untested versions",
+      "severity": "low",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 1"
+      ],
+      "files": [
+        "Cargo.toml:10-26"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Build a program with a newer release of one of the dependencies.",
+      "expected": "The program uses the tested versions.",
+      "observed": "Compatible ranges let a program resolve newer releases than the tested Cargo.lock.",
+      "impact": "Untested dependency versions at run time.",
+      "recommendedFix": "Document the ranges and the tested lockfile.",
+      "requiredVerification": "The documentation names the tested lockfile.",
+      "reviewerConfidence": "8/10"
+    },
+    {
+      "id": "AUD-016-SEC005",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "FileLocksRefused leaves leases open",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:185"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "With refuse_file_locks, call fcntl(F_SETLEASE).",
+      "expected": "Leases are refused as locks are.",
+      "observed": "F_SETLEASE was allowed.",
+      "impact": "A one-bit channel through /proc/locks and stalled opens.",
+      "recommendedFix": "Refuse F_SETLEASE with the option.",
+      "requiredVerification": "Refused with EACCES under the option."
+    },
+    {
+      "id": "AUD-016-SEC006",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The filter allows calls that act on other processes",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:1-5"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "After isolation, call prlimit64, setpriority, sched_setaffinity, ioprio_set or move_pages on another process of the user.",
+      "expected": "Calls on other processes are refused, as the filter's description says.",
+      "observed": "They stayed allowed; PR_SET_NAME sets a name anyone reads.",
+      "impact": "Raised core limits of another process, renicing, page-residency probes.",
+      "recommendedFix": "Check the process argument or narrow the description.",
+      "requiredVerification": "Calls on another process are refused and those on the process itself work."
+    },
+    {
+      "id": "AUD-016-SEC007",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The kernel can copy secret pages and free the old ones unwiped",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/unix.rs:74-81",
+        "src/os/unix.rs:771"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Let khugepaged collapse a work area or stack, or compaction move locked pages.",
+      "expected": "Secret pages are not copied behind the program's back, or the residue is documented.",
+      "observed": "Work areas and stacks lacked MADV_NOHUGEPAGE; compaction moves locked pages by default.",
+      "impact": "Old copies of secret bytes in freed pages.",
+      "recommendedFix": "Small pages for stacks; document the residue; recommend init_on_free=1.",
+      "requiredVerification": "Stacks ask for small pages; the residue is documented."
+    },
+    {
+      "id": "AUD-016-SEC008",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A worker is started from the program path, looked up again",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/unix.rs:263",
+        "src/os/windows/worker.rs:48"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Replace the program file while the program runs, then start a worker.",
+      "expected": "A worker runs the same program as its parent.",
+      "observed": "The path was looked up at each start.",
+      "impact": "A replaced file receives the secrets.",
+      "recommendedFix": "On Linux, start /proc/self/exe.",
+      "requiredVerification": "Linux starts /proc/self/exe; the documentation names the other systems."
+    },
+    {
+      "id": "AUD-016-SEC010",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The macOS sandbox grants /dev/tty to a process without a terminal",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "src/os/apple.rs:62-63"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Isolate a process on macOS whose standard streams are redirected but which keeps a controlling terminal.",
+      "expected": "A process without a terminal among its streams gets no terminal rule.",
+      "observed": "profile() always allowed /dev/tty.",
+      "impact": "TIOCSTI through /dev/tty stays possible.",
+      "recommendedFix": "Add /dev/tty only with an own terminal.",
+      "requiredVerification": "The profile has no terminal rule without one.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-API004",
+      "category": "API",
+      "kind": "finding",
+      "title": "Public fields of Isolation can drift from its outcomes",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2",
+        "review 3"
+      ],
+      "files": [
+        "src/protect.rs:285-330"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Change a public bool field of an Isolation.",
+      "expected": "Fields and outcomes agree.",
+      "observed": "has and require read the outcomes, not the fields.",
+      "impact": "A caller reading a changed field sees another state than the checks.",
+      "recommendedFix": "Read-only accessors.",
+      "requiredVerification": "The documentation states that the fields are a copy and no check reads them.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-ARC001",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Two files exceed 800 lines of code (CORE-15)",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "src/os/unix.rs",
+        "tests/worker.rs"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Count the lines of code.",
+      "expected": "At most 800 per file, or an exception with its reason.",
+      "observed": "810 and 887 lines of code.",
+      "impact": "Harder review.",
+      "recommendedFix": "Split by responsibility.",
+      "requiredVerification": "Both files are under 800 lines of code.",
+      "reviewerConfidence": "10/10"
+    },
+    {
+      "id": "AUD-016-ARC002",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Duplicated declarations and a descriptor parsed again per thread (CORE-10)",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "src/os/linux.rs:101-107",
+        "src/os/linux.rs:198",
+        "src/os/windows.rs:536-560",
+        "src/os/windows.rs:648"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Read the declarations and the Windows thread walk.",
+      "expected": "One source for each declaration; work done once.",
+      "observed": "Two pthread_atfork declarations, the page size read twice, two descriptor wrappers, SDDL parsed per thread.",
+      "impact": "Divergence risk and repeated work.",
+      "recommendedFix": "Unify them.",
+      "requiredVerification": "One of each; one parse per walk.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-BLD003",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The fuzz dependency is not pinned, the notices check misses cases, fuzzing ignores the lockfile",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "fuzz/Cargo.toml:10",
+        ".github/workflows/ci.yml:31-37",
+        ".github/workflows/release.yml:34"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Read the fuzz manifest, the notices check and the release fuzz step.",
+      "expected": "Exact pins, a complete check, the lockfile kept.",
+      "observed": "A range for libfuzzer-sys; a second version on one line and missing packages pass the check; cargo fuzz run has no --locked.",
+      "impact": "Unreviewed tool versions; stale notices.",
+      "recommendedFix": "Pin exactly, check both directions, check the lockfile.",
+      "requiredVerification": "All three in place.",
+      "reviewerConfidence": "10/10"
+    },
+    {
+      "id": "AUD-016-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "Tests miss the start deadline, the process-wide entry, several filter rules and macOS terminals",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "tests/worker.rs:883",
+        "tests/isolation/linux.rs:359-400"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Read the tests.",
+      "expected": "Each new contract has a test.",
+      "observed": "No test of start_within timing out, enter_requiring_process_wide, migrate_pages, get_robust_list, sched_set*, or other terminals on macOS.",
+      "impact": "A regression in these paths would pass CI.",
+      "recommendedFix": "Add the tests.",
+      "requiredVerification": "The tests exist and pass where they run.",
+      "reviewerConfidence": "9/10"
+    },
+    {
+      "id": "AUD-016-SEC011",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux enters a user namespace after an unconfirmed dumpable change",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/linux.rs:230",
+        "src/os/linux.rs:269",
+        "src/os/linux.rs:637"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Non-dumpable confirmed before the namespace step.",
+      "observed": "The prctl answer was discarded before unshare.",
+      "impact": "Under a policy refusing the prctl, a same-user process could gain inspection rights in the namespace.",
+      "recommendedFix": "Enter only after a read-back of the cleared flag.",
+      "requiredVerification": "The namespace step depends on the read-back.",
+      "legacyId": "AUD-017-SEC001"
+    },
+    {
+      "id": "AUD-016-SEC012",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The signal option leaves asynchronous terminal signalling outside its check",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:200",
+        "src/os/linux/seccomp.rs:272"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Kernel-mediated notifications stay within the process.",
+      "observed": "O_ASYNC on a terminal makes its foreground group the owner by itself.",
+      "impact": "Another process group is signalled while SignalsToSelfOnly reads Confirmed.",
+      "recommendedFix": "Refuse new asynchronous notification with the option.",
+      "requiredVerification": "F_SETSIG and F_SETFL with O_ASYNC refused; tested.",
+      "legacyId": "AUD-017-SEC002"
+    },
+    {
+      "id": "AUD-016-API006",
+      "category": "API",
+      "kind": "finding",
+      "title": "Windows can accept or wait for a worker past its deadline",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/worker.rs:75",
+        "src/os/windows/worker.rs:44",
+        "src/os/windows/worker.rs:194",
+        "src/os/windows/worker.rs:317"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "The deadline covers the named phases; no late success.",
+      "observed": "Launch calls ran before the check; the watchdog decided by its channel.",
+      "impact": "Late success or a longer wait than promised.",
+      "recommendedFix": "Check expiry before and after; decide by completion time.",
+      "requiredVerification": "Clock-based decision in within; checks around the launch; narrowed contract.",
+      "legacyId": "AUD-017-API001"
+    },
+    {
+      "id": "AUD-016-API007",
+      "category": "API",
+      "kind": "finding",
+      "title": "A late Unix launch can leave the child and its waiter alive",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/unix/worker.rs:72",
+        "src/os/unix/worker.rs:78",
+        "src/os/unix/worker.rs:91"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "An abandoned launch is cleaned up.",
+      "observed": "The launcher waited without ending the child.",
+      "impact": "A stalled worker and its waiter stay alive.",
+      "recommendedFix": "End the abandoned child through a stable handle.",
+      "requiredVerification": "The launcher terminates a child whose start gave up.",
+      "legacyId": "AUD-017-API002"
+    },
+    {
+      "id": "AUD-016-SEC013",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The file lock option leaves delegated leases available",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:197"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Delegations refused with locks.",
+      "observed": "F_SETDELEG was allowed.",
+      "impact": "A delegated lease while FileLocksRefused reads Confirmed.",
+      "recommendedFix": "Refuse F_SETDELEG.",
+      "requiredVerification": "Refused with EACCES; tested.",
+      "legacyId": "AUD-017-SEC003"
+    },
+    {
+      "id": "AUD-016-SEC014",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A child of fork keeps the installer's process number in the process rules",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/linux/seccomp.rs:310",
+        "docs/TECHNICAL.md:61"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Self-only across fork.",
+      "observed": "The installer's number was allowed.",
+      "impact": "A forked child can act on its parent.",
+      "recommendedFix": "Allow only 0.",
+      "requiredVerification": "A number is refused; 0 works; tested.",
+      "legacyId": "AUD-017-SEC004"
+    },
+    {
+      "id": "AUD-016-SEC015",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The macOS read rule does not exclude every terminal device",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "src/os/apple.rs:74",
+        "src/os/apple.rs:84"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Reads exclude terminal devices but the own one.",
+      "observed": "Only /dev/ttysN was excluded.",
+      "impact": "Reading /dev/tty or other terminal devices.",
+      "recommendedFix": "Exclude every terminal device name.",
+      "requiredVerification": "tty, pty, cu. and console names excluded.",
+      "legacyId": "AUD-017-SEC005"
+    },
+    {
+      "id": "AUD-016-BLD004",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The release checks the fuzz lockfile before a run that can change it",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        ".github/workflows/release.yml:34"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Fuzz results refer to the checked-in graph.",
+      "observed": "No check after cargo-fuzz ran.",
+      "impact": "A changed graph could pass.",
+      "recommendedFix": "Check the lockfile after the runs.",
+      "requiredVerification": "git diff --exit-code after fuzzing.",
+      "legacyId": "AUD-017-BLD001"
+    },
+    {
+      "id": "AUD-016-BLD005",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The notices check compares partial version strings",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        ".github/workflows/ci.yml:38"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "Exact name and version pairs both ways.",
+      "observed": "Substring and numeric-triple matching.",
+      "impact": "A wrong suffix could pass.",
+      "recommendedFix": "Compare complete pairs.",
+      "requiredVerification": "Equal sorted pair lists required.",
+      "legacyId": "AUD-017-BLD002"
+    },
+    {
+      "id": "AUD-016-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The package verification example checks no source commit",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "docs/API.md:30",
+        "docs/API.md:36"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "The example pins the commit.",
+      "observed": "No --source-digest.",
+      "impact": "The tag name alone is checked.",
+      "recommendedFix": "Add --source-digest.",
+      "requiredVerification": "The example has it.",
+      "legacyId": "AUD-017-DOC001"
+    },
+    {
+      "id": "AUD-016-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The security policy omits the Windows console boundary",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 4"
+      ],
+      "files": [
+        "SECURITY.md:21"
+      ],
+      "evidence": "Static reading by review 4 at its snapshot, with its checks; no exploit was run.",
+      "reproduction": "See the finding in review 4.",
+      "expected": "The policy names the console authority a process keeps.",
+      "observed": "It did not.",
+      "impact": "Callers may expect console input to be refused.",
+      "recommendedFix": "Document it.",
+      "requiredVerification": "SECURITY.md names it.",
+      "legacyId": "AUD-017-DOC002"
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-016-SEC009",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "The Windows lock of closed pages is unverified",
+      "severity": null,
+      "status": "open",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2"
+      ],
+      "files": [
+        "src/os/windows.rs:94",
+        "src/os/windows.rs:181-201"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Close a locked ClosedSecret on Windows and read its working-set flags.",
+      "expected": "Its pages stay locked while closed.",
+      "observed": "Undocumented whether VirtualLock survives VirtualProtect(PAGE_NOACCESS).",
+      "impact": "Closed secret pages could be paged out.",
+      "recommendedFix": "Check with QueryWorkingSetEx.",
+      "requiredVerification": "A native Windows test of the flags."
+    },
+    {
+      "id": "AUD-016-API003",
+      "category": "API",
+      "kind": "observation",
+      "title": "A new Secret for every frame",
+      "severity": "info",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 2",
+        "review 3"
+      ],
+      "files": [
+        "src/worker.rs:185",
+        "src/worker.rs:312"
+      ],
+      "evidence": "Static reading by the reviewer; no code was run.",
+      "reproduction": "Exchange one frame per keystroke.",
+      "expected": "Frames cost little.",
+      "observed": "Both sides made a new Secret per frame.",
+      "impact": "System calls and a TLB flush per frame.",
+      "recommendedFix": "Reuse the worker's request buffer.",
+      "requiredVerification": "The worker reuses one wiped buffer."
+    },
+    {
+      "id": "AUD-016-ARC003",
+      "category": "ARC",
+      "kind": "observation",
+      "title": "A watchdog thread for every Windows read and write",
+      "severity": "info",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "reportedBy": [
+        "review 3"
+      ],
+      "files": [
+        "src/os/windows/worker.rs:159-185"
+      ],
+      "evidence": "Static reading by the reviewer at its snapshot, with the checks of review 3.",
+      "reproduction": "Call call_within on Windows.",
+      "expected": "One watchdog per call.",
+      "observed": "Four threads per call.",
+      "impact": "Thread setup per operation.",
+      "recommendedFix": "One watchdog per exchange.",
+      "requiredVerification": "One watchdog per call and per start."
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-016-SEC001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC002",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC003",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API002",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-BLD001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC004",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API005",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-DOC002",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-DOC001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-BLD002",
+      "status": "accepted",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Accepted: compatible ranges let a program share these dependencies; reviews 2 and 3 agree; docs/API.md names the tested lockfile."
+    },
+    {
+      "id": "AUD-016-SEC005",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC006",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC007",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC008",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC010",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API004",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-ARC001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-ARC002",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-BLD003",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-FUN001",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC011",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC012",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API006",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-API007",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC013",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC014",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC015",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-BLD004",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-BLD005",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-DOC003",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-DOC004",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-SEC009",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "A Windows regression test reads the working-set flags of a closed secret; only a native run decides."
+    },
+    {
+      "id": "AUD-016-API003",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    },
+    {
+      "id": "AUD-016-ARC003",
+      "status": "fixed",
+      "fixCommit": "74bd18969ea85788ad05efbea8f5499d215eabb6",
+      "verificationCommit": null,
+      "evidence": "Fixed in 74bd189; verification pending: an independent check of the commit and the native runs."
+    }
+  ],
+  "reviewerAssessment": {
+    "review1": {
+      "scores": {
+        "architecture and public API": 8.0,
+        "ownership and wiping of secrets": 9.0,
+        "unsafe and FFI": 7.5,
+        "algorithms and resource use": 8.5,
+        "error handling": 8.0,
+        "tests": 8.5,
+        "documentation": 8.0,
+        "CI and release integrity": 6.5,
+        "production readiness": 5.5
+      }
+    },
+    "review3": {
+      "scores": {
+        "memory and secret safety": 9.0,
+        "architecture and coding rules": 8.0,
+        "efficiency": 7.0,
+        "tests, CI and documentation": 7.5
+      }
+    },
+    "unusualButExplained": [
+      "private prctl marker of the seccomp filter",
+      "a page wiped in a child of fork for one flag",
+      "registration before main",
+      "thread lists a Windows parent sends its worker",
+      "fixed Linux 7.0 system-call table"
+    ]
+  },
+  "limitations": [
+    "Reviews 1 and 2 were static; none of their findings was reproduced by running code before the fixes.",
+    "Review 3 checked one snapshot of the remediation; its own findings were fixed after it.",
+    "Not run: Windows and macOS tests, Android, iOS and WebAssembly at run time, cargo audit, a new coverage measurement."
+  ]
+}
