@@ -8,7 +8,7 @@ publish = false
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "=0.4.10"
+libfuzzer-sys = "0.4.10"
 secret-protection-core = { path = ".." }
 
 # The text a worker finds in its setting variable, which whoever starts the program writes.

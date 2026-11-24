@@ -16,22 +16,24 @@ All application-facing types and functions are exported from the crate root, `se
 
 ## Add the dependency
 
-The crate is distributed through Git. This example selects the signed release tag for version 0.1.0. The crate requires Rust 1.99 or newer and uses the 2024 edition.
+The crate is published on crates.io. It requires Rust 1.99 or newer and uses the 2024 edition.
 
 ```toml
 [dependencies]
-secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", tag = "v0.1.0" }
+secret-protection-core = "0.1.1"
 ```
+
+The signed release tag works as a source too: `secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", tag = "v0.1.1" }`.
 
 For a local checkout, use `secret-protection-core = { path = "../secret-protection-core" }` in the same table. Import types and functions with `use secret_protection_core::{...};`.
 
-To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.0](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.0)
+To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.1](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.1) The package on crates.io is the same file, so its SHA-256 matches the release's.
 
 ```sh
-gh attestation verify secret-protection-core-0.1.0.crate \
+gh attestation verify secret-protection-core-0.1.1.crate \
   --repo hobby-eng/secret-protection-core \
   --signer-workflow hobby-eng/secret-protection-core/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.1.0
+  --source-ref refs/tags/v0.1.1
 ```
 
 ## Choose a buffer

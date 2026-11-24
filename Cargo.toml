@@ -1,31 +1,29 @@
 [package]
 name = "secret-protection-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.99"
 description = "Wipe-on-drop buffers, platform-specific memory protection and isolated worker processes for handling secrets"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hobby-eng/secret-protection-core"
-# Not published to crates.io.
-publish = false
 
 [dependencies]
 # Wiping secret bytes with writes the compiler keeps.
-zeroize = "=1.9.1"
+zeroize = "1.9.2"
 
 # Pages, locking, advice to the kernel, the core-dump limit, seccomp, Landlock and the sandbox.
 [target.'cfg(unix)'.dependencies]
-libc = "=0.2.191"
+libc = "0.2.191"
 
 # The Landlock layer, written by the Landlock project: every right of each ABI, and what an older
 # kernel leaves out.
 [target.'cfg(target_os = "linux")'.dependencies]
-landlock = "=0.4.7"
+landlock = "0.4.8"
 
 # Pages, locking and the working set, error-report exclusion, the access lists of the process and
 # its threads, token integrity and console output.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "=0.61.2", features = [
+windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",
   "Win32_System_Memory",
   "Win32_System_ErrorReporting",
@@ -49,7 +47,7 @@ windows-sys = { version = "=0.61.2", features = [
 
 # The tests read the working set of the secret pages (QueryWorkingSetEx).
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "=0.61.2", features = [
+windows-sys = { version = "0.61.2", features = [
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_ProcessStatus",
   "Wdk_Foundation",

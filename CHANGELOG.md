@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-11-24)
+
+- Dependencies take compatible version ranges instead of exact versions, so a program that also needs a newer libc, zeroize, landlock or windows-sys builds with this crate. `Cargo.lock` keeps the versions the crate is tested with: zeroize 1.9.2 and landlock 0.4.8, the rest unchanged. The public interface is the same as in 0.1.0.
+- The package on crates.io is the file the signed GitHub release attests.
+
 ## 0.1.0 (2026-11-15)
 
 ### Memory and input
