@@ -17,7 +17,8 @@ pub enum ChannelKind {
     Device,
     /// A directory.
     Directory,
-    /// Something else, such as an event counter.
+    /// Something else, such as an event counter or an `io_uring` ring, which keeps running
+    /// requests after isolation.
     Other,
     /// It could not be examined.
     Unknown,

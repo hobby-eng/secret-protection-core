@@ -33,6 +33,9 @@ const REFUSED_CALLS: &[libc::c_long] = &[
     libc::SYS_ptrace,
     libc::SYS_process_vm_writev,
     libc::SYS_pidfd_getfd,
+    libc::SYS_kcmp,
+    libc::SYS_process_madvise,
+    libc::SYS_ioprio_set,
     libc::SYS_open_by_handle_at,
     // Linux on riscv64 and loongarch64 has no renameat, and no filter.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -156,6 +159,16 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
                 "{isolation:?}"
             );
             assert!(!isolation.whole_process && !isolation.empty_network);
+            // Confirmed for this thread alone: the rule for every thread refuses it, and says why.
+            let wide = isolation
+                .require_process_wide(&[secret_protection_core::Protection::NoNewSockets])
+                .unwrap_err();
+            for missing in [
+                secret_protection_core::Protection::WholeProcess,
+                secret_protection_core::Protection::NoNewSockets,
+            ] {
+                assert!(wide.missing.contains(&missing), "{:?}", wide.missing);
+            }
             // A thread it starts holds its filter, which a further call finds although the
             // process has other threads: no filter is added.
             let filters = super::seccomp_filters();
@@ -166,6 +179,7 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
                 });
             });
             calls_are_refused(idle.id());
+            other_processes_are_out_of_reach(idle.id());
             connecting_is_refused(&unconnected, listener.local_addr().unwrap().port());
             abstract_connecting_is_refused(&unix_unconnected, &name);
             sockets_opened_before_keep_only_their_connection(
@@ -179,6 +193,7 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
             speculation_is_limited_as_reported(isolation);
             files_stay_as_they_are(&folder, &file);
             what_a_secret_command_needs_still_works(&terminal, secret_memory);
+            the_terminal_takes_no_typed_input(&terminal);
         });
     });
     // The rest of the process is not isolated.
@@ -276,9 +291,44 @@ pub(super) fn options_add_one_filter_at_most() {
                 assert_eq!(error_of(sent), Some(libc::EACCES));
             }
             let file = File::open("/dev/null").unwrap();
-            // SAFETY: flock takes a descriptor and touches no memory.
-            let locked = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-            assert_eq!(error_of(locked.into()), Some(libc::EACCES));
+            // SAFETY: flock and fcntl take a descriptor and integers, or a struct that lives
+            // for the call, and the filter refuses them before the kernel reads it.
+            unsafe {
+                let locked = libc::flock(file.as_raw_fd(), libc::LOCK_EX);
+                assert_eq!(error_of(locked.into()), Some(libc::EACCES));
+                // A lease is a lock that other processes see and wait for.
+                let leased = libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK);
+                assert_eq!(error_of(leased.into()), Some(libc::EACCES), "F_SETLEASE");
+                // An owner of the descriptor would get its signals, whatever process it is.
+                let owner = libc::fcntl(file.as_raw_fd(), libc::F_SETOWN, libc::getppid());
+                assert_eq!(error_of(owner.into()), Some(libc::EACCES), "F_SETOWN");
+                // `struct f_owner_ex`, F_OWNER_PID and F_SETOWN_EX of linux/fcntl.h, which
+                // libc 0.2.191 lacks.
+                #[repr(C)]
+                struct OwnerEx {
+                    kind: libc::c_int,
+                    pid: libc::pid_t,
+                }
+                let named = OwnerEx {
+                    kind: 1,
+                    pid: libc::getppid(),
+                };
+                let owner = libc::fcntl(file.as_raw_fd(), 15, &raw const named);
+                assert_eq!(error_of(owner.into()), Some(libc::EACCES), "F_SETOWN_EX");
+                // F_SETSIG, and O_ASYNC, with which a terminal names its foreground group itself;
+                // other flags still change.
+                // F_SETSIG is 10; libc 0.2.191 names it on few systems.
+                let signal = libc::fcntl(file.as_raw_fd(), 10, libc::SIGIO);
+                assert_eq!(error_of(signal.into()), Some(libc::EACCES), "F_SETSIG");
+                let flags = libc::fcntl(file.as_raw_fd(), libc::F_GETFL);
+                let made = libc::fcntl(file.as_raw_fd(), libc::F_SETFL, flags | libc::O_ASYNC);
+                assert_eq!(error_of(made.into()), Some(libc::EACCES), "O_ASYNC");
+                let plain = libc::fcntl(file.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK);
+                assert_eq!(plain, 0, "O_NONBLOCK");
+                // F_SETDELEG of Linux 7.0, a delegated lease, which libc 0.2.191 lacks.
+                let delegated = libc::fcntl(file.as_raw_fd(), 1040, 0);
+                assert_eq!(error_of(delegated.into()), Some(libc::EACCES), "F_SETDELEG");
+            }
             // The strict mode names what it lacks.
             let missing =
                 Isolation::enter_requiring(Options::new(), &[Protection::MicrosoftSignedOnly]);
@@ -286,6 +336,38 @@ pub(super) fn options_add_one_filter_at_most() {
                 missing.map_err(|error| error.missing),
                 Err(vec![Protection::MicrosoftSignedOnly])
             );
+        });
+    });
+}
+
+/// With the signal option alone, the fcntl rule refuses owners, F_SETSIG and O_ASYNC, and lets
+/// locks and other flags through, which only the lock option would refuse.
+pub(super) fn the_signal_option_alone_refuses_owners_and_async() {
+    use secret_protection_core::Options;
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let own = Isolation::enter_with(Options::new().signals_to_self_only());
+            assert!(
+                own.signals_to_self_only && !own.file_locks_refused,
+                "{own:?}"
+            );
+            let file = File::open("/dev/null").unwrap();
+            let fd = file.as_raw_fd();
+            // SAFETY: fcntl and flock take a descriptor and integers.
+            unsafe {
+                let owner = libc::fcntl(fd, libc::F_SETOWN, libc::getppid());
+                assert_eq!(error_of(owner.into()), Some(libc::EACCES), "F_SETOWN");
+                // F_SETSIG is 10; libc 0.2.191 names it on few systems.
+                assert_eq!(
+                    error_of(libc::fcntl(fd, 10, libc::SIGIO).into()),
+                    Some(libc::EACCES)
+                );
+                let flags = libc::fcntl(fd, libc::F_GETFL);
+                let made = libc::fcntl(fd, libc::F_SETFL, flags | libc::O_ASYNC);
+                assert_eq!(error_of(made.into()), Some(libc::EACCES), "O_ASYNC");
+                assert_eq!(libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK), 0);
+                assert_eq!(libc::flock(fd, libc::LOCK_SH), 0, "flock");
+            }
         });
     });
 }
@@ -368,6 +450,81 @@ fn calls_are_refused(idle: u32) {
         let result = unsafe { libc::syscall(number, -1_i64, 0_i64, 0_i64, 0_i64) };
         assert_eq!(error_of(result), Some(libc::ENOSYS), "call {number}");
     }
+}
+
+/// Limits, scheduling and pages of another process are refused; this process's own stay open.
+fn other_processes_are_out_of_reach(idle: u32) {
+    let pid = libc::pid_t::try_from(idle).unwrap();
+    // SAFETY: each call reads or writes only the values given, which live for the call; with
+    // the filter the calls on the idle child change nothing, and without it they change only
+    // that child, which the test ends.
+    unsafe {
+        let mut limit: libc::rlimit = std::mem::zeroed();
+        let other = libc::syscall(
+            libc::SYS_prlimit64,
+            pid,
+            libc::RLIMIT_CORE,
+            0_i64,
+            &raw mut limit,
+        );
+        assert_eq!(error_of(other), Some(libc::EACCES), "prlimit64");
+        // The caller names itself 0; its own number is refused too, since a child of `fork`
+        // inherits the filter and that number would name its parent.
+        let own = libc::syscall(
+            libc::SYS_prlimit64,
+            0,
+            libc::RLIMIT_CORE,
+            0_i64,
+            &raw mut limit,
+        );
+        assert_eq!(own, 0, "prlimit64 of 0");
+        let by_number = libc::syscall(
+            libc::SYS_prlimit64,
+            libc::getpid(),
+            libc::RLIMIT_CORE,
+            0_i64,
+            &raw mut limit,
+        );
+        assert_eq!(
+            error_of(by_number),
+            Some(libc::EACCES),
+            "prlimit64 by number"
+        );
+        let lowered = libc::setpriority(libc::PRIO_PROCESS, pid as libc::id_t, 19);
+        assert_eq!(error_of(lowered.into()), Some(libc::EACCES), "setpriority");
+        let mut cpus: libc::cpu_set_t = std::mem::zeroed();
+        let size = size_of::<libc::cpu_set_t>();
+        assert_eq!(libc::sched_getaffinity(0, size, &raw mut cpus), 0);
+        let moved = libc::sched_setaffinity(pid, size, &raw const cpus);
+        assert_eq!(
+            error_of(moved.into()),
+            Some(libc::EACCES),
+            "sched_setaffinity"
+        );
+        assert_eq!(libc::sched_setaffinity(0, size, &raw const cpus), 0);
+        let pages = libc::syscall(libc::SYS_move_pages, pid, 0_i64, 0_i64, 0_i64, 0_i64, 0_i64);
+        assert_eq!(error_of(pages), Some(libc::EACCES), "move_pages");
+        // Without the filter each fails otherwise, at its null or zero arguments.
+        for number in [
+            libc::SYS_migrate_pages,
+            libc::SYS_get_robust_list,
+            libc::SYS_sched_setparam,
+            libc::SYS_sched_setscheduler,
+            libc::SYS_sched_setattr,
+        ] {
+            let result = libc::syscall(number, pid, 0_i64, 0_i64, 0_i64);
+            assert_eq!(error_of(result), Some(libc::EACCES), "call {number}");
+        }
+    }
+}
+
+/// A terminal opened before cannot be given typed input (TIOCSTI), which its shell would read
+/// as the user's own keys.
+fn the_terminal_takes_no_typed_input(terminal: &OwnedFd) {
+    let key = b'x';
+    // SAFETY: TIOCSTI reads the one byte given, which lives for the call.
+    let typed = unsafe { libc::ioctl(terminal.as_raw_fd(), libc::TIOCSTI, &raw const key) };
+    assert_eq!(error_of(typed.into()), Some(libc::EACCES));
 }
 
 /// From Linux 6.7 (Landlock's ABI 4), Landlock refuses to connect even a TCP socket opened

@@ -235,6 +235,10 @@ impl fmt::Debug for WorkArea {
 /// What holds against a secret leaving the process, as [`Isolation::enter`] read it back. A field
 /// is true only when the call confirmed the protection. [`Isolation::outcome`] tells the rest
 /// apart: refused, not asked for, not offered on this system, or not checkable.
+///
+/// The fields are a copy made at entry, for reading. [`Isolation::has`], [`Isolation::require`],
+/// [`Isolation::require_process_wide`] and worker admission read the recorded outcomes instead, so
+/// changing a field changes none of their answers.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Isolation {
@@ -328,9 +332,26 @@ impl Isolation {
         Self::enter_with(options).require(required)
     }
 
+    /// As [`Isolation::enter_requiring`], but each protection in `required`, and
+    /// [`Protection::WholeProcess`], must also reach every thread of the process
+    /// ([`Reach::Process`]): the rule a worker is admitted by.
+    pub fn enter_requiring_process_wide(
+        options: Options,
+        required: &[Protection],
+    ) -> Result<Self, Missing> {
+        Self::enter_with(options).require_process_wide(required)
+    }
+
     /// `Ok` with this answer when every protection in `required` is confirmed, else [`Missing`].
     pub fn require(self, required: &[Protection]) -> Result<Self, Missing> {
         self.require_in_scope(required, false)
+    }
+
+    /// As [`Isolation::require`] with the rule of [`Isolation::enter_requiring_process_wide`].
+    pub fn require_process_wide(self, required: &[Protection]) -> Result<Self, Missing> {
+        let mut all = required.to_vec();
+        all.push(Protection::WholeProcess);
+        self.require_in_scope(&all, true)
     }
 
     pub(crate) fn require_in_scope(
@@ -523,6 +544,28 @@ pub fn write_secret(text: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_thread_scoped_protection_fails_the_process_wide_rule() {
+        let mut findings = Findings::new();
+        findings.set(Protection::WholeProcess, Outcome::Confirmed, true);
+        findings.set(Protection::NoNewSockets, Outcome::Confirmed, false);
+        let isolation = findings.finish();
+        assert!(isolation.require(&[Protection::NoNewSockets]).is_ok());
+        let refused = isolation
+            .require_process_wide(&[Protection::NoNewSockets])
+            .unwrap_err();
+        assert_eq!(refused.missing, [Protection::NoNewSockets]);
+        let mut findings = Findings::new();
+        findings.set(Protection::NoNewSockets, Outcome::Confirmed, true);
+        let refused = findings
+            .finish()
+            .require_process_wide(&[Protection::NoNewSockets, Protection::NoFileChanges])
+            .unwrap_err();
+        assert!(refused.missing.contains(&Protection::WholeProcess));
+        assert!(refused.missing.contains(&Protection::NoFileChanges));
+        assert!(!refused.missing.contains(&Protection::NoNewSockets));
+    }
 
     #[test]
     fn pushed_bytes_stay_within_the_capacity() {

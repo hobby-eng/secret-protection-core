@@ -21,6 +21,8 @@ on:
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
+  # The release workflow audits the tag before it packages anything.
+  workflow_call:
 
 concurrency:
   group: rustsec-${{ github.ref }}

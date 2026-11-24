@@ -239,13 +239,45 @@ mod unsupported {
     }
 
     impl WorkerProcess {
-        pub(crate) fn start(_setting: &str, _terminal: bool) -> io::Result<Self> {
+        pub(crate) fn start(
+            _setting: &str,
+            _terminal: bool,
+            _deadline: Option<std::time::Instant>,
+        ) -> io::Result<Self> {
             Err(io::ErrorKind::Unsupported.into())
         }
 
         pub(crate) fn close(&mut self) {
             self.to = None;
             self.from = None;
+        }
+
+        pub(crate) fn exchanging<T>(
+            &mut self,
+            deadline: Option<std::time::Instant>,
+            work: impl FnOnce(&mut Self, Option<std::time::Instant>) -> io::Result<T>,
+        ) -> io::Result<T> {
+            work(self, deadline)
+        }
+
+        pub(crate) fn read_exact_until(
+            &mut self,
+            buffer: &mut [u8],
+            _deadline: Option<std::time::Instant>,
+        ) -> io::Result<()> {
+            use std::io::Read;
+            let from = self.from.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+            from.read_exact(buffer)
+        }
+
+        pub(crate) fn write_all_until(
+            &mut self,
+            data: &[u8],
+            _deadline: Option<std::time::Instant>,
+        ) -> io::Result<()> {
+            use std::io::Write;
+            let to = self.to.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+            to.write_all(data)
         }
 
         pub(crate) fn finish(&mut self) -> bool {

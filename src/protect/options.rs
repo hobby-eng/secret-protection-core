@@ -31,9 +31,10 @@ impl Options {
         }
     }
 
-    /// Linux and Android: refuses file locks (`flock` and the lock commands of `fcntl`), which
-    /// another program of the user sees and which could carry a secret out one bit at a time. A
-    /// database such as SQLite takes a lock to read, and fails without one.
+    /// Linux and Android: refuses file locks (`flock`, the lock commands of `fcntl`, and leases
+    /// and delegations), which another program of the user sees and which could carry a secret
+    /// out one bit at a time. A database such as SQLite takes a lock to read, and fails without
+    /// one.
     #[must_use]
     pub const fn refuse_file_locks(mut self) -> Self {
         self.file_locks = true;
@@ -70,6 +71,13 @@ impl Options {
     /// Linux and Android: signals go only to this process itself, by a filter rule that names its
     /// process number. It is for a process that forks no more: a child made by `fork` afterwards
     /// inherits the rule with its parent's number, and reports the protection as missing.
+    ///
+    /// The rule also refuses the `fcntl` owner commands and setting `O_ASYNC`, so signal-driven
+    /// I/O fails, even to the process itself, and so does setting other flags with `F_SETFL` on a
+    /// descriptor that already has `O_ASYNC`. Job-control signals that the kernel sends to the
+    /// whole process group stay outside it: a process that keeps a controlling terminal from a
+    /// background group gets SIGTTIN or SIGTTOU for its group when it reads the terminal, changes
+    /// its settings, or writes to it under `TOSTOP`. A worker has no controlling terminal.
     #[must_use]
     pub const fn signals_to_self_only(mut self) -> Self {
         self.own_signals = true;

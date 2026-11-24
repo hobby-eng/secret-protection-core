@@ -16,6 +16,7 @@ use windows_sys::Win32::Storage::FileSystem::{FILE_GENERIC_READ, FILE_WRITE_DATA
 /// further instance of it.
 const CLIENT_ACCESS: u32 = FILE_GENERIC_READ | FILE_WRITE_DATA;
 /// The name of every worker's pipe, before its 32 random hexadecimal digits.
+use super::Descriptor;
 use crate::worker::PIPE_PREFIX;
 /// The pipe's buffers, each way.
 const PIPE_BUFFER: u32 = 64 << 10;
@@ -40,10 +41,19 @@ impl WorkerProcess {
     /// inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker variable
     /// with its options, pipe name and launch nonce. The program file must be readable by app containers
     /// (Program Files is), or Windows refuses to start it. No worker on the terminal here.
-    pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
+    pub(crate) fn start(
+        setting: &str,
+        terminal: bool,
+        deadline: Option<std::time::Instant>,
+    ) -> io::Result<Self> {
         use std::os::windows::ffi::OsStrExt;
         if terminal {
             return Err(io::ErrorKind::Unsupported.into());
+        }
+        // The profile, the pipe and CreateProcessW are calls that cannot be cut short: the deadline
+        // is read before them and, in `accept`, right after.
+        if passed(deadline) {
+            return Err(late());
         }
         let program = std::env::current_exe()?;
         let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
@@ -60,7 +70,14 @@ impl WorkerProcess {
             launch_nonce,
         };
         let process: HANDLE = worker.process.as_raw_handle().cast();
-        match accept(&pipe, process, id).and_then(|()| pipe.try_clone()) {
+        let accepted = accept(&pipe, process, id, deadline).and_then(|()| {
+            if passed(deadline) {
+                Err(late())
+            } else {
+                Ok(())
+            }
+        });
+        match accepted.and_then(|()| pipe.try_clone()) {
             Ok(second) => {
                 worker.to = Some(File::from(pipe));
                 worker.from = Some(File::from(second));
@@ -74,9 +91,56 @@ impl WorkerProcess {
         }
     }
 
+    /// Runs `work` under one watchdog for the whole `deadline`, so that its reads and writes wait
+    /// without one each.
+    pub(crate) fn exchanging<T>(
+        &mut self,
+        deadline: Option<std::time::Instant>,
+        work: impl FnOnce(&mut Self, Option<std::time::Instant>) -> io::Result<T>,
+    ) -> io::Result<T> {
+        if deadline.is_none() {
+            return work(self, None);
+        }
+        let watched = self.process.try_clone()?;
+        within(&watched, deadline, || work(self, None))
+    }
+
+    /// Reads all of `buffer` from the worker; with a `deadline`, ends the worker when it passes
+    /// and fails with `TimedOut`.
+    pub(crate) fn read_exact_until(
+        &mut self,
+        buffer: &mut [u8],
+        deadline: Option<std::time::Instant>,
+    ) -> io::Result<()> {
+        let from = self.from.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+        within(&self.process, deadline, || from.read_exact(buffer))
+    }
+
+    /// Writes all of `data` to the worker; with a `deadline`, as [`Self::read_exact_until`].
+    pub(crate) fn write_all_until(
+        &mut self,
+        data: &[u8],
+        deadline: Option<std::time::Instant>,
+    ) -> io::Result<()> {
+        let to = self.to.as_mut().ok_or(io::ErrorKind::BrokenPipe)?;
+        within(&self.process, deadline, || {
+            to.write_all(data)?;
+            to.flush()
+        })
+    }
+
+    /// [`Self::observe_threads_now`] within `deadline`.
+    pub(crate) fn observe_threads(
+        &mut self,
+        deadline: Option<std::time::Instant>,
+    ) -> io::Result<()> {
+        let watched = self.process.try_clone()?;
+        within(&watched, deadline, || self.observe_threads_now())
+    }
+
     /// The pipe client has already been matched to this worker's PID. Keep its exact
     /// process object live throughout each kernel inventory before sending the roster.
-    pub(crate) fn observe_threads(&mut self) -> io::Result<()> {
+    fn observe_threads_now(&mut self) -> io::Result<()> {
         use super::threads::{Phase, inventory};
         use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
         use windows_sys::Win32::System::Threading::WaitForSingleObject;
@@ -137,6 +201,79 @@ impl WorkerProcess {
     }
 }
 
+/// Runs `work`; with a `deadline`, a watchdog ends the worker if `work` has not returned by then, so
+/// that a pipe call waiting on it fails, and the result is `TimedOut`. One state decides which came
+/// first: the work marks it done, or the watchdog marks it fired before it ends the worker, so a
+/// worker whose work ended in time is never ended for being late.
+fn within<T>(
+    process: &OwnedHandle,
+    deadline: Option<std::time::Instant>,
+    work: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::mpsc::channel;
+    use windows_sys::Win32::System::Threading::TerminateProcess;
+    const RUNNING: u8 = 0;
+    const DONE: u8 = 1;
+    const FIRED: u8 = 2;
+    let Some(deadline) = deadline else {
+        return work();
+    };
+    let end = || {
+        // SAFETY: ends the worker through a handle the caller owns, with that right.
+        unsafe { TerminateProcess(process.as_raw_handle().cast(), 1) };
+    };
+    if passed(Some(deadline)) {
+        end();
+        return Err(late());
+    }
+    let state = Arc::new(AtomicU8::new(RUNNING));
+    let watched = process.try_clone()?;
+    let (done, waiting) = channel::<()>();
+    let watchdog = {
+        let state = Arc::clone(&state);
+        std::thread::Builder::new()
+            .name("worker-deadline".into())
+            .spawn(move || {
+                // Woken when the work ends, or at the deadline.
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                let _ = waiting.recv_timeout(left);
+                let fired = state
+                    .compare_exchange(RUNNING, FIRED, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok();
+                if fired {
+                    // SAFETY: ends the worker through a handle this thread owns, with that right.
+                    unsafe { TerminateProcess(watched.as_raw_handle().cast(), 1) };
+                }
+            })?
+    };
+    let result = work();
+    let in_time = state
+        .compare_exchange(RUNNING, DONE, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok();
+    let finished = std::time::Instant::now();
+    drop(done);
+    let _ = watchdog.join();
+    // The clock decides as well: work that ended past the deadline failed, even before the
+    // watchdog ran.
+    if !in_time || finished > deadline {
+        end();
+        return Err(late());
+    }
+    result
+}
+
+/// Whether `deadline` has passed.
+fn passed(deadline: Option<std::time::Instant>) -> bool {
+    deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline)
+}
+
+/// The error of a deadline that passed.
+fn late() -> io::Error {
+    io::Error::new(io::ErrorKind::TimedOut, "the worker did not answer in time")
+}
+
 /// Generate independent values for the public pipe name and the private startup handshake.
 fn random_u128() -> io::Result<u128> {
     use windows_sys::Win32::Security::Cryptography::{
@@ -165,10 +302,6 @@ fn random_u128() -> io::Result<u128> {
 /// container's both give. It has one instance, so one process holds it at a time, and none
 /// inherits it.
 fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
-    use windows_sys::Win32::Security::Authorization::{
-        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
-    };
-    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
     use windows_sys::Win32::Storage::FileSystem::{
         FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
     };
@@ -185,24 +318,8 @@ fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
         sid_text(container.0)?
     );
     let access: Vec<u16> = access.encode_utf16().chain([0]).collect();
-    let mut descriptor = ptr::null_mut();
-    // SAFETY: the string is NUL-terminated; the call allocates the descriptor, freed below.
-    let made = unsafe {
-        ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            access.as_ptr(),
-            SDDL_REVISION_1,
-            &mut descriptor,
-            ptr::null_mut(),
-        )
-    } != 0;
-    if !made {
-        return Err(io::Error::last_os_error());
-    }
-    let attributes = SECURITY_ATTRIBUTES {
-        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
-        lpSecurityDescriptor: descriptor,
-        bInheritHandle: 0,
-    };
+    let descriptor = Descriptor::of(access.as_ptr())?;
+    let attributes = descriptor.attributes();
     let wide: Vec<u16> = name.encode_utf16().chain([0]).collect();
     // SAFETY: the name is NUL-terminated and the attributes live for the call, which returns a
     // new handle or INVALID_HANDLE_VALUE. A name that is taken is refused: one instance only.
@@ -219,8 +336,7 @@ fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
         )
     };
     let error = io::Error::last_os_error();
-    // SAFETY: frees the descriptor the conversion allocated, once, after its last use.
-    unsafe { LocalFree(descriptor) };
+    drop(descriptor);
     if pipe == INVALID_HANDLE_VALUE {
         return Err(error);
     }
@@ -230,8 +346,14 @@ fn listen(container: &Container) -> io::Result<(OwnedHandle, String)> {
 
 /// Waits for the worker to open `pipe` and takes no one else: the process at the other end must
 /// be number `id`. Another process that opens it first is put off, and the pipe listens again.
-/// An error when the worker ends first. From then on the pipe waits for reads and writes.
-fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
+/// An error when the worker ends first or `deadline` passes. From then on the pipe waits for
+/// reads and writes.
+fn accept(
+    pipe: &OwnedHandle,
+    process: HANDLE,
+    id: u32,
+    deadline: Option<std::time::Instant>,
+) -> io::Result<()> {
     use windows_sys::Win32::Foundation::{
         ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, WAIT_OBJECT_0,
     };
@@ -265,6 +387,9 @@ fn accept(pipe: &OwnedHandle, process: HANDLE, id: u32) -> io::Result<()> {
         let ended = unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0;
         if ended || !(listens || error == ERROR_PIPE_LISTENING) {
             return Err(io::Error::other("the worker did not open its pipe"));
+        }
+        if passed(deadline) {
+            return Err(late());
         }
         std::thread::sleep(crate::os::STEP);
     }
@@ -373,12 +498,31 @@ impl Container {
     /// handle of this process's and without standard streams, with the worker's variable and
     /// [`SYSTEM_VARIABLES`] as its environment. Returns the process and its number.
     fn start(&self, path: &[u16], setting: &str) -> io::Result<(OwnedHandle, u32)> {
+        let (process, thread, id) = self.create(path, setting, 0)?;
+        drop(thread);
+        let limited = limited_process(&process)?;
+        Ok((limited, id))
+    }
+
+    /// Makes the worker's process with `flags` beside the launcher's own. The process and its
+    /// first thread get, from their creation, the access lists the worker later sets on itself:
+    /// no other process of the user can open them in between and keep that handle.
+    fn create(
+        &self,
+        path: &[u16],
+        setting: &str,
+        flags: u32,
+    ) -> io::Result<(OwnedHandle, OwnedHandle, u32)> {
         use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::System::Threading::{
             CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
             EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTUPINFOEXW,
         };
         let attributes = Attributes::new(self.0)?;
+        let process_list = Descriptor::of(super::PROCESS_ACCESS)?;
+        let thread_list = Descriptor::of(super::THREAD_ACCESS)?;
+        let (process_attributes, thread_attributes) =
+            (process_list.attributes(), thread_list.attributes());
         let mut startup = STARTUPINFOEXW::default();
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup.lpAttributeList = attributes.list;
@@ -400,16 +544,19 @@ impl Container {
             .collect();
         let mut information = PROCESS_INFORMATION::default();
         // SAFETY: every pointer is valid for the call: the NUL-terminated path, the command line,
-        // which the call may change, the environment block ending in two NULs, and the startup
-        // information with its attribute list. No handle is inherited.
+        // which the call may change, the two security attributes, the environment block ending in
+        // two NULs, and the startup information with its attribute list. No handle is inherited.
         let started = unsafe {
             CreateProcessW(
                 path.as_ptr(),
                 command.as_mut_ptr(),
-                ptr::null(),
-                ptr::null(),
+                &process_attributes,
+                &thread_attributes,
                 0,
-                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
+                EXTENDED_STARTUPINFO_PRESENT
+                    | CREATE_UNICODE_ENVIRONMENT
+                    | CREATE_NO_WINDOW
+                    | flags,
                 environment.as_mut_ptr().cast(),
                 ptr::null(),
                 &startup.StartupInfo,
@@ -419,13 +566,14 @@ impl Container {
         if !started {
             return Err(io::Error::last_os_error());
         }
-        // SAFETY: CreateProcess returned two owned handles. The thread is never used.
-        let process = unsafe {
-            CloseHandle(information.hThread);
-            OwnedHandle::from_raw_handle(information.hProcess.cast())
+        // SAFETY: CreateProcess returned two handles that nothing else owns.
+        let (process, thread) = unsafe {
+            (
+                OwnedHandle::from_raw_handle(information.hProcess.cast()),
+                OwnedHandle::from_raw_handle(information.hThread.cast()),
+            )
         };
-        let limited = limited_process(&process)?;
-        Ok((limited, information.dwProcessId))
+        Ok((process, thread, information.dwProcessId))
     }
 }
 
@@ -692,6 +840,95 @@ fn verify_server(pipe: &File) -> io::Result<()> {
 #[cfg(test)]
 mod handle_tests {
     use super::{limited_process, read_roster, verify_nonce};
+
+    /// The worker's process and first thread hold their restricted lists before the worker runs
+    /// one instruction (it stays suspended here).
+    #[test]
+    fn a_worker_is_made_with_its_access_lists() -> std::io::Result<()> {
+        use std::os::windows::ffi::OsStrExt;
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
+        use windows_sys::Win32::System::Threading::{
+            CREATE_SUSPENDED, OpenProcess, PROCESS_VM_READ, TerminateProcess,
+        };
+        let program = std::env::current_exe()?;
+        let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
+        let container = super::Container::of(&path)?;
+        let (process, thread, id) = container.create(&path, "0,0,none,0", CREATE_SUSPENDED)?;
+        let holds = |object: &std::os::windows::io::OwnedHandle, access| {
+            super::super::with_access_list(access, |wanted| {
+                super::super::access_reads_back(object.as_raw_handle().cast(), wanted)
+            })
+        };
+        let process_holds = holds(&process, super::super::PROCESS_ACCESS);
+        let thread_holds = holds(&thread, super::super::THREAD_ACCESS);
+        // Another process of the same user, here this test opening it by number, cannot read its
+        // memory. An enabled debug privilege would pass any list.
+        // SAFETY: asks for a new handle by number and closes one it gets.
+        let refused = unsafe {
+            let opened = OpenProcess(PROCESS_VM_READ, 0, id);
+            let error = GetLastError();
+            if !opened.is_null() {
+                CloseHandle(opened);
+            }
+            opened.is_null() && error == ERROR_ACCESS_DENIED
+        };
+        // SAFETY: ends the suspended process this test made, through its own handle.
+        unsafe { TerminateProcess(process.as_raw_handle().cast(), 1) };
+        assert!(
+            process_holds,
+            "the process was made without its access list"
+        );
+        assert!(
+            thread_holds,
+            "the first thread was made without its access list"
+        );
+        assert!(
+            refused,
+            "another process of the user could open the worker's memory"
+        );
+        Ok(())
+    }
+
+    /// The clock decides a deadline: work that ends in time leaves the worker running; work that
+    /// ends past it fails with `TimedOut` and ends the worker. A waiting process stands in for it.
+    #[test]
+    fn a_deadline_goes_by_the_clock() -> std::io::Result<()> {
+        use std::time::{Duration, Instant};
+        use windows_sys::Win32::Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT};
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+        let worker: std::os::windows::io::OwnedHandle = std::process::Command::new("cmd")
+            .args(["/c", "ping -n 30 127.0.0.1 > nul"])
+            .spawn()?
+            .into();
+        // SAFETY: waits on a handle this test owns, at most the time given.
+        let state = |wait| unsafe { WaitForSingleObject(worker.as_raw_handle().cast(), wait) };
+        let quick = super::within(
+            &worker,
+            Some(Instant::now() + Duration::from_secs(10)),
+            || Ok(7),
+        );
+        assert_eq!(quick?, 7);
+        assert_eq!(
+            state(0),
+            WAIT_TIMEOUT,
+            "a worker whose work ended in time was ended"
+        );
+        let slow = super::within(
+            &worker,
+            Some(Instant::now() + Duration::from_millis(100)),
+            || {
+                std::thread::sleep(Duration::from_millis(400));
+                Ok(())
+            },
+        );
+        assert_eq!(
+            slow.map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::TimedOut)
+        );
+        assert_eq!(state(5000), WAIT_OBJECT_0, "the late worker was not ended");
+        Ok(())
+    }
 
     #[test]
     fn a_launch_nonce_is_required_before_the_first_roster() {

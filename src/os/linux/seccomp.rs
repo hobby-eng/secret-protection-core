@@ -1,8 +1,9 @@
 //! The seccomp filter, for x86-64 and little-endian AArch64. It refuses (EACCES) new sockets and
-//! io_uring, file system changes, ioctls other than the terminal's, new peers for old sockets,
-//! System V IPC, POSIX queues, the keyring, `execve`, calls on other processes, kernel interfaces a
-//! secret command never needs, and the `prctl` options that undo the dump settings. Calls newer
-//! than its table get ENOSYS, so libc falls back to ones the filter can check.
+//! io_uring, file system changes, ioctls other than the terminal's settings and size, new peers for
+//! old sockets, System V IPC, POSIX queues, the keyring, `execve`, calls that read, compare, limit,
+//! schedule or move the pages of another process, kernel interfaces a secret command never needs,
+//! and the `prctl` options that undo the dump settings. Calls newer than its table get ENOSYS, so
+//! libc falls back to ones the filter can check.
 
 /// The numbers of Linux 7.0's arch/x86/entry/syscalls/syscall_64.tbl, written out because
 /// libc 0.2.191 lacks some of them.
@@ -26,6 +27,12 @@ mod calls {
     /// rt_tgsigqueueinfo, whose first is a thread group; tkill and pidfd_send_signal.
     pub(super) const SIGNAL_TO_PROCESS: [u32; 4] = [62, 129, 234, 297];
     pub(super) const SIGNAL_OTHER: [u32; 2] = [200, 424];
+    /// prlimit64, sched_setparam, sched_setscheduler, sched_setaffinity, sched_setattr,
+    /// move_pages, migrate_pages and get_robust_list, whose first argument is a process.
+    pub(super) const ON_PROCESS: [u32; 8] = [302, 142, 144, 203, 314, 279, 256, 274];
+    /// setpriority: allowed only for PRIO_PROCESS and the caller; PRIO_PGRP and PRIO_USER are
+    /// refused whatever their second argument.
+    pub(super) const SETPRIORITY: u32 = 141;
     /// open, whose flags are its second argument, and openat, whose flags are its third.
     pub(super) const OPENS: &[(u32, u32)] = &[(2, 1), (257, 2)];
     /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
@@ -35,6 +42,7 @@ mod calls {
         41, 53, // socket, socketpair
         425, 426, 427, // io_uring_setup, io_uring_enter, io_uring_register
         101, 311, 438, // ptrace, process_vm_writev, pidfd_getfd
+        312, 440, 251, // kcmp, process_madvise, ioprio_set
         85, 304, // creat, open_by_handle_at
         82, 264, 316, // rename, renameat, renameat2
         87, 263, 84, // unlink, unlinkat, rmdir
@@ -82,6 +90,12 @@ mod calls {
     /// rt_tgsigqueueinfo, whose first is a thread group; tkill and pidfd_send_signal.
     pub(super) const SIGNAL_TO_PROCESS: [u32; 4] = [129, 138, 131, 240];
     pub(super) const SIGNAL_OTHER: [u32; 2] = [130, 424];
+    /// prlimit64, sched_setparam, sched_setscheduler, sched_setaffinity, sched_setattr,
+    /// move_pages, migrate_pages and get_robust_list, whose first argument is a process.
+    pub(super) const ON_PROCESS: [u32; 8] = [261, 118, 119, 122, 274, 239, 238, 100];
+    /// setpriority: allowed only for PRIO_PROCESS and the caller; PRIO_PGRP and PRIO_USER are
+    /// refused whatever their second argument.
+    pub(super) const SETPRIORITY: u32 = 140;
     /// openat, whose flags are its third argument.
     pub(super) const OPENS: &[(u32, u32)] = &[(56, 2)];
     /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
@@ -91,6 +105,7 @@ mod calls {
         198, 199, // socket, socketpair
         425, 426, 427, // io_uring_setup, io_uring_enter, io_uring_register
         117, 271, 438, // ptrace, process_vm_writev, pidfd_getfd
+        272, 440, 30,  // kcmp, process_madvise, ioprio_set
         265, // open_by_handle_at
         38, 276, // renameat, renameat2
         35,  // unlinkat
@@ -181,8 +196,17 @@ pub(super) fn names_this_process() -> bool {
     let named = i32::try_from(NAMED).ok();
     answer == -1 && std::io::Error::last_os_error().raw_os_error() == named
 }
-/// The lock commands of `fcntl`: F_SETLK, F_SETLKW, F_OFD_SETLK and F_OFD_SETLKW.
-const LOCK_COMMANDS: [u32; 4] = [6, 7, 37, 38];
+/// The lock commands of `fcntl`: F_SETLK, F_SETLKW, F_OFD_SETLK, F_OFD_SETLKW, and F_SETLEASE and
+/// F_SETDELEG (Linux 7.0), whose lease other processes see in /proc/locks and wait for.
+const LOCK_COMMANDS: [u32; 6] = [6, 7, 37, 38, 1024, 1040];
+/// F_SETOWN, F_SETSIG and F_SETOWN_EX: with O_ASYNC the kernel signals the owner they name, which
+/// can be any process of the user, without a signal call.
+const OWNER_COMMANDS: [u32; 3] = [8, 10, 15];
+/// F_SETFL, which sets O_ASYNC: on a terminal the kernel then makes the terminal's foreground
+/// group the owner by itself, another process group.
+const SET_FLAGS: u32 = 4;
+/// PRIO_PROCESS of sys/resource.h: setpriority's second argument then names one process.
+const PRIO_PROCESS: u32 = 0;
 
 const ALLOW: u32 = libc::SECCOMP_RET_ALLOW;
 const REFUSE: u32 = libc::SECCOMP_RET_ERRNO | super::REFUSED as u32;
@@ -250,11 +274,28 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
     for &number in calls::REFUSED {
         program.extend(answer_if(IF_EQUAL, number, REFUSE));
     }
+    // One block for fcntl, as its last answer allows every command it does not name.
+    let mut refused_commands = Vec::new();
     if options & FILE_LOCKS != 0 {
         program.extend(answer_if(IF_EQUAL, calls::FLOCK, REFUSE));
+        refused_commands.extend(LOCK_COMMANDS);
+    }
+    if options & SIGNALS != 0 {
+        refused_commands.extend(OWNER_COMMANDS);
+    }
+    if !refused_commands.is_empty() {
         let mut commands = vec![instruction(LOAD_WORD, 0, 0, argument(1))];
-        for command in LOCK_COMMANDS {
+        for command in refused_commands {
             commands.extend(answer_if(IF_EQUAL, command, REFUSE));
+        }
+        if options & SIGNALS != 0 {
+            // F_SETFL with O_ASYNC is refused; F_SETFL without it, as for O_NONBLOCK, is not.
+            commands.extend([
+                instruction(IF_EQUAL, 0, 3, SET_FLAGS),
+                instruction(LOAD_WORD, 0, 0, argument(2)),
+                instruction(IF_ANY_BIT, 0, 1, libc::O_ASYNC as u32),
+                instruction(RETURN, 0, 0, REFUSE),
+            ]);
         }
         commands.push(instruction(RETURN, 0, 0, ALLOW));
         program.extend(for_call(calls::FCNTL, &commands));
@@ -280,6 +321,30 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
             program.extend(answer_if(IF_EQUAL, number, REFUSE));
         }
     }
+    // A call that acts on a process acts on the caller only, which names itself 0: a number would
+    // still name this process in a child of `fork`, which inherits the filter.
+    for number in calls::ON_PROCESS {
+        program.extend(for_call(
+            number,
+            &[
+                instruction(LOAD_WORD, 0, 0, argument(0)),
+                instruction(IF_EQUAL, 1, 0, 0),
+                instruction(RETURN, 0, 0, REFUSE),
+                instruction(RETURN, 0, 0, ALLOW),
+            ],
+        ));
+    }
+    program.extend(for_call(
+        calls::SETPRIORITY,
+        &[
+            instruction(LOAD_WORD, 0, 0, argument(0)),
+            instruction(IF_EQUAL, 0, 2, PRIO_PROCESS),
+            instruction(LOAD_WORD, 0, 0, argument(1)),
+            instruction(IF_EQUAL, 1, 0, 0),
+            instruction(RETURN, 0, 0, REFUSE),
+            instruction(RETURN, 0, 0, ALLOW),
+        ],
+    ));
     // The mark, which a probe reads, and the two options that would let other programs of
     // the user read the memory again; every other prctl is allowed.
     let marked = libc::SECCOMP_RET_ERRNO | MARK | options;

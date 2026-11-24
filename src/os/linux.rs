@@ -104,13 +104,7 @@ mod fork_gate {
     /// takes anonymous pages instead of waiting for ever.
     const PATIENCE: Duration = Duration::from_millis(100);
 
-    unsafe extern "C" {
-        fn pthread_atfork(
-            prepare: Option<unsafe extern "C" fn()>,
-            parent: Option<unsafe extern "C" fn()>,
-            child: Option<unsafe extern "C" fn()>,
-        ) -> libc::c_int;
-    }
+    use crate::os::unix::forks::pthread_atfork;
 
     /// A spin lock: the handlers of `fork` may do only what a signal handler may.
     unsafe extern "C" fn hold() {
@@ -209,9 +203,7 @@ pub(super) fn prepare_secret_pages() {
 /// syscall because the vDSO version would fault in user space.
 #[cfg(target_os = "linux")]
 fn charge_pages(mapped: *mut libc::c_void, bytes: usize) -> bool {
-    // SAFETY: sysconf takes an integer and touches no memory of this process.
-    let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as usize;
-    for offset in (0..bytes).step_by(page) {
+    for offset in (0..bytes).step_by(super::unix::page_size()) {
         let byte = mapped.cast::<u8>().wrapping_add(offset);
         // SAFETY: getrandom writes at most the one byte it is asked for, at `byte`, inside the
         // mapping, to which nothing else refers yet.
@@ -236,8 +228,8 @@ pub(crate) fn enter(options: Options) -> Isolation {
     #[cfg(target_os = "linux")]
     prepare_secret_pages();
     let whole_process = one_thread();
-    #[cfg(target_os = "linux")]
-    let empty_network = whole_process && enter_own_namespaces() && network_empty();
+    // Before the user namespace: once in one, every process of the user holds CAP_SYS_PTRACE
+    // there, which passes Yama, and only a cleared dumpable flag still keeps it out.
     let core_limit = super::unix::forbid_core_dumps();
     // SAFETY: PR_SET_DUMPABLE takes integers and touches no memory of this process. Once the
     // filter holds, it refuses this call, and the flag stays 0.
@@ -250,6 +242,20 @@ pub(crate) fn enter(options: Options) -> Isolation {
             0 as libc::c_ulong,
         )
     };
+    // A host policy can refuse that call: without the flag read back as cleared, no namespace.
+    #[cfg(target_os = "linux")]
+    // SAFETY: PR_GET_DUMPABLE takes no pointer and returns the flag.
+    let undumpable = unsafe {
+        libc::prctl(
+            libc::PR_GET_DUMPABLE,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+            0 as libc::c_ulong,
+        )
+    } == 0;
+    #[cfg(target_os = "linux")]
+    let empty_network = whole_process && undumpable && enter_own_namespaces() && network_empty();
     let speculation = limit_speculation();
     let memory = lock_memory(options.lock_all);
     let wanted = (u32::from(options.file_locks) * seccomp::FILE_LOCKS)
@@ -378,10 +384,9 @@ fn option_probed(asked: bool, rule: bool, refused: bool) -> Outcome {
 fn lock_mark() -> Option<&'static AtomicU8> {
     static PAGE: OnceLock<usize> = OnceLock::new();
     let page = *PAGE.get_or_init(|| {
-        // SAFETY: sysconf takes an integer; the mapping is new, private and anonymous, and
-        // madvise and munmap name it whole.
+        let bytes = super::unix::page_size();
+        // SAFETY: the mapping is new, private and anonymous, and madvise and munmap name it whole.
         unsafe {
-            let bytes = usize::try_from(libc::sysconf(libc::_SC_PAGESIZE)).unwrap_or(4096);
             let page = libc::mmap(
                 std::ptr::null_mut(),
                 bytes,

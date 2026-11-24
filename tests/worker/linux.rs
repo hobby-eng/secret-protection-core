@@ -183,20 +183,16 @@ pub(super) fn without_null() {
     );
 }
 
-/// A worker that cannot leave its parent's session says so and gets no request; on the
-/// terminal it does not try to, and starts. One that dies before it reports is an error of
-/// the start, at once: here the kernel kills it at the same call.
+/// A worker that cannot leave its parent's session says so and gets no request, on the
+/// terminal as well, where the session would let it type into the shell. One that dies before
+/// it reports is an error of the start, at once: here the kernel kills it at the same call.
 pub(super) fn without_setsid() {
     refuse(&[(libc::SYS_setsid, errno(libc::EPERM))]);
     let error = Worker::start(Options::new(), &[]).unwrap_err();
     assert!(matches!(error, WorkerError::Unclean), "{error:?}");
     assert_eq!(error.to_string(), "the worker's start was not clean");
-    let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
-    assert_eq!(
-        on_terminal.call(b"public", 100).unwrap().as_bytes(),
-        b"cilbup"
-    );
-    drop(on_terminal);
+    let error = Worker::start_on_terminal(Options::new(), &required()).unwrap_err();
+    assert!(matches!(error, WorkerError::Unclean), "{error:?}");
     // The killed worker would leave a core dump where the system writes them.
     let none = libc::rlimit {
         rlim_cur: 0,

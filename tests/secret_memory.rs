@@ -236,6 +236,18 @@ fn a_secret_lies_on_pages_kept_out_of_swap_and_core_dumps() {
     linux::secret_pages_are_marked(&secret);
     #[cfg(windows)]
     assert!(windows::locked(secret.as_bytes().as_ptr()));
+    // A closed secret keeps its pages locked while they refuse every access.
+    #[cfg(windows)]
+    {
+        let mut closed = secret_protection_core::ClosedSecret::locked(16).unwrap();
+        closed.push(b"public").unwrap();
+        let address = closed.read(<[u8]>::as_ptr);
+        assert!(closed.is_closed() && closed.is_locked());
+        assert!(
+            windows::locked(address),
+            "the pages of a closed secret left the working set"
+        );
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

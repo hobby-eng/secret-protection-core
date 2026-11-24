@@ -1,28 +1,26 @@
 //! Unix pages for secrets: anonymous mappings with `mlock`, between guard pages, kept out of core
-//! dumps and child processes where the system allows. Also the core-dump limit, starting a worker
-//! and the secret writer.
+//! dumps and child processes where the system allows. Also the core-dump limit, the worker's side
+//! of its start and the secret writer. The parent's side of a worker is in `worker`.
 #![allow(
     unsafe_code,
     reason = "mmap, mprotect, mlock, getrlimit, setrlimit, madvise, minherit, munmap, sysconf and \
               write are foreign functions"
 )]
 
-use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io;
 use std::mem::ManuallyDrop;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-use std::mem::MaybeUninit;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::OsStrExt;
 use std::ptr::{self, NonNull};
-use std::sync::mpsc;
 
 use super::{Access, Pages, Region};
 
 mod child;
 pub(super) mod forks;
-use child::Child;
+mod worker;
+
+pub(crate) use worker::WorkerProcess;
 
 impl Pages {
     /// `bytes` bytes, at least one, in pages of their own.
@@ -56,6 +54,12 @@ impl Pages {
         forks::watched().then(|| Self::anonymous(bytes, Purpose::Work))?
     }
 
+    /// A protected stack: a work area on small pages, which a thread's frames, holding the
+    /// secret values of its work, need no huge pages for.
+    pub(crate) fn stack(bytes: usize) -> Option<Self> {
+        forks::watched().then(|| Self::anonymous(bytes, Purpose::Stack))?
+    }
+
     fn anonymous(bytes: usize, purpose: Purpose) -> Option<Self> {
         let start = reserve(bytes)?;
         // SAFETY: opens for reading and writing the pages between the guards of the reservation
@@ -78,6 +82,10 @@ impl Pages {
                 true
             }
             Purpose::Work => lock_limit_holds(bytes),
+            Purpose::Stack => {
+                keep_small(start, bytes);
+                lock_limit_holds(bytes)
+            }
         };
         // SAFETY: mlock only changes how the kernel keeps the pages of the mapping just made; a
         // refusal, such as beyond RLIMIT_MEMLOCK, leaves them as they are.
@@ -103,11 +111,12 @@ impl Pages {
 }
 
 /// What anonymous pages are for: secrets request small pages and a lock. Work areas request a lock
-/// when the limit can cover them. Either lock request can fail.
+/// when the limit can cover them, and stacks small pages as well. Any lock request can fail.
 #[derive(Clone, Copy)]
 enum Purpose {
     Secret,
     Work,
+    Stack,
 }
 
 impl Drop for Pages {
@@ -142,7 +151,7 @@ impl Region {
 }
 
 /// The size of a memory page.
-fn page_size() -> usize {
+pub(super) fn page_size() -> usize {
     // SAFETY: sysconf takes an integer and touches no memory of this process.
     let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
     usize::try_from(page).unwrap_or(4096)
@@ -214,10 +223,10 @@ fn advise(start: NonNull<u8>, bytes: usize) -> (bool, bool) {
     (out_of_dumps, wiped)
 }
 
-/// Asks the kernel to keep a secret on small pages. Joining pages into a huge one copies them,
-/// and the kernel frees the old ones without wiping them. A work area keeps the huge pages the
-/// system gives it: a large computation is much slower without them. A kernel without huge
-/// pages refuses, which leaves nothing to join, so the answer is not read.
+/// Asks the kernel to keep a secret or a protected stack on small pages. Joining pages into a
+/// huge one copies them, and the kernel frees the old ones without wiping them. A work area keeps
+/// the huge pages the system gives it: a large computation is much slower without them. A kernel
+/// without huge pages refuses, which leaves nothing to join, so the answer is not read.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn keep_small(start: NonNull<u8>, bytes: usize) {
     // SAFETY: madvise marks the pages of a mapping this process owns and changes no content.
@@ -242,342 +251,6 @@ fn advise(start: NonNull<u8>, bytes: usize) -> (bool, bool) {
 #[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
 fn advise(_start: NonNull<u8>, _bytes: usize) -> (bool, bool) {
     (false, false)
-}
-
-/// The parent's end of a worker: the worker's standard input and output, and the process.
-pub(crate) struct WorkerProcess {
-    pub(crate) to: Option<io::PipeWriter>,
-    pub(crate) from: Option<io::PipeReader>,
-    child: Child,
-    exited: std::sync::Mutex<mpsc::Receiver<bool>>,
-}
-
-impl WorkerProcess {
-    /// Spawns this program with piped input and output on Linux and macOS. It receives the
-    /// worker setting and, in an instrumented build, the profile output path. A dedicated
-    /// launcher thread uses an ordinary stack for spawn implementations that fork.
-    pub(crate) fn start(setting: &str, terminal: bool) -> io::Result<Self> {
-        if cfg!(any(target_os = "android", target_os = "ios")) {
-            return Err(io::ErrorKind::Unsupported.into());
-        }
-        let program = CString::new(std::env::current_exe()?.into_os_string().into_vec())?;
-        #[cfg_attr(
-            not(coverage),
-            expect(unused_mut, reason = "one variable without coverage")
-        )]
-        let mut variables = vec![variable(crate::worker::WORKER, setting.as_bytes())?];
-        // A measurement of coverage counts the worker as well: built for one, the worker gets the
-        // name of the profile beside its setting, and no other variable of its parent's.
-        #[cfg(coverage)]
-        if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
-            variables.push(variable("LLVM_PROFILE_FILE", profile.as_bytes())?);
-        }
-        let (input, to) = io::pipe()?;
-        let (from, output) = io::pipe()?;
-        let streams = [above_streams(input.into())?, above_streams(output.into())?];
-        // Reserve the waiter before creating a child. It remains responsible for reaping
-        // even when the parent cannot terminate the worker or drops a failed startup.
-        #[cfg(target_os = "linux")]
-        super::linux::prepare_secret_pages();
-        let (ready, started) = mpsc::sync_channel(1);
-        let (done, exited) = mpsc::sync_channel(1);
-        std::thread::Builder::new()
-            .name("worker-wait".into())
-            .spawn(move || {
-                let child = spawn(&program, &variables, &streams, terminal, false);
-                drop(streams);
-                match child {
-                    Ok(child) => {
-                        let _ = ready.send(Ok(child.clone()));
-                        let _ = done.send(child.wait());
-                    }
-                    Err(error) => {
-                        let _ = ready.send(Err(error));
-                    }
-                }
-            })?;
-        let child = started
-            .recv()
-            .map_err(|_| io::Error::other("worker launcher stopped"))??;
-        Ok(Self {
-            to: Some(to),
-            from: Some(from),
-            child,
-            exited: std::sync::Mutex::new(exited),
-        })
-    }
-
-    /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
-    pub(crate) fn close(&mut self) {
-        self.to = None;
-        self.from = None;
-    }
-
-    /// Closes the pipes and waits for exit. A stable kernel handle permits a termination
-    /// request and a second bounded wait. The waiter still owns a child that survives.
-    pub(crate) fn finish(&mut self) -> bool {
-        self.close();
-        let grace = super::GRACE;
-        let exited = self
-            .exited
-            .get_mut()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match exited.recv_timeout(grace) {
-            Ok(ended) => ended,
-            Err(mpsc::RecvTimeoutError::Timeout) if self.child.terminate() => {
-                exited.recv_timeout(grace) == Ok(true)
-            }
-            Err(_) => false,
-        }
-    }
-}
-
-/// `name=value`, as the environment of a program holds it.
-fn variable(name: &str, value: &[u8]) -> io::Result<CString> {
-    Ok(CString::new([name.as_bytes(), b"=", value].concat())?)
-}
-
-/// `end` at a number above standard error, so that moving one pipe to 0 or 1 in the worker cannot
-/// overwrite the other first.
-fn above_streams(end: OwnedFd) -> io::Result<OwnedFd> {
-    if end.as_raw_fd() > 2 {
-        return Ok(end);
-    }
-    // SAFETY: fcntl copies a descriptor this function owns to the lowest free number from 3, with
-    // close-on-exec; the copy is new, and owned once, below.
-    let copy = unsafe { libc::fcntl(end.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
-    if copy < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: `copy` is a descriptor that nothing else owns.
-    Ok(unsafe { OwnedFd::from_raw_fd(copy) })
-}
-
-/// Starts `program` with `variables` as its whole environment and `streams` as its standard input
-/// and output, by `posix_spawn`, which runs no code of this program in the child. Every other
-/// descriptor above standard error is closed there before the program runs, so that the start-up
-/// code of its libraries finds none of the parent's: on Apple systems the system closes all that
-/// no action names; on Linux a final close-from action closes the whole range.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn spawn(
-    program: &CStr,
-    variables: &[CString],
-    streams: &[OwnedFd; 2],
-    terminal: bool,
-    _private_table: bool,
-) -> io::Result<Child> {
-    let mut actions = MaybeUninit::uninit();
-    // SAFETY: init sets up the actions in the space given, or fails and leaves it.
-    check(unsafe { libc::posix_spawn_file_actions_init(actions.as_mut_ptr()) })?;
-    let mut actions = Actions(&mut actions);
-    actions.dup2(streams[0].as_raw_fd(), libc::STDIN_FILENO)?;
-    actions.dup2(streams[1].as_raw_fd(), libc::STDOUT_FILENO)?;
-    if !terminal {
-        actions.open_null(libc::STDERR_FILENO)?;
-    }
-    // Where every descriptor no action names is closed, an action that names standard error
-    // keeps it, as other systems keep one without close-on-exec.
-    #[cfg(target_vendor = "apple")]
-    if terminal && inheritable(libc::STDERR_FILENO) {
-        actions.dup2(libc::STDERR_FILENO, libc::STDERR_FILENO)?;
-    }
-    #[cfg(not(target_vendor = "apple"))]
-    if !_private_table && let Err(error) = actions.close_from(3) {
-        #[cfg(target_os = "linux")]
-        if error.kind() == io::ErrorKind::Unsupported {
-            return std::thread::scope(|scope| {
-                std::thread::Builder::new()
-                    .spawn_scoped(scope, || {
-                        private_close_on_exec()?;
-                        spawn(program, variables, streams, terminal, true)
-                    })?
-                    .join()
-                    .map_err(|_| io::Error::other("private worker launcher stopped"))?
-            });
-        }
-        return Err(error);
-    }
-    let mut attributes = MaybeUninit::uninit();
-    // SAFETY: init sets up the attributes in the space given, or fails and leaves it.
-    check(unsafe { libc::posix_spawnattr_init(attributes.as_mut_ptr()) })?;
-    let mut attributes = Attributes(&mut attributes);
-    attributes.reset()?;
-    let arguments = [program.as_ptr(), ptr::null()];
-    let environment: Vec<*const libc::c_char> = variables
-        .iter()
-        .map(|variable| variable.as_ptr())
-        .chain([ptr::null()])
-        .collect();
-    child::launch(
-        program,
-        actions.0,
-        attributes.0,
-        &arguments,
-        &environment,
-        !_private_table,
-    )
-}
-
-/// Mark the temporary launcher's unshared descriptor table close-on-exec in one operation.
-/// Its parent keeps ownership of all original descriptors. The launcher exits after spawn.
-#[cfg(target_os = "linux")]
-fn private_close_on_exec() -> io::Result<()> {
-    // SAFETY: sigfillset initializes the set. Block user handlers until this temporary
-    // thread exits, so none can open a fresh descriptor after close_range. Spawn
-    // attributes independently reset the signal mask in the child.
-    unsafe {
-        let mut signals = MaybeUninit::uninit();
-        if libc::sigfillset(signals.as_mut_ptr()) != 0 {
-            return Err(io::Error::last_os_error());
-        }
-        check(libc::pthread_sigmask(
-            libc::SIG_BLOCK,
-            signals.as_ptr(),
-            ptr::null_mut(),
-        ))?;
-    }
-    let flags = libc::CLOSE_RANGE_UNSHARE | libc::CLOSE_RANGE_CLOEXEC;
-    // SAFETY: close_range takes descriptor numbers and flags. This operation marks the
-    // calling thread's new table and leaves existing threads' flags and ownership intact.
-    let result = unsafe { libc::syscall(libc::SYS_close_range, 3u32, u32::MAX, flags) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-/// Android and iOS start no worker.
-#[cfg(any(target_os = "android", target_os = "ios"))]
-fn spawn(_: &CStr, _: &[CString], _: &[OwnedFd; 2], _: bool, _: bool) -> io::Result<Child> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
-/// What the child of `posix_spawn` does with its descriptors before the program runs; destroyed
-/// when dropped.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-struct Actions<'a>(&'a mut MaybeUninit<libc::posix_spawn_file_actions_t>);
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-impl Actions<'_> {
-    fn dup2(&mut self, from: i32, to: i32) -> io::Result<()> {
-        // SAFETY: the actions are set up; the call adds one.
-        check(unsafe { libc::posix_spawn_file_actions_adddup2(self.0.as_mut_ptr(), from, to) })
-    }
-
-    #[cfg(not(target_vendor = "apple"))]
-    fn close_from(&mut self, first: libc::c_int) -> io::Result<()> {
-        // Resolve at runtime: the GNU extension is available from glibc 2.34.
-        // Older libraries can still load the crate and use non-worker operations.
-        type CloseFrom =
-            unsafe extern "C" fn(*mut libc::posix_spawn_file_actions_t, libc::c_int) -> libc::c_int;
-        // SAFETY: dlsym takes a constant NUL-terminated name and the global symbol scope.
-        let symbol = unsafe {
-            libc::dlsym(
-                libc::RTLD_DEFAULT,
-                c"posix_spawn_file_actions_addclosefrom_np".as_ptr(),
-            )
-        };
-        if symbol.is_null() {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "worker requires a child-side close-from spawn action",
-            ));
-        }
-        // SAFETY: the named function has the POSIX spawn-actions ABI above. The actions live
-        // until spawn returns. The close-from runs after dup2 and before program initialization.
-        let close_from: CloseFrom = unsafe { std::mem::transmute(symbol) };
-        // SAFETY: self owns the initialized action list and first is a descriptor number.
-        check(unsafe { close_from(self.0.as_mut_ptr(), first) })
-    }
-
-    /// Opens /dev/null for writing at `descriptor`.
-    fn open_null(&mut self, descriptor: i32) -> io::Result<()> {
-        let null = c"/dev/null".as_ptr();
-        // SAFETY: the actions are set up, and the path is NUL-terminated; the call adds one.
-        check(unsafe {
-            libc::posix_spawn_file_actions_addopen(
-                self.0.as_mut_ptr(),
-                descriptor,
-                null,
-                libc::O_WRONLY,
-                0,
-            )
-        })
-    }
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-impl Drop for Actions<'_> {
-    fn drop(&mut self) {
-        // SAFETY: the actions were set up, and are destroyed once, here.
-        unsafe { libc::posix_spawn_file_actions_destroy(self.0.as_mut_ptr()) };
-    }
-}
-
-/// The attributes of a start; destroyed when dropped.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-struct Attributes<'a>(&'a mut MaybeUninit<libc::posix_spawnattr_t>);
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-impl Attributes<'_> {
-    /// No signal blocked in the worker and SIGPIPE back at its default; on Apple systems also
-    /// every descriptor that no action names closed.
-    fn reset(&mut self) -> io::Result<()> {
-        let mut signals = MaybeUninit::<libc::sigset_t>::uninit();
-        // SAFETY: sigemptyset sets up the set in the space given, and sigaddset adds to it; the
-        // attributes are set up, and each call copies the set.
-        unsafe {
-            libc::sigemptyset(signals.as_mut_ptr());
-            check(libc::posix_spawnattr_setsigmask(
-                self.0.as_mut_ptr(),
-                signals.as_ptr(),
-            ))?;
-            libc::sigaddset(signals.as_mut_ptr(), libc::SIGPIPE);
-            check(libc::posix_spawnattr_setsigdefault(
-                self.0.as_mut_ptr(),
-                signals.as_ptr(),
-            ))?;
-        }
-        let flags = libc::POSIX_SPAWN_SETSIGMASK | libc::POSIX_SPAWN_SETSIGDEF;
-        // An old glibc would make the child with `fork`, whose child runs the fork handlers and
-        // reads the records of every thread; this flag makes it use `vfork`. A newer glibc
-        // ignores it.
-        #[cfg(target_os = "linux")]
-        let flags = flags | libc::c_int::from(libc::POSIX_SPAWN_USEVFORK);
-        #[cfg(target_vendor = "apple")]
-        let flags = flags | libc::POSIX_SPAWN_CLOEXEC_DEFAULT;
-        // The flags are below 0x8000: they fit the short the call takes.
-        let flags = flags as libc::c_short;
-        // SAFETY: the attributes are set up; the call sets their flags.
-        check(unsafe { libc::posix_spawnattr_setflags(self.0.as_mut_ptr(), flags) })
-    }
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-impl Drop for Attributes<'_> {
-    fn drop(&mut self) {
-        // SAFETY: the attributes were set up, and are destroyed once, here.
-        unsafe { libc::posix_spawnattr_destroy(self.0.as_mut_ptr()) };
-    }
-}
-
-/// The answer of a `posix_spawn` call, which is 0 or the number of the error.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn check(answer: libc::c_int) -> io::Result<()> {
-    if answer == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::from_raw_os_error(answer))
-    }
-}
-
-/// Whether `descriptor` is open without close-on-exec, so that a started program gets it.
-#[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
-fn inheritable(descriptor: i32) -> bool {
-    // SAFETY: fcntl with F_GETFD takes integers and only reads.
-    let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
-    flags >= 0 && flags & libc::FD_CLOEXEC == 0
 }
 
 /// Whether `descriptor` is open.
@@ -768,8 +441,8 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
         .checked_next_multiple_of(page_size())
         .ok_or(StackError::Size)?
         .max(libc::PTHREAD_STACK_MIN);
-    let mut stack = Pages::work_area(size)
-        .ok_or_else(|| StackError::System(io::ErrorKind::OutOfMemory.into()))?;
+    let mut stack =
+        Pages::stack(size).ok_or_else(|| StackError::System(io::ErrorKind::OutOfMemory.into()))?;
     let has = crate::StackProperties {
         locked: stack.is_locked(),
         out_of_dumps: stack.is_out_of_dumps(),
@@ -945,44 +618,4 @@ pub(crate) fn write_secret(text: &str) -> io::Result<()> {
         }
     }
     Ok(())
-}
-
-#[cfg(all(test, target_os = "linux"))]
-mod launch_tests {
-    use super::*;
-
-    #[test]
-    fn private_launcher_preserves_parent_descriptors_and_returns_no_private_fd() -> io::Result<()> {
-        let file = File::open("/dev/null")?;
-        // SAFETY: duplicate the test's file above the standard streams without close-on-exec.
-        let number = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_DUPFD, 3) };
-        if number < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        // SAFETY: the preceding call returned a new descriptor owned by this test.
-        let original = unsafe { OwnedFd::from_raw_fd(number) };
-        let streams = [
-            above_streams(File::open("/dev/null")?.into())?,
-            above_streams(File::open("/dev/null")?.into())?,
-        ];
-        let child = std::thread::scope(|scope| {
-            scope
-                .spawn(|| {
-                    private_close_on_exec()?;
-                    // SAFETY: inspect the test-owned descriptor in this thread's private table.
-                    let flags = unsafe { libc::fcntl(original.as_raw_fd(), libc::F_GETFD) };
-                    assert!(flags >= 0 && flags & libc::FD_CLOEXEC != 0);
-                    spawn(c"/bin/true", &[], &streams, false, true)
-                })
-                .join()
-                .map_err(|_| io::Error::other("private launcher failed"))
-        })??;
-        assert!(matches!(child, Child::Number(_)));
-        assert!(!child.terminate());
-        assert!(child.wait());
-        // SAFETY: the original remains owned by the parent and was created without CLOEXEC.
-        let flags = unsafe { libc::fcntl(original.as_raw_fd(), libc::F_GETFD) };
-        assert!(flags >= 0 && flags & libc::FD_CLOEXEC == 0);
-        Ok(())
-    }
 }

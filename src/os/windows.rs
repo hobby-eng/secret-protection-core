@@ -29,9 +29,9 @@ use windows_sys::Win32::Security::Authorization::{
 use windows_sys::Win32::Security::{
     ACE_HEADER, ACL, DACL_SECURITY_INFORMATION, GetAce, GetLengthSid, GetSecurityDescriptorDacl,
     GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation,
-    PROTECTED_DACL_SECURITY_INFORMATION, SID_AND_ATTRIBUTES, SetTokenInformation,
-    TOKEN_ADJUST_DEFAULT, TOKEN_DEFAULT_DACL, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
-    TokenCapabilities, TokenDefaultDacl, TokenIntegrityLevel, TokenIsAppContainer,
+    PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_ATTRIBUTES, SID_AND_ATTRIBUTES,
+    SetTokenInformation, TOKEN_ADJUST_DEFAULT, TOKEN_DEFAULT_DACL, TOKEN_MANDATORY_LABEL,
+    TOKEN_QUERY, TokenCapabilities, TokenDefaultDacl, TokenIntegrityLevel, TokenIsAppContainer,
 };
 use windows_sys::Win32::Storage::FileSystem::WriteFile;
 use windows_sys::Win32::System::Console::{
@@ -576,50 +576,82 @@ fn enter_restricted_job() -> bool {
 /// Hands the access list of the descriptor `access` to `apply`, and returns its answer; false
 /// when the string makes no list.
 fn with_access_list(access: PCWSTR, apply: impl FnOnce(*mut ACL) -> bool) -> bool {
-    let mut descriptor = ptr::null_mut();
-    // SAFETY: the string is NUL-terminated; the call allocates the descriptor, freed below.
-    let made = unsafe {
-        ConvertStringSecurityDescriptorToSecurityDescriptorW(
-            access,
-            SDDL_REVISION_1,
-            &mut descriptor,
-            ptr::null_mut(),
-        )
-    } != 0;
-    if !made {
-        return false;
+    Descriptor::of(access).is_ok_and(|descriptor| descriptor.access_list().is_some_and(apply))
+}
+
+/// A security descriptor made from SDDL text, freed when dropped: for an access list to set and
+/// read back, and for the attributes a new object is created with.
+struct Descriptor(*mut core::ffi::c_void);
+
+impl Descriptor {
+    fn of(sddl: PCWSTR) -> io::Result<Self> {
+        let mut descriptor = ptr::null_mut();
+        // SAFETY: the string is NUL-terminated; the call allocates the descriptor, freed on drop.
+        let made = unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                sddl,
+                SDDL_REVISION_1,
+                &mut descriptor,
+                ptr::null_mut(),
+            )
+        } != 0;
+        if made {
+            Ok(Self(descriptor))
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
-    let (mut present, mut defaulted, mut list) = (0, 0, ptr::null_mut());
-    // SAFETY: points `list` into the descriptor just made, which lives until it is freed.
-    let found =
-        unsafe { GetSecurityDescriptorDacl(descriptor, &mut present, &mut list, &mut defaulted) }
-            != 0
-            && present != 0;
-    let holds = found && apply(list);
-    // SAFETY: frees the descriptor the conversion allocated, once, after its last use.
-    unsafe { LocalFree(descriptor) };
-    holds
+
+    /// Attributes naming this descriptor, inherited by no child; they borrow it.
+    fn attributes(&self) -> SECURITY_ATTRIBUTES {
+        SECURITY_ATTRIBUTES {
+            nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: self.0,
+            bInheritHandle: 0,
+        }
+    }
+
+    /// Its access list, which lives as long as the descriptor.
+    fn access_list(&self) -> Option<*mut ACL> {
+        let (mut present, mut defaulted, mut list) = (0, 0, ptr::null_mut());
+        // SAFETY: points `list` into this descriptor, which outlives every use of the list here.
+        let found =
+            unsafe { GetSecurityDescriptorDacl(self.0, &mut present, &mut list, &mut defaulted) }
+                != 0
+                && present != 0;
+        found.then_some(list)
+    }
+}
+
+impl Drop for Descriptor {
+    fn drop(&mut self) {
+        // SAFETY: frees the descriptor the conversion allocated, once.
+        unsafe { LocalFree(self.0) };
+    }
 }
 
 /// Gives `object` the access list of `access`, and returns whether its list reads back as that
 /// one entry. Only the reading decides: a list that an earlier call or the token's default gave
 /// the object refuses the change, and holds.
 fn restrict_access(object: HANDLE, access: PCWSTR) -> bool {
-    with_access_list(access, |wanted| {
-        // SAFETY: the handle is open, and the list lives for the call.
-        unsafe {
-            SetSecurityInfo(
-                object,
-                SE_KERNEL_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                wanted,
-                ptr::null(),
-            )
-        };
-        access_reads_back(object, wanted)
-    })
+    with_access_list(access, |wanted| restrict_to(object, wanted))
+}
+
+/// [`restrict_access`] with a list made already, as for every thread of a walk.
+fn restrict_to(object: HANDLE, wanted: *mut ACL) -> bool {
+    // SAFETY: the handle is open, and the list lives for the call.
+    unsafe {
+        SetSecurityInfo(
+            object,
+            SE_KERNEL_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            wanted,
+            ptr::null(),
+        )
+    };
+    access_reads_back(object, wanted)
 }
 
 /// Whether the access list of `object` holds exactly the one entry of `wanted`.
@@ -707,8 +739,11 @@ fn inspect_threads(
     };
     let mut all = true;
     let mut integrity = Outcome::Confirmed;
+    // The threads' list, made once for the whole walk.
+    let thread_list = Descriptor::of(THREAD_ACCESS).ok();
+    let wanted = thread_list.as_ref().and_then(Descriptor::access_list);
     for id in ids {
-        let (restricted, level) = inspect_thread(id, process, set_acl, pinned);
+        let (restricted, level) = inspect_thread(id, process, set_acl, wanted, pinned);
         all &= restricted;
         if let Some(level) = level
             && (level == Outcome::Refused || integrity == Outcome::Confirmed)
@@ -744,6 +779,7 @@ fn inspect_thread(
     id: u32,
     process: u32,
     set_acl: bool,
+    wanted: Option<*mut ACL>,
     pinned: &mut BTreeMap<u32, OwnedHandle>,
 ) -> (bool, Option<Outcome>) {
     if !set_acl && let Some(level) = threads::pinned_integrity(id, pinned) {
@@ -792,8 +828,8 @@ fn inspect_thread(
     } else {
         None
     };
-    let holds =
-        owner != 0 && (owner != process || !set_acl || restrict_access(thread, THREAD_ACCESS));
+    let holds = owner != 0
+        && (owner != process || !set_acl || wanted.is_some_and(|list| restrict_to(thread, list)));
     if set_acl && owner == process {
         pinned.insert(id, opened);
     }

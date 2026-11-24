@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- On Windows the worker process and its first thread are created with their restricted access lists. Before, they had the default lists until the worker isolated itself, and another process of the same user could open the worker in that interval.
+- `Worker::start_within` and `Worker::call_within` take a deadline. When it passes, the start or call fails with `TimedOut` and the worker is given up, terminated where a stable handle exists (Windows, Linux with a pidfd), so a worker that stops answering no longer blocks its parent for longer than the deadline and the shutdown wait. `start` and `call` keep waiting without a deadline.
+- `Isolation::enter_requiring_process_wide` and `Isolation::require_process_wide` require each listed protection, and `WholeProcess`, to cover every thread, the rule a worker is admitted by. `Missing` from them lists every unmet protection.
+- A release is built only after the tests on every platform, the dependency audit and a short fuzzing run pass for the tagged commit.
+- `THIRD_PARTY_NOTICES.md` names the versions in `Cargo.lock`, which CI now checks. In 0.1.1 it still named zeroize 1.9.1 and landlock 0.4.7.
+- Every Unix worker leaves its parent's session, the one on the terminal too, so no worker can type into the shell through a controlling terminal (`TIOCSTI`). `start_on_terminal` now gives the worker this program's terminal, opened anew for reading and writing, as its standard error, or `/dev/null` without one, never a socket or file the parent's standard error points to; `/dev/tty` no longer opens in it. A worker that cannot leave the session is not clean.
+- The macOS sandbox writes data only to `/dev/null` and the process's own terminal, without mode or owner changes, allows ioctls only on that terminal and refuses reading the user's other terminals. It used to allow every write and ioctl on every terminal.
+- Linux clears the dumpable flag and the core limit before entering the user namespace. Before, another process of the user could open the process's memory in between.
+- The Linux filter limits resource limits, scheduling, page placement and robust-list reads to the process itself and refuses `kcmp`, `process_madvise` and `ioprio_set`. `signals_to_self_only` also refuses the `fcntl` owner commands, and `refuse_file_locks` refuses leases.
+- Protected stacks on Linux ask for small pages, as secrets do. Linux starts a worker from `/proc/self/exe`.
+- A Unix start with a deadline also bounds the wait for the launch. A deadline too far ahead for the clock to hold waits without one, as the documentation now says.
+- On macOS a process whose standard streams are not terminals gets no terminal rule at all, `/dev/tty` included, so it cannot type into a controlling terminal.
+- A worker reuses one request buffer, wiped after each request, instead of making a new secret for every frame; on Windows a call with a deadline starts one watchdog thread instead of four.
+- CI checks that `THIRD_PARTY_NOTICES.md` names exactly the packages of the library's dependency tree with their complete versions; the fuzz workspace pins `libfuzzer-sys` exactly, and a release fuzzes only with the checked-in fuzz lockfile, before and after.
+- Linux enters its user namespace only when the cleared dumpable flag reads back. `signals_to_self_only` also refuses `F_SETSIG` and setting `O_ASYNC`, after which a terminal would name its foreground group as the owner by itself; `refuse_file_locks` also refuses delegations (`F_SETDELEG`). Calls on a process accept only 0, the caller, so that a child of `fork` cannot name its parent.
+- On Windows a start or call with a deadline goes by the clock: work that ends past the deadline fails, and the launch checks the deadline before and after the calls that cannot be cut short. A Unix launch that finishes after its start gave up is ended through its stable handle.
+- The macOS sandbox keeps reads off every terminal device but the process's own.
+
 ## 0.1.1 (2026-11-24)
 
 - Dependencies take compatible version ranges instead of exact versions, so a program that also needs a newer libc, zeroize, landlock or windows-sys builds with this crate. `Cargo.lock` keeps the versions the crate is tested with: zeroize 1.9.2 and landlock 0.4.8, the rest unchanged. The public interface is the same as in 0.1.0.

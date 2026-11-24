@@ -1,5 +1,5 @@
-//! macOS attempts debugger restrictions and a sandbox with limited terminal and `/dev/null`
-//! writes. Both macOS and iOS check the process core-dump limit.
+//! macOS attempts debugger restrictions and a sandbox that writes only to `/dev/null` and the
+//! process's own terminal. Both macOS and iOS check the process core-dump limit.
 #![allow(
     unsafe_code,
     reason = "sysctl, ptrace and sandbox_init are foreign functions"
@@ -54,18 +54,68 @@ mod macos {
         fn sandbox_free_error(error: *mut libc::c_char);
     }
 
-    /// The sandbox refuses everything except reading files, the terminal and /dev/null, the process
-    /// itself, reading system settings and loading system libraries. That shuts the network, file
-    /// writes, the system's services (clipboard, opening URLs, preferences) and signals to others.
-    const PROFILE: &std::ffi::CStr = c"(version 1)(deny default)\
-        (allow file-read*)\
-        (allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\") \
-        (regex #\"^/dev/ttys[0-9]+$\"))\
-        (allow file-ioctl (literal \"/dev/tty\") (regex #\"^/dev/ttys[0-9]+$\"))\
-        (allow signal (target self))\
-        (allow process-info* (target self))\
-        (allow sysctl-read)\
-        (allow file-map-executable (subpath \"/usr/lib\") (subpath \"/System\"))";
+    /// The sandbox refuses everything except reading files other than terminal devices (a name
+    /// under /dev starting with tty, pty, cu. or console), `/dev/null`,
+    /// the process's own terminal, the process itself, reading system settings and loading system
+    /// libraries. That shuts the network, file writes, the system's services (clipboard, opening
+    /// URLs, preferences), signals to others and the user's other terminals.
+    ///
+    /// The own terminal, named by path from the standard streams, gets data writes and ioctls,
+    /// not mode or owner changes. The sandbox cannot tell one ioctl from another, so through a
+    /// controlling terminal it also admits TIOCSTI, input the shell reads as the user's: a worker
+    /// has none (`setsid`).
+    fn profile() -> Option<std::ffi::CString> {
+        let terminals = own_terminals();
+        let own: String = terminals
+            .iter()
+            .map(|path| format!(" (literal \"{path}\")"))
+            .collect();
+        // The terminal rules, for a program on a terminal only: one whose streams go elsewhere gets
+        // none, so no TIOCSTI through /dev/tty either. A rule without a path would allow everything.
+        let (read_own, tty, ioctl) = if terminals.is_empty() {
+            (String::new(), "", String::new())
+        } else {
+            let tty = " (literal \"/dev/tty\")";
+            (
+                format!("(allow file-read*{tty}{own})"),
+                tty,
+                format!("(allow file-ioctl{tty}{own})"),
+            )
+        };
+        let text = format!(
+            "(version 1)(deny default)\
+             (allow file-read* (require-not (regex #\"^/dev/(tty|pty|cu[.]|console)\"))){read_own}\
+             (allow file-write-data (literal \"/dev/null\"){tty}{own}){ioctl}\
+             (allow signal (target self))\
+             (allow process-info* (target self))\
+             (allow sysctl-read)\
+             (allow file-map-executable (subpath \"/usr/lib\") (subpath \"/System\"))"
+        );
+        std::ffi::CString::new(text).ok()
+    }
+
+    /// The terminals among the standard streams, by path; only plain device names, which the
+    /// profile's text can hold as they are.
+    fn own_terminals() -> Vec<String> {
+        let mut found = Vec::new();
+        for stream in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
+            let mut name = [0 as libc::c_char; 128];
+            // SAFETY: ttyname_r writes a NUL-terminated name of at most the buffer's length.
+            if unsafe { libc::ttyname_r(stream, name.as_mut_ptr(), name.len()) } != 0 {
+                continue;
+            }
+            // SAFETY: the call above wrote a NUL-terminated name into `name`.
+            let path = unsafe { std::ffi::CStr::from_ptr(name.as_ptr()) };
+            let path = path.to_string_lossy().into_owned();
+            let plain = path.strip_prefix("/dev/").is_some_and(|rest| {
+                !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_alphanumeric())
+            });
+            if plain && !found.contains(&path) {
+                found.push(path);
+            }
+        }
+        found
+    }
     /// P_TRACED of sys/proc.h, as `kern.proc.pid` reports it in `kp_proc.p_flag`.
     const TRACED: i32 = 0x0000_0800;
 
@@ -135,11 +185,13 @@ mod macos {
         let _entering = ENTERING
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !ENTERED.load(Ordering::Relaxed) {
+        if !ENTERED.load(Ordering::Relaxed)
+            && let Some(profile) = profile()
+        {
             let mut error = ptr::null_mut();
             // SAFETY: the profile is a NUL-terminated text; on a failure the call allocates a
             // message into `error`, freed below.
-            let entered = unsafe { sandbox_init(PROFILE.as_ptr(), 0, &mut error) } == 0;
+            let entered = unsafe { sandbox_init(profile.as_ptr(), 0, &mut error) } == 0;
             if !error.is_null() {
                 // SAFETY: frees the message sandbox_init allocated, once.
                 unsafe { sandbox_free_error(error) };

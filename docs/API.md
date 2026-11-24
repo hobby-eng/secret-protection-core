@@ -16,7 +16,7 @@ All application-facing types and functions are exported from the crate root, `se
 
 ## Add the dependency
 
-The crate is published on crates.io. It requires Rust 1.99 or newer and uses the 2024 edition.
+The crate is published on crates.io. It requires Rust 1.99 or newer and uses the 2024 edition. Its dependencies take compatible version ranges, so a program may resolve newer patch or minor releases than the versions in the repository's `Cargo.lock`, which are the ones the crate is tested with; keep the program's own lockfile.
 
 ```toml
 [dependencies]
@@ -27,13 +27,14 @@ The signed release tag works as a source too: `secret-protection-core = { git = 
 
 For a local checkout, use `secret-protection-core = { path = "../secret-protection-core" }` in the same table. Import types and functions with `use secret_protection_core::{...};`.
 
-To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.1](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.1) The package on crates.io is the same file, so its SHA-256 matches the release's.
+To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.1](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.1) The package on crates.io is the same file, so its SHA-256 matches the release's. The source digest is the commit of the signed tag, which `git verify-tag v0.1.1` checks and `git rev-parse 'v0.1.1^{commit}'` prints in a clone.
 
 ```sh
 gh attestation verify secret-protection-core-0.1.1.crate \
   --repo hobby-eng/secret-protection-core \
   --signer-workflow hobby-eng/secret-protection-core/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.1.1
+  --source-ref refs/tags/v0.1.1 \
+  --source-digest fcca0b234266163ab2d7e0fc8d5aa2a4a0f66940
 ```
 
 ## Choose a buffer
@@ -146,34 +147,31 @@ Enter isolation in the process that will handle the secret. Apply it before read
 
 ### Isolation
 
-| Signature                                                                             | Contract                                                                                                                   |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `enter() -> Self`                                                                     | Applies the default OS restrictions and returns the observed results.                                                      |
-| `enter_with(options: Options) -> Self`                                                | Also attempts the selected optional restrictions. Inspect the returned report before accepting input.                      |
-| `enter_requiring(options: Options, required: &[Protection]) -> Result<Self, Missing>` | Enters isolation, then checks that each required outcome is `Confirmed`.                                                   |
-| `require(self, required: &[Protection]) -> Result<Self, Missing>`                     | Checks an existing report and returns it on success. Does not apply or probe restrictions again.                           |
-| `has(&self, protection: Protection) -> bool`                                          | True when the recorded outcome is `Confirmed`. The named public boolean fields below are shortcuts on the returned report. |
-| `outcome(&self, protection: Protection) -> Outcome`                                   | Reads the result for one protection.                                                                                       |
-| `measures(&self) -> Vec<Measure>`                                                     | One entry per protection in `Protection::ALL` order, including its scope and evidence.                                     |
+| Signature                                                                                          | Contract                                                                                                                   |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `enter() -> Self`                                                                                  | Applies the default OS restrictions and returns the observed results.                                                      |
+| `enter_with(options: Options) -> Self`                                                             | Also attempts the selected optional restrictions. Inspect the returned report before accepting input.                      |
+| `enter_requiring(options: Options, required: &[Protection]) -> Result<Self, Missing>`              | Enters isolation, then checks that each required outcome is `Confirmed`.                                                   |
+| `require(self, required: &[Protection]) -> Result<Self, Missing>`                                  | Checks an existing report and returns it on success. Does not apply or probe restrictions again.                           |
+| `enter_requiring_process_wide(options: Options, required: &[Protection]) -> Result<Self, Missing>` | As `enter_requiring`, but each required protection and `WholeProcess` must also cover every thread of the process.         |
+| `require_process_wide(self, required: &[Protection]) -> Result<Self, Missing>`                     | As `require`, with the rule of `enter_requiring_process_wide`.                                                             |
+| `has(&self, protection: Protection) -> bool`                                                       | True when the recorded outcome is `Confirmed`. The named public boolean fields below are shortcuts on the returned report. |
+| `outcome(&self, protection: Protection) -> Outcome`                                                | Reads the result for one protection.                                                                                       |
+| `measures(&self) -> Vec<Measure>`                                                                  | One entry per protection in `Protection::ALL` order, including its scope and evidence.                                     |
 
-`Isolation` records observations at entry. `require` and `enter_requiring` check outcomes. To enforce a restriction on **every thread**, check the individual measure’s `reach` as well. Including `WholeProcess` in a list checks that separate result. [Worker admission](#run-a-worker) checks process scope for each requirement automatically.
+`Isolation` records observations at entry. `require` and `enter_requiring` check outcomes only, so a restriction confirmed for the calling thread alone passes them. To require a restriction on **every thread**, use `require_process_wide` or `enter_requiring_process_wide`: each listed protection must have process `reach`, and `WholeProcess` must be confirmed as well. [Worker admission](#run-a-worker) applies the same rule. `Missing` lists every unmet protection at once.
 
-This Linux example refuses to proceed unless both the file-lock restriction and the ban on new sockets cover the process.
+This Linux example refuses to proceed unless the file-lock restriction, the ban on new sockets and whole-process isolation cover every thread.
 
 ```rust
-use secret_protection_core::{Isolation, Options, Protection, Reach};
-use std::{error::Error, io};
+use secret_protection_core::{Isolation, Options, Protection};
+use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let required = [Protection::FileLocksRefused, Protection::NoNewSockets];
     let options = Options::new().refuse_file_locks();
-    let report = Isolation::enter_requiring(options, &required)?;
-    for measure in report.measures() {
-        if required.contains(&measure.protection) && measure.reach != Reach::Process {
-            return Err(io::Error::other("required restriction is thread-local").into());
-        }
-    }
-    // Read secret input only after these checks succeed.
+    Isolation::enter_requiring_process_wide(options, &required)?;
+    // Read secret input only after this check succeeds.
     Ok(())
 }
 ```
@@ -182,14 +180,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 `Options::new() -> Options` and `Options::default()` leave all six optional restrictions off. Default isolation still runs. `new` and all six builders are `const fn`. Each builder consumes `self` and returns the updated `Self`, so chain the calls or keep their return value. A builder requests a restriction. Put the corresponding `Protection` in the required list when failure must stop work.
 
-| Builder                               | Protection            | Where it applies and what callers must allow for                                                                                                                     |
-| ------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `refuse_file_locks(self) -> Self`     | `FileLocksRefused`    | Linux/Android. Refuses file locking through `flock` and the lock commands of `fcntl`. Even read-only database operations may require a lock.                         |
-| `refuse_sendmsg(self) -> Self`        | `SendmsgRefused`      | Linux/Android. Refuses `sendmsg` on existing sockets. This can break descriptor passing and desktop IPC.                                                             |
-| `signals_to_self_only(self) -> Self`  | `SignalsToSelfOnly`   | Linux/Android. Restricts signals to the current process. A subsequent fork inherits the rule naming the parent.                                                      |
-| `lock_all_memory(self) -> Self`       | `MemoryLocked`        | Linux/Android. Requests locking of current and future mappings. The OS lock quota applies. Explicitly unlocking memory later can leave the earlier success recorded. |
-| `refuse_dynamic_code(self) -> Self`   | `DynamicCodeRefused`  | Windows. Requests a ban on dynamic executable code. JIT runtimes may stop working.                                                                                   |
-| `microsoft_signed_only(self) -> Self` | `MicrosoftSignedOnly` | Windows. Subsequent DLL loads require a Microsoft signature. This can prevent an application from loading its own plug-ins.                                          |
+| Builder                               | Protection            | Where it applies and what callers must allow for                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `refuse_file_locks(self) -> Self`     | `FileLocksRefused`    | Linux/Android. Refuses file locking through `flock` and the lock, lease and delegation commands of `fcntl`. Even read-only database operations may require a lock.                                                                                                                                                       |
+| `refuse_sendmsg(self) -> Self`        | `SendmsgRefused`      | Linux/Android. Refuses `sendmsg` on existing sockets. This can break descriptor passing and desktop IPC.                                                                                                                                                                                                                 |
+| `signals_to_self_only(self) -> Self`  | `SignalsToSelfOnly`   | Linux/Android. Restricts signals to the current process and refuses the `fcntl` owner commands and setting `O_ASYNC`, so signal-driven I/O fails. Job-control signals the kernel sends to the caller's process group from a controlling terminal stay outside it. A subsequent fork inherits the rule naming the parent. |
+| `lock_all_memory(self) -> Self`       | `MemoryLocked`        | Linux/Android. Requests locking of current and future mappings. The OS lock quota applies. Explicitly unlocking memory later can leave the earlier success recorded.                                                                                                                                                     |
+| `refuse_dynamic_code(self) -> Self`   | `DynamicCodeRefused`  | Windows. Requests a ban on dynamic executable code. JIT runtimes may stop working.                                                                                                                                                                                                                                       |
+| `microsoft_signed_only(self) -> Self` | `MicrosoftSignedOnly` | Windows. Subsequent DLL loads require a Microsoft signature. This can prevent an application from loading its own plug-ins.                                                                                                                                                                                              |
 
 ### Protection identifiers and report fields
 
@@ -259,14 +257,16 @@ fn main() -> io::Result<()> {
 
 On Linux, macOS and Windows, the parent starts another instance of its own executable. Call `serve` first in `main`, before opening files or starting threads. If it returns `true`, return from `main`. The parent receives a `Worker` only after the clean-start check, process-wide `WholeProcess` confirmation, and process-wide confirmation for each requested protection.
 
-| Signature                                                                                             | Contract                                                                                                                                                                                                                                                                |
-| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `serve(most: usize, answer: impl FnMut(&[u8]) -> Secret) -> bool`                                     | Handles requests up to `most` bytes. The handler borrows each request for one call and returns an owned reply. Returns `true` for a recognized worker, including a failed worker startup. Returns `false` outside worker mode or if that role has already been claimed. |
-| `Worker::start(options: Options, required: &[Protection]) -> Result<Worker, WorkerError>`             | Starts a worker without terminal access. An empty required list still requires a clean start and whole-process isolation.                                                                                                                                               |
-| `Worker::start_on_terminal(options: Options, required: &[Protection]) -> Result<Worker, WorkerError>` | Linux/macOS. Keeps access to the controlling terminal and standard error. Open the terminal for input yourself. Standard input and output carry the protocol.                                                                                                           |
-| `isolation(&self) -> Isolation`                                                                       | Returns the worker’s startup report.                                                                                                                                                                                                                                    |
-| `call(&mut self, request: &[u8], most: usize) -> std::io::Result<Secret>`                             | Sends one request and reads one response, with `most` as the maximum **reply** size. Both limits are bytes.                                                                                                                                                             |
-| `end(self) -> bool`                                                                                   | Consumes the worker, closes the transport and reports whether it ended. Dropping it also attempts shutdown if it has not already run.                                                                                                                                   |
+| Signature                                                                                                            | Contract                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serve(most: usize, answer: impl FnMut(&[u8]) -> Secret) -> bool`                                                    | Handles requests up to `most` bytes. The handler borrows each request for one call and returns an owned reply. Returns `true` for a recognized worker, including a failed worker startup. Returns `false` outside worker mode or if that role has already been claimed.                                                           |
+| `Worker::start(options: Options, required: &[Protection]) -> Result<Worker, WorkerError>`                            | Starts a worker without terminal access. An empty required list still requires a clean start and whole-process isolation.                                                                                                                                                                                                         |
+| `Worker::start_within(options: Options, required: &[Protection], deadline: Duration) -> Result<Worker, WorkerError>` | As `start`, with a deadline for the launch, the connection and the startup report. When it passes the start fails with `WorkerError::Start` of kind `TimedOut` and the worker is given up, as for `call_within`.                                                                                                                  |
+| `Worker::start_on_terminal(options: Options, required: &[Protection]) -> Result<Worker, WorkerError>`                | Linux/macOS. The worker's standard error is this program's terminal, opened anew for reading and writing, or `/dev/null` when no standard stream is a terminal. The worker has no controlling terminal: it cannot type into the terminal (`TIOCSTI`), and `/dev/tty` does not open. Standard input and output carry the protocol. |
+| `isolation(&self) -> Isolation`                                                                                      | Returns the worker’s startup report.                                                                                                                                                                                                                                                                                              |
+| `call(&mut self, request: &[u8], most: usize) -> std::io::Result<Secret>`                                            | Sends one request and reads one response, with `most` as the maximum **reply** size. Both limits are bytes.                                                                                                                                                                                                                       |
+| `call_within(&mut self, request: &[u8], most: usize, deadline: Duration) -> std::io::Result<Secret>`                 | As `call`, with a deadline for the whole exchange; an answer that arrives past it fails too. When it passes the call fails with `TimedOut` and the worker is given up: its pipes close, and it is terminated where a stable handle exists (Windows, Linux with a pidfd).                                                          |
+| `end(self) -> bool`                                                                                                  | Consumes the worker, closes the transport and reports whether it ended. Dropping it also attempts shutdown if it has not already run.                                                                                                                                                                                             |
 
 `WorkerError::Start(io::Error)` covers launch, transport and startup-protocol errors, including an unsupported mode or target. `WorkerError::Unclean` means the worker failed its startup cleanliness check. `WorkerError::Missing(Missing)` supplies the isolation report and the unmet requirements from the admission check. No application request has been sent in any of these cases.
 
@@ -296,11 +296,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
-The handler’s request limit and the parent’s reply limit are independent. Frames use a four-byte unsigned length. A request longer than `u32::MAX` fails locally with `InvalidInput` before sending, so the worker remains usable. A request above the handler’s limit ends service. A reply above the parent’s limit gives `InvalidData`. An exchange failure closes the transport, attempts shutdown and makes later calls fail with `BrokenPipe`. Startup report reads and request/reply exchanges have no deadline.
+The handler’s request limit and the parent’s reply limit are independent. Frames use a four-byte unsigned length. A request longer than `u32::MAX` fails locally with `InvalidInput` before sending, so the worker remains usable. A request above the handler’s limit ends service. A reply above the parent’s limit gives `InvalidData`. An exchange failure closes the transport, attempts shutdown and makes later calls fail with `BrokenPipe`. `start` and `call` wait without a deadline, so a worker that stops answering blocks the caller. Use `start_within` and `call_within` when the caller must get control back. A timed-out call gives the worker up and later calls fail with `BrokenPipe`; it returns after the shutdown described for `end` below, up to about two seconds past the deadline. On macOS and on Linux without a pidfd a worker given up keeps running until it next touches its pipes. On Windows the profile, the pipe and the process creation cannot be cut short: the deadline is read before and after them.
 
 `end` waits up to one second. Windows and Linux with a spawn-time pidfd can then request termination and wait up to one more second. On macOS and on Linux without that handle, `false` can mean the worker is still running. A dedicated Unix waiter collects the child on exit. Leave the child’s wait status to the library on the POSIX fallback.
 
-The parent retains its own request bytes. The transport uses best-effort `Secret::zeroed` buffers at the receiving end, and dropping them does not erase kernel pipe buffers. For input that must bypass the parent, the terminal worker can read its controlling terminal directly. The application must disable echo, check the setting and restore it afterwards. Linux Landlock can deny terminal-control operations on a newly opened terminal.
+The parent retains its own request bytes. The transport uses best-effort `Secret::zeroed` buffers at the receiving end, and dropping them does not erase kernel pipe buffers. For input that must bypass the parent, the terminal worker can read the terminal on its standard error directly. The application must disable echo, check the setting and restore it afterwards; the parent can save the settings before the start and restore them after the worker ends. The worker can write any bytes to the terminal, control sequences included. Linux Landlock can deny terminal-control operations on a newly opened terminal.
 
 ## Protected thread stacks
 

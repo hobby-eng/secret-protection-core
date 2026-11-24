@@ -74,7 +74,7 @@ pub(super) fn launch(
     }
     let mut pid = 0;
     // SAFETY: the strings and arrays are terminated, actions and attributes initialized.
-    super::check(unsafe {
+    super::worker::check(unsafe {
         libc::posix_spawn(
             &mut pid,
             program.as_ptr(),

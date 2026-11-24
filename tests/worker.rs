@@ -122,6 +122,24 @@ fn answer(request: &[u8]) -> Secret {
             LINGERS.store(true, Ordering::Relaxed);
             "lingers".to_owned()
         }
+        b"slow" => {
+            std::thread::sleep(Duration::from_secs(3));
+            "slow".to_owned()
+        }
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        b"type" => {
+            let key = b'x';
+            // SAFETY: TIOCSTI reads the one byte given, which lives for the call.
+            let typed = unsafe { libc::ioctl(libc::STDERR_FILENO, unix::TIOCSTI, &raw const key) };
+            if typed == 0 {
+                "typed".to_owned()
+            } else {
+                std::io::Error::last_os_error()
+                    .raw_os_error()
+                    .unwrap_or(0)
+                    .to_string()
+            }
+        }
         // A second call of `serve` in a worker: it returns at once and serves nothing.
         b"again" => serve(MOST, answer).to_string(),
         [1, ..] | [2] | [3] => {
@@ -284,9 +302,11 @@ fn main() {
         Ok("without-null") => return linux::without_null(),
         Ok("unserved") => return unserved(),
         #[cfg(unix)]
-        Ok("kept") => return kept(),
+        Ok("kept") => return unix::kept(),
         #[cfg(unix)]
-        Ok("streamless") => return streamless(),
+        Ok("streamless") => return unix::streamless(),
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        Ok("on-a-terminal") => return unix::on_a_terminal(),
         _ => {}
     }
     if !cfg!(any(target_os = "linux", target_os = "macos", windows)) {
@@ -333,23 +353,27 @@ fn main() {
         a_worker_that_lingers_is_killed,
     );
     run(
+        "a call past its deadline fails at once and gives the worker up",
+        a_call_past_its_deadline_gives_up,
+    );
+    run(
         "a program that reaches the start of a worker before serve starts none",
         a_worker_starts_no_worker,
     );
     #[cfg(unix)]
     run(
         "a program that comes to serve with a file of its own keeps it and is not clean",
-        a_late_serve_closes_nothing,
+        unix::a_late_serve_closes_nothing,
     );
     #[cfg(unix)]
     run(
         "a program whose worker variable holds no setting keeps what it inherited",
-        a_program_without_a_setting_keeps_what_it_inherited,
+        unix::a_program_without_a_setting_keeps_what_it_inherited,
     );
     #[cfg(unix)]
     run(
         "a worker's start-up code finds no descriptor of its parent's",
-        a_worker_inherits_nothing_its_libraries_could_find,
+        unix::a_worker_inherits_nothing_its_libraries_could_find,
     );
     #[cfg(windows)]
     run(
@@ -364,7 +388,12 @@ fn main() {
     #[cfg(unix)]
     run(
         "a program whose standard streams are closed starts both kinds of worker",
-        a_program_without_streams_starts_workers,
+        unix::a_program_without_streams_starts_workers,
+    );
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    run(
+        "a worker on a terminal reads and writes it but cannot type into it",
+        unix::a_worker_on_a_terminal_cannot_type_into_it,
     );
     #[cfg(all(
         target_os = "linux",
@@ -530,20 +559,26 @@ fn a_worker_gets_nothing_but_its_pipes() {
             its_own()
         );
         assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
-        // Its standard error goes to /dev/null; a worker on the terminal keeps its parent's.
+        // Its standard error goes to /dev/null; a worker on the terminal gets the terminal.
         let null = std::fs::File::open("/dev/null").unwrap();
         let stderr = worker.call(b"stderr", 100).unwrap();
         let null = std::os::fd::AsRawFd::as_raw_fd(&null);
         assert_eq!(stderr.as_str().unwrap(), identity(null));
         // SAFETY: closes the descriptor opened above, once.
         unsafe { libc::close(leaked) };
+        // A worker on the terminal leaves the session as well, so that it cannot type into the
+        // shell; its standard error is the terminal, opened anew, or /dev/null without one.
         let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
         assert_eq!(
             on_terminal.call(b"session", 10).unwrap().as_bytes(),
-            b"false"
+            b"true"
         );
+        // SAFETY: isatty takes an integer and only asks.
+        let terminal = [0, 2, 1]
+            .into_iter()
+            .find(|&stream| unsafe { libc::isatty(stream) } == 1);
         let stderr = on_terminal.call(b"stderr", 100).unwrap();
-        assert_eq!(stderr.as_str().unwrap(), identity(libc::STDERR_FILENO));
+        assert_eq!(stderr.as_str().unwrap(), identity(terminal.unwrap_or(null)));
     }
 }
 
@@ -655,104 +690,6 @@ fn a_worker_starts_no_worker() {
     );
 }
 
-/// `serve` closes no descriptor: the start of a worker closed what it would have inherited before
-/// the program ran. A program that opened a file before it called `serve` keeps the file, and its
-/// report says that its start was not clean. The test stands in for the parent, takes the report
-/// and sends no request.
-#[cfg(unix)]
-fn a_late_serve_closes_nothing() {
-    let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .env(ROLE, "late")
-        .env("SECRET_PROTECTION_CORE_WORKER", "0,0")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "the file was closed: {output:?}");
-    assert_eq!(output.stdout.len(), Protection::ALL.len() + 1);
-    assert_eq!(output.stdout.last(), Some(&0), "it calls its start clean");
-}
-
-/// A text in the worker's variable that is no setting starts no worker, and nothing closes a
-/// descriptor before `main`: the program keeps one its parent left it. A channel's name is no
-/// part of a setting on Unix, nor are numbers of descriptors.
-#[cfg(unix)]
-fn a_program_without_a_setting_keeps_what_it_inherited() {
-    // SAFETY: dup takes an integer and returns a new descriptor without close-on-exec.
-    let left = unsafe { libc::dup(0) };
-    assert!(left > 2);
-    let named = format!("0,0,{left}");
-    for text in ["none", "", "0,2", "64,0", "0,0,channel", &named] {
-        let status = std::process::Command::new(std::env::current_exe().unwrap())
-            .env(ROLE, "kept")
-            .env(KEPT, left.to_string())
-            .env("SECRET_PROTECTION_CORE_WORKER", text)
-            .status()
-            .unwrap();
-        assert!(status.success(), "{text:?} closed what the program had");
-    }
-    // SAFETY: closes the descriptor made above, which nothing else owns.
-    unsafe { libc::close(left) };
-}
-
-/// The start-up code of a worker, as that of a library linked to the program, finds no descriptor
-/// of its parent's: the start closed them before the program ran, not by their numbers after. A
-/// pipe the parent leaves open is looked for among the pipes the worker had before `main`.
-#[cfg(unix)]
-fn a_worker_inherits_nothing_its_libraries_could_find() {
-    let mut ends = [0; 2];
-    // SAFETY: pipe writes two new descriptors without close-on-exec, closed below.
-    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
-    // SAFETY: an all-zero `stat` is valid, and fstat writes it for the descriptor or fails.
-    let mut status: libc::stat = unsafe { std::mem::zeroed() };
-    // SAFETY: as above.
-    assert_eq!(unsafe { libc::fstat(ends[0], &mut status) }, 0);
-    let mut worker = Worker::start(Options::new(), &required()).unwrap();
-    let found = worker.call(b"pipes before main", 1000).unwrap();
-    let found = found.as_str().unwrap();
-    let parents = status.st_ino.to_string();
-    assert!(!found.split(',').any(|inode| inode == parents), "{found}");
-    for end in ends {
-        // SAFETY: closes a descriptor made above, once.
-        unsafe { libc::close(end) };
-    }
-}
-
-/// A program started with its standard streams closed makes the worker's pipes there, at 0 to 2,
-/// and must move them before it hands them on. The `streamless` role closes them and starts a
-/// worker of each kind; its exit says whether both answered.
-#[cfg(unix)]
-fn a_program_without_streams_starts_workers() {
-    let status = std::process::Command::new(std::env::current_exe().unwrap())
-        .env(ROLE, "streamless")
-        .status()
-        .unwrap();
-    assert!(status.success(), "{status}");
-}
-
-/// The `streamless` role.
-#[cfg(unix)]
-fn streamless() {
-    for stream in 0..=2 {
-        // SAFETY: closes a standard stream of this process, which nothing here uses again.
-        unsafe { libc::close(stream) };
-    }
-    let mut worker = Worker::start(Options::new(), &required()).unwrap();
-    assert_eq!(worker.call(b"public", 100).unwrap().as_bytes(), b"cilbup");
-    let mut on_terminal = Worker::start_on_terminal(Options::new(), &required()).unwrap();
-    assert_eq!(
-        on_terminal.call(b"public", 100).unwrap().as_bytes(),
-        b"cilbup"
-    );
-}
-
-/// The `kept` role: the descriptor its parent left it is still open.
-#[cfg(unix)]
-fn kept() {
-    let left: i32 = std::env::var(KEPT).unwrap().parse().unwrap();
-    // SAFETY: fcntl with F_GETFD takes integers and only reads.
-    assert_ne!(unsafe { libc::fcntl(left, libc::F_GETFD) }, -1);
-}
-
 /// A process of the same user may open the worker's pipe before the worker does, as a program
 /// that looks at every pipe would. It is put off, and the worker starts all the same. Here a
 /// thread of the test takes the pipe as soon as it is listed, a few times.
@@ -823,6 +760,35 @@ fn unserved() {
         Err(WorkerError::Start(error)) => assert_eq!(error.kind(), std::io::ErrorKind::Other),
         other => panic!("{other:?}"),
     }
+}
+
+/// A call past its deadline ends the worker; it does not wait for the late answer.
+fn a_call_past_its_deadline_gives_up() {
+    // A start past its deadline fails, at whatever step it was.
+    match Worker::start_within(Options::new(), &[], Duration::ZERO) {
+        Err(WorkerError::Start(error)) => {
+            assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        }
+        other => panic!("{other:?}"),
+    }
+    let mut worker = Worker::start_within(Options::new(), &[], Duration::from_secs(60)).unwrap();
+    let answer = worker
+        .call_within(b"abc", 10, Duration::from_secs(60))
+        .unwrap();
+    assert_eq!(answer.as_bytes(), b"cba");
+    let asked = std::time::Instant::now();
+    let late = worker
+        .call_within(b"slow", 10, Duration::from_millis(300))
+        .unwrap_err();
+    assert_eq!(late.kind(), std::io::ErrorKind::TimedOut);
+    // The deadline, and the bounded wait for the worker to end.
+    assert!(
+        asked.elapsed() < Duration::from_millis(2900),
+        "{:?}",
+        asked.elapsed()
+    );
+    let after = worker.call(b"abc", 10).unwrap_err();
+    assert_eq!(after.kind(), std::io::ErrorKind::BrokenPipe);
 }
 
 /// A lingering worker can be terminated through a stable process handle. On platforms
@@ -943,6 +909,10 @@ fn a_worker_starts_from_a_protected_stack() {
 ))]
 #[path = "worker/linux.rs"]
 mod linux;
+
+#[cfg(unix)]
+#[path = "worker/unix.rs"]
+mod unix;
 
 #[cfg(windows)]
 #[path = "worker/windows.rs"]

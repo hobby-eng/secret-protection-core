@@ -7,6 +7,8 @@ on:
     branches: ["**"]
   pull_request:
   workflow_dispatch:
+  # The release workflow runs the same checks on the tag before it packages anything.
+  workflow_call:
 
 # A newer push to the same branch or pull request makes a running check pointless.
 concurrency:
@@ -32,6 +34,22 @@ jobs:
         run: |
           cargo fmt --check
           cargo fmt --manifest-path fuzz/Cargo.toml --check
+      # The notices name exactly the packages of the library's dependency tree, each with its
+      # complete version: both lists of "name vVERSION" pairs must be equal.
+      - name: Check the third-party notices against the dependency tree
+        run: |
+          tree=$(cargo tree --locked --target all --edges normal,build --prefix none --format '{p}' | sed 's/ (.*//' | grep -v '^secret-protection-core ' | sort -u)
+          notices=$(grep -oE '\*\*[a-z0-9_-]+ [0-9][^*]*\*\*' THIRD_PARTY_NOTICES.md | while read -r span; do
+            span=${span#\*\*}
+            span=${span%\*\*}
+            for token in ${span#* }; do
+              if [[ $token =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then
+                echo "${span%% *} v$token"
+              fi
+            done
+          done | sort -u)
+          diff <(echo "$tree") <(echo "$notices") ||
+            { echo "THIRD_PARTY_NOTICES.md and the dependency tree differ: < only in the tree, > only in the notices"; exit 1; }
       - name: Lint the fuzz targets
         run: RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings
       - name: Lint the host and every target

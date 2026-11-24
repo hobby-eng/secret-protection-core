@@ -3,15 +3,22 @@
 
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::time::{Duration, Instant};
+
+use zeroize::Zeroize;
 
 use crate::protect::{Isolation, Missing, Options, Protection, Secret};
 
 /// The variable through which a worker learns that it is one: the options its parent chose, and
-/// whether it keeps the terminal.
+/// whether it works on the terminal.
 pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
 
 #[cfg(windows)]
 pub(crate) const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
+
+/// The first size of the worker's request buffer, at most the limit: one page, which the smallest
+/// secret takes anyway.
+const REQUEST_BUFFER: usize = 4096;
 
 /// The startup report sent after the platform checks and before application requests.
 /// It contains one byte per protection followed by the clean-start flag.
@@ -38,7 +45,7 @@ pub enum WorkerError {
     Start(io::Error),
     /// The worker's start was not clean: it holds a descriptor besides its standard streams,
     /// inherited or opened by the program before `serve`, could not list its descriptors, or
-    /// could not leave the terminal.
+    /// could not leave its parent's session.
     Unclean,
     /// Protections the parent required are not confirmed in the worker.
     Missing(Missing),
@@ -62,24 +69,50 @@ impl Worker {
     /// On Unix the check examines descriptors still open above standard error when [`serve`] runs.
     /// On Windows the launcher disables inheritance and the worker does not enumerate handles.
     pub fn start(options: Options, required: &[Protection]) -> Result<Self, WorkerError> {
-        Self::starting(options, required, false)
+        Self::starting(options, required, false, None)
     }
 
-    /// Starts a Linux or macOS worker with access to the controlling terminal and standard
-    /// error. The application can read input there without routing it through the parent.
-    /// The application must disable and restore terminal echo. On Linux a Landlock restriction
-    /// can prevent changing settings on a terminal opened later.
+    /// As [`Worker::start`], but the start fails with [`WorkerError::Start`] of kind `TimedOut`
+    /// when the worker has not been launched, connected and sent its startup report within
+    /// `deadline`. On Unix nothing is launched once the deadline has passed, and a launch that
+    /// finishes after it is ended by the launcher. On Windows the profile, the pipe and the
+    /// process creation are calls that cannot be cut short: the deadline is read before and after
+    /// them.
+    /// When the deadline passes, the worker is given up: its pipes close, and where a stable handle
+    /// exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it next
+    /// touches its pipes. The call returns after that shutdown, which waits up to a second, and
+    /// after a termination up to a second more (see [`Worker::end`]). A deadline too far ahead for
+    /// the clock to hold, such as `Duration::MAX`, waits without one.
+    pub fn start_within(
+        options: Options,
+        required: &[Protection],
+        deadline: Duration,
+    ) -> Result<Self, WorkerError> {
+        Self::starting(
+            options,
+            required,
+            false,
+            Instant::now().checked_add(deadline),
+        )
+    }
+
+    /// Starts a Linux or macOS worker whose standard error is this program's terminal, opened for
+    /// reading and writing, so that the application can read input there without routing it
+    /// through the parent; `/dev/null` when no standard stream is a terminal. The worker has no
+    /// controlling terminal, so it cannot type into the shell (TIOCSTI) and `/dev/tty` does not
+    /// open. The application must disable and restore terminal echo.
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],
     ) -> Result<Self, WorkerError> {
-        Self::starting(options, required, true)
+        Self::starting(options, required, true, None)
     }
 
     fn starting(
         options: Options,
         required: &[Protection],
         terminal: bool,
+        deadline: Option<Instant>,
     ) -> Result<Self, WorkerError> {
         // A program whose `main` came here before `serve` would start itself without end.
         if std::env::var_os(WORKER).is_some() {
@@ -88,9 +121,9 @@ impl Worker {
             )));
         }
         let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
-        let mut process =
-            crate::os::WorkerProcess::start(&setting, terminal).map_err(WorkerError::Start)?;
-        let started = Self::report(&mut process)
+        let mut process = crate::os::WorkerProcess::start(&setting, terminal, deadline)
+            .map_err(WorkerError::Start)?;
+        let started = Self::report(&mut process, deadline)
             .and_then(|(isolation, clean)| admit(isolation, clean, required));
         match started {
             Ok(isolation) => Ok(Self {
@@ -107,16 +140,18 @@ impl Worker {
     }
 
     /// Reads what the worker says of itself: its isolation, and whether its start left it clean.
-    fn report(process: &mut crate::os::WorkerProcess) -> Result<(Isolation, bool), WorkerError> {
-        #[cfg(windows)]
-        process.observe_threads().map_err(WorkerError::Start)?;
+    fn report(
+        process: &mut crate::os::WorkerProcess,
+        deadline: Option<Instant>,
+    ) -> Result<(Isolation, bool), WorkerError> {
         let unreadable = || io::Error::new(io::ErrorKind::InvalidData, "no report of a worker");
         let mut report = [0; REPORT_BYTES];
         process
-            .from
-            .as_mut()
-            .ok_or_else(unreadable)
-            .and_then(|from| from.read_exact(&mut report))
+            .exchanging(deadline, |process, deadline| {
+                #[cfg(windows)]
+                process.observe_threads(deadline)?;
+                process.read_exact_until(&mut report, deadline)
+            })
             .map_err(WorkerError::Start)?;
         understood(&report).ok_or_else(|| WorkerError::Start(unreadable()))
     }
@@ -131,6 +166,32 @@ impl Worker {
     /// A failed exchange closes the transport, attempts shutdown and prevents further calls.
     /// Waiting for the reply has no deadline.
     pub fn call(&mut self, request: &[u8], most: usize) -> io::Result<Secret> {
+        self.calling(request, most, None)
+    }
+
+    /// As [`Worker::call`], but the call fails with `TimedOut` when the exchange has not finished
+    /// within `deadline`, an answer that arrives past it included, and later calls fail with
+    /// `BrokenPipe`.
+    /// When the deadline passes, the worker is given up: its pipes close, and where a stable handle
+    /// exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it next
+    /// touches its pipes. The call returns after that shutdown, which waits up to a second, and
+    /// after a termination up to a second more (see [`Worker::end`]). A deadline too far ahead for
+    /// the clock to hold, such as `Duration::MAX`, waits without one.
+    pub fn call_within(
+        &mut self,
+        request: &[u8],
+        most: usize,
+        deadline: Duration,
+    ) -> io::Result<Secret> {
+        self.calling(request, most, Instant::now().checked_add(deadline))
+    }
+
+    fn calling(
+        &mut self,
+        request: &[u8],
+        most: usize,
+        deadline: Option<Instant>,
+    ) -> io::Result<Secret> {
         if self.broken {
             return Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
@@ -140,7 +201,7 @@ impl Worker {
         let length = u32::try_from(request.len()).map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidInput, "a request of 4 GiB or more")
         })?;
-        let answer = self.exchange(length, request, most);
+        let answer = self.exchange(length, request, most, deadline);
         if answer.is_err() {
             self.broken = true;
             self.finish();
@@ -166,25 +227,29 @@ impl Worker {
         self.finish()
     }
 
-    fn exchange(&mut self, length: u32, request: &[u8], most: usize) -> io::Result<Secret> {
-        let closed = || io::Error::from(io::ErrorKind::BrokenPipe);
-        let to = self.process.to.as_mut().ok_or_else(closed)?;
-        to.write_all(&length.to_le_bytes())?;
-        to.write_all(request)?;
-        to.flush()?;
-        let from = self.process.from.as_mut().ok_or_else(closed)?;
-        let mut length = [0; 4];
-        from.read_exact(&mut length)?;
-        let length = u32::from_le_bytes(length) as usize;
-        if length > most {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "the answer is longer than allowed",
-            ));
-        }
-        let mut answer = Secret::zeroed(length);
-        from.read_exact(answer.as_mut_bytes())?;
-        Ok(answer)
+    fn exchange(
+        &mut self,
+        length: u32,
+        request: &[u8],
+        most: usize,
+        deadline: Option<Instant>,
+    ) -> io::Result<Secret> {
+        self.process.exchanging(deadline, |process, deadline| {
+            process.write_all_until(&length.to_le_bytes(), deadline)?;
+            process.write_all_until(request, deadline)?;
+            let mut length = [0; 4];
+            process.read_exact_until(&mut length, deadline)?;
+            let length = u32::from_le_bytes(length) as usize;
+            if length > most {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "the answer is longer than allowed",
+                ));
+            }
+            let mut answer = Secret::zeroed(length);
+            process.read_exact_until(answer.as_mut_bytes(), deadline)?;
+            Ok(answer)
+        })
     }
 }
 
@@ -197,8 +262,7 @@ fn admit(
         return Err(WorkerError::Unclean);
     }
     isolation
-        .require_in_scope(&[Protection::WholeProcess], true)
-        .and_then(|isolation| isolation.require_in_scope(required, true))
+        .require_process_wide(required)
         .map_err(WorkerError::Missing)
 }
 
@@ -273,7 +337,7 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
 pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
-    let Some((options, terminal, channel)) = setting(&text) else {
+    let Some((options, _terminal, channel)) = setting(&text) else {
         return false;
     };
     if SERVED.swap(true, std::sync::atomic::Ordering::Relaxed) {
@@ -285,9 +349,9 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     let Ok(mut streams) = crate::os::worker_streams(channel) else {
         return true;
     };
-    if !terminal {
-        clean &= crate::os::leave_terminal();
-    }
+    // No worker keeps a controlling terminal: through one, input it typed would reach the shell
+    // as the user's own (TIOCSTI). A worker on the terminal has it as standard error.
+    clean &= crate::os::leave_terminal();
     #[cfg(windows)]
     let Ok(isolation) = streams.enter(Options::from_bits(options)) else {
         return true;
@@ -300,6 +364,10 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     if streams.write_all(&report).is_err() || !clean || !isolation.whole_process {
         return true;
     }
+    // One request buffer for the whole service, wiped after each request and grown only for a
+    // larger one: a new secret per request would repeat the setup of secret memory and the TLB
+    // flush of giving it back, for every keystroke.
+    let mut request = Secret::zeroed(REQUEST_BUFFER.min(most));
     loop {
         let mut length = [0; 4];
         if streams.read_exact(&mut length).is_err() {
@@ -309,12 +377,17 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
         if length > most {
             return true;
         }
-        let mut request = Secret::zeroed(length);
-        if streams.read_exact(request.as_mut_bytes()).is_err() {
+        if length > request.capacity() {
+            request = Secret::zeroed(length.max(REQUEST_BUFFER));
+        }
+        if streams
+            .read_exact(&mut request.as_mut_bytes()[..length])
+            .is_err()
+        {
             return true;
         }
-        let reply = answer(request.as_bytes());
-        drop(request);
+        let reply = answer(&request.as_bytes()[..length]);
+        request.as_mut_bytes()[..length].zeroize();
         let Ok(length) = u32::try_from(reply.as_bytes().len()) else {
             return true;
         };

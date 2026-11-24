@@ -81,6 +81,11 @@ fn main() {
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
+        Ok("undumpable-refused") => linux::undumpable_refused_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
         Ok("own-pids") => linux::own_pids_role(),
         #[cfg(all(
             target_os = "linux",
@@ -119,6 +124,57 @@ fn main() {
         ),
         _ => checks(),
     }
+}
+
+/// The checks that each run a Linux role in a child of its own.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+fn linux_role_checks() {
+    run(
+        "a forked child does not take its parent's signal rule or memory lock for its own",
+        || linux::role_ends_well("forked"),
+    );
+    run(
+        "a refused dumpable change keeps the process out of a user namespace",
+        || linux::role_ends_well("undumpable-refused"),
+    );
+    run(
+        "the signal option alone refuses owners and O_ASYNC and leaves locks and flags",
+        linux::the_signal_option_alone_refuses_owners_and_async,
+    );
+    run(
+        "a refusal by someone else's policy confirms no protection of this crate's",
+        || linux::role_ends_well("policed"),
+    );
+    run(
+        "a PID namespace of its own leaves the reading of memory unknown",
+        || linux::role_ends_well("own-pids"),
+    );
+    run(
+        "a Landlock layer the kernel refused once is tried again",
+        || linux::role_ends_well("relayered"),
+    );
+    run(
+        "a secret made where signals cannot be blocked takes no secret memory",
+        || linux::role_ends_well("unmasked"),
+    );
+    run(
+        "a refused Landlock layer is not reported as a signal scope",
+        || linux::role_ends_well("unlayered"),
+    );
+    run(
+        "threads that cannot be listed leave the reading of memory unknown",
+        || linux::role_ends_well("unlisted"),
+    );
+    run(
+        "speculation the kernel does not limit or report is not called limited",
+        || {
+            linux::role_ends_well("speculating");
+            linux::role_ends_well("unspeculated");
+        },
+    );
 }
 
 /// Every check, in a process that plays no role.
@@ -178,69 +234,7 @@ fn checks() {
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")
     ))]
-    run(
-        "a forked child does not take its parent's signal rule or memory lock for its own",
-        || linux::role_ends_well("forked"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "a refusal by someone else's policy confirms no protection of this crate's",
-        || linux::role_ends_well("policed"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "a PID namespace of its own leaves the reading of memory unknown",
-        || linux::role_ends_well("own-pids"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "a Landlock layer the kernel refused once is tried again",
-        || linux::role_ends_well("relayered"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "a secret made where signals cannot be blocked takes no secret memory",
-        || linux::role_ends_well("unmasked"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "a refused Landlock layer is not reported as a signal scope",
-        || linux::role_ends_well("unlayered"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "threads that cannot be listed leave the reading of memory unknown",
-        || linux::role_ends_well("unlisted"),
-    );
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ))]
-    run(
-        "speculation the kernel does not limit or report is not called limited",
-        || {
-            linux::role_ends_well("speculating");
-            linux::role_ends_well("unspeculated");
-        },
-    );
+    linux_role_checks();
     #[cfg(target_os = "linux")]
     run(
         "a tracer of another thread makes the whole process readable",
@@ -356,8 +350,22 @@ fn child(role: &str) -> Child {
 fn isolated() {
     #[cfg(windows)]
     waiting_thread();
+    #[cfg(target_os = "macos")]
+    let (_controller, other) = another_terminal();
     let isolation = Isolation::enter();
     expect_whole_process(isolation);
+    #[cfg(target_os = "macos")]
+    other_terminals_are_out_of_reach(&other);
+    // The rule for every thread holds in a process of one thread.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        use secret_protection_core::{Options, Protection};
+        let wide = Isolation::enter_requiring_process_wide(
+            Options::new(),
+            &[Protection::NoNewSockets, Protection::NoFileChanges],
+        );
+        assert!(wide.is_ok(), "{wide:?}");
+    }
     // Linux reads back the earlier setup. On Windows a repeated standalone check can lose
     // visibility of the threads needed to confirm access control and integrity.
     #[cfg(target_os = "linux")]
@@ -394,6 +402,47 @@ fn isolated() {
     }
     println!("entered");
     idle();
+}
+
+/// A new pseudo-terminal, which is none of the process's own standard streams.
+#[cfg(target_os = "macos")]
+fn another_terminal() -> (std::os::fd::OwnedFd, std::ffi::CString) {
+    use std::os::fd::FromRawFd;
+    // SAFETY: posix_openpt opens a new controller, owned once below; grantpt and unlockpt take its
+    // descriptor; ptsname gives a NUL-terminated name, copied at once.
+    unsafe {
+        let controller = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+        assert!(controller >= 0);
+        assert_eq!(libc::grantpt(controller), 0);
+        assert_eq!(libc::unlockpt(controller), 0);
+        let name = libc::ptsname(controller);
+        assert!(!name.is_null());
+        (
+            std::os::fd::OwnedFd::from_raw_fd(controller),
+            std::ffi::CStr::from_ptr(name).to_owned(),
+        )
+    }
+}
+
+/// The sandbox refuses to read, write or change a terminal that is not the process's own.
+#[cfg(target_os = "macos")]
+fn other_terminals_are_out_of_reach(name: &std::ffi::CStr) {
+    for flags in [libc::O_RDONLY, libc::O_WRONLY] {
+        // SAFETY: open reads the NUL-terminated name; a descriptor it gives is closed at once.
+        let (opened, error) = unsafe {
+            let opened = libc::open(name.as_ptr(), flags | libc::O_NOCTTY);
+            let error = std::io::Error::last_os_error().raw_os_error();
+            if opened >= 0 {
+                libc::close(opened);
+            }
+            (opened, error)
+        };
+        assert_eq!((opened, error), (-1, Some(libc::EPERM)), "{flags}");
+    }
+    // SAFETY: chmod reads the NUL-terminated name.
+    let changed = unsafe { libc::chmod(name.as_ptr(), 0o666) };
+    let error = std::io::Error::last_os_error().raw_os_error();
+    assert_eq!((changed, error), (-1, Some(libc::EPERM)));
 }
 
 /// The seccomp filters of the calling thread, as `/proc/thread-self/status` counts them (Linux

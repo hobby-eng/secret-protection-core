@@ -173,6 +173,26 @@ pub(crate) fn policed_role() {
     assert_eq!(missing.missing, required);
 }
 
+/// The `undumpable-refused` role: someone else's policy refuses to clear the dumpable flag. The
+/// isolation then enters no user namespace, in which every process of the user would hold the
+/// right to read this one, and confirms neither the core-dump ban nor the empty network.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+pub(crate) fn undumpable_refused_role() {
+    let before = fs::read_link("/proc/self/ns/user").unwrap();
+    install_a_filter_answering(
+        libc::SYS_prctl,
+        Some(libc::PR_SET_DUMPABLE as u32),
+        libc::EPERM,
+    );
+    let isolation = Isolation::enter();
+    let after = fs::read_link("/proc/self/ns/user").unwrap();
+    assert_eq!(after, before, "a user namespace was entered");
+    assert!(
+        !isolation.empty_network && !isolation.no_core_dumps,
+        "{isolation:?}"
+    );
+}
+
 /// The `own-pids` role: in a PID namespace of its own, as in a container, a tracer outside
 /// it would read as none. The reading of memory is then unknown, not confirmed. Only a
 /// child is in the new namespace. Where the limit allows a lock of all memory, a grandchild

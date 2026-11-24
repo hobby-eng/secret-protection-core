@@ -10,7 +10,8 @@ static GENERATION: AtomicUsize = AtomicUsize::new(0);
 static WATCHED: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
-    fn pthread_atfork(
+    /// Also the fork gate's of Linux secret memory: one declaration for the crate.
+    pub(in crate::os) fn pthread_atfork(
         prepare: Option<unsafe extern "C" fn()>,
         parent: Option<unsafe extern "C" fn()>,
         child: Option<unsafe extern "C" fn()>,
