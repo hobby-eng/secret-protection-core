@@ -19,6 +19,7 @@
 - Linux enters its user namespace only when the cleared dumpable flag reads back. `signals_to_self_only` also refuses `F_SETSIG` and setting `O_ASYNC`, after which a terminal would name its foreground group as the owner by itself; `refuse_file_locks` also refuses delegations (`F_SETDELEG`). Calls on a process accept only 0, the caller, so that a child of `fork` cannot name its parent.
 - On Windows a start or call with a deadline goes by the clock: work that ends past the deadline fails, and the launch checks the deadline before and after the calls that cannot be cut short. A Unix launch that finishes after its start gave up is ended through its stable handle.
 - The macOS sandbox keeps reads off every terminal device but the process's own.
+- `with_cleared_stack` and `clear_stack` overwrite 128 KiB of the calling thread's stack below the caller's frame after secret work, for computations whose dependencies leave their state on the stack, such as the lanes of a password hash.
 
 ## 0.1.1 (2026-11-24)
 

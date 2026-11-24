@@ -22,5 +22,8 @@ pub use protect::{
     ClosedSecret, Isolation, Measure, Missing, Options, Outcome, Protection, Reach, Secret,
     SecretError, WorkArea,
 };
-pub use stack::{StackError, StackProperties, StackRun, run_on_protected_stack};
+pub use stack::{
+    CLEARED_STACK_BYTES, StackError, StackProperties, StackRun, clear_stack,
+    run_on_protected_stack, with_cleared_stack,
+};
 pub use worker::{Worker, WorkerError, serve};

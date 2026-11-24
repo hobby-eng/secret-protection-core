@@ -327,6 +327,12 @@ fn main() -> Result<(), StackError> {
 | `StackRun<R>`     | `value: R` is the closure's result. `properties: StackProperties` reports what protected the stack while it ran.                                                                                                                                                                                                           |
 | `StackError`      | `Unsupported` on Windows and WebAssembly. `Size` if the requested size cannot be represented after rounding. `NotProtected(StackProperties)` reports the actual properties when a requirement is missing. `System(std::io::Error)` carries an allocation or thread setup failure. These errors occur before the work runs. |
 
+### Clearing the calling thread's stack
+
+`with_cleared_stack<T>(work: impl FnOnce() -> T) -> T` runs `work` in a frame of its own and then overwrites `CLEARED_STACK_BYTES` (128 KiB) of the calling thread's stack below the caller's frame with zeros, through volatile writes. That is where `work` and what it called kept their locals: copies that moves leave behind, and the state of dependencies that never wipe it, such as the blocks and hashes of a password hash. `clear_stack()` does the overwrite alone, for each thread of a pool after the secret work it ran, such as the lanes of an Argon2 computation.
+
+It is best effort: how deep the work wrote is not measured, and the thread needs 128 KiB of free stack. Registers, heap copies and other threads' stacks are left as they are. `run_on_protected_stack` instead runs the work on a thread of its own, whose whole stack it wipes.
+
 ## Handle input and output
 
 ### SecretLine and Keystroke

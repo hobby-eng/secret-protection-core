@@ -1,7 +1,12 @@
 //! [`run_on_protected_stack`]: secret work on a thread whose stack lives in protected pages.
+//! [`with_cleared_stack`] and [`clear_stack`]: what secret work left on the calling thread's own
+//! stack, overwritten after it.
 
 use std::fmt;
+use std::hint::black_box;
 use std::io;
+
+use zeroize::Zeroize;
 
 /// What protects the pages of a stack.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -74,10 +79,76 @@ pub fn run_on_protected_stack<R: Send>(
         .map(|(value, properties)| StackRun { value, properties })
 }
 
+/// How much of the stack below the caller's frame [`clear_stack`] overwrites: a margin over what
+/// a secret computation writes there, which nothing measures.
+pub const CLEARED_STACK_BYTES: usize = 128 * 1024;
+
+/// Runs `work` in a frame of its own, then overwrites [`CLEARED_STACK_BYTES`] of the calling
+/// thread's stack below the caller's frame, where `work` and what it called kept their locals:
+/// copies that moves leave behind, and the state of dependencies that never wipe it, such as hash
+/// and block buffers. Best effort: how deep `work` wrote is not measured, and the thread needs that
+/// much free stack. Registers, heap copies and other threads' stacks are left as they are.
+#[inline(never)]
+pub fn with_cleared_stack<T>(work: impl FnOnce() -> T) -> T {
+    let result = run(work);
+    clear_stack();
+    result
+}
+
+#[inline(never)]
+fn run<T>(work: impl FnOnce() -> T) -> T {
+    work()
+}
+
+/// Overwrites [`CLEARED_STACK_BYTES`] of the calling thread's stack below the caller's frame: on
+/// each thread of a pool after secret work it ran, such as the lanes of a password hash.
+#[inline(never)]
+pub fn clear_stack() {
+    let mut stack = [0u8; CLEARED_STACK_BYTES];
+    // Volatile writes; `black_box` keeps the array, and so the writes, where the frames were.
+    stack.zeroize();
+    black_box(&stack);
+}
+
 #[cfg(test)]
 #[cfg(target_os = "linux")]
 mod tests {
     use super::*;
+
+    /// After the clearing the stack below the caller holds none of the work; before it, it does,
+    /// which shows that the reading finds what is there.
+    #[test]
+    fn a_cleared_stack_holds_none_of_the_work() {
+        /// "SPC_STK!", which nothing else on the stack holds.
+        const MARK: u64 = 0x5350_435f_5354_4b21;
+        #[inline(never)]
+        fn work() -> u64 {
+            let mut words = [MARK; 1024];
+            black_box(&mut words);
+            words[17]
+        }
+        assert_eq!(work(), MARK);
+        assert!(stack_holds(MARK));
+        assert_eq!(with_cleared_stack(work), MARK);
+        assert!(!stack_holds(MARK));
+    }
+
+    /// Whether the stack below this frame holds `word`, down to twice what is cleared. It is read
+    /// through the kernel, since Rust may not read memory that no value was written to.
+    #[inline(never)]
+    fn stack_holds(word: u64) -> bool {
+        use std::os::unix::fs::FileExt;
+        let frame = 0u64;
+        let end = black_box(&raw const frame) as u64;
+        let mut below = vec![0u8; 2 * CLEARED_STACK_BYTES];
+        let start = end - below.len() as u64;
+        std::fs::File::open("/proc/self/mem")
+            .unwrap()
+            .read_exact_at(&mut below, start)
+            .unwrap();
+        let (words, _) = below.as_chunks::<8>();
+        words.iter().any(|chunk| u64::from_ne_bytes(*chunk) == word)
+    }
 
     /// A refused protected stack says which refusal it was.
     #[test]
