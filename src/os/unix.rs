@@ -162,11 +162,10 @@ pub(super) fn page_size() -> usize {
 /// Reserves pages for `bytes` bytes between two guard pages, every page refusing every access, and
 /// returns where the bytes go: past the first guard. A run past either end of the pages then
 /// faults instead of reaching other memory; one within the last page, past `bytes`, does not.
+/// No more than `isize::MAX` bytes in all, so that a slice of them is sound.
 pub(super) fn reserve(bytes: usize) -> Option<NonNull<u8>> {
     let page = page_size();
-    let total = bytes
-        .checked_next_multiple_of(page)?
-        .checked_add(2 * page)?;
+    let total = super::reservation(bytes, page)?;
     // SAFETY: a new private anonymous mapping that refuses every access, at an address the kernel
     // chooses, takes no memory that anything else owns.
     let mapped = unsafe {
@@ -582,7 +581,7 @@ pub(crate) fn worker_streams(channel: &str) -> io::Result<WorkerStreams> {
         .map(OwnedFd::from)
         .or_else(ended_pipe)
         .ok_or_else(|| io::Error::other("nothing to put in place of the streams"))?;
-    // SAFETY: descriptors 0 and 1 are the pipes the parent made, open for the whole process;
+    // SAFETY: descriptors 0 and 1 are the channels the parent made, open for the whole process;
     // `ManuallyDrop` never closes them.
     Ok(unsafe {
         WorkerStreams {

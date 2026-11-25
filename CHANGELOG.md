@@ -47,6 +47,10 @@
 - `read_hidden_line` also turns off flow control (`IXON`) and the input changes that drop Enter (`IGNCR`) or the eighth bit (`ISTRIP`), refuses an input set not to wait (`O_NONBLOCK`), takes no descriptor open only for `ioctl`s, and does not drop input a second time after a failed first drain.
 - With `Options::all_threads` a fork on another thread waits until the Landlock layer is on every thread and recorded, where an earlier call put the gate of secret memory in place and it is free within 100 ms. On Linux with a pidfd a worker that ends by itself just as its shutdown wait runs out counts as ended. `run_on_protected_stack` rounds the system's least stack size up to whole pages, the `Debug` text of a `WorkArea` no longer reaches its pages, which ended a child of `fork`, and a worker gives back its request buffer before it takes a larger one.
 - CI checks the formatting of the Markdown, JSON, TOML and YAML, and lints a 32-bit Linux without this crate's filter.
+- On Linux a worker's standard input and output are two pairs of connected sockets instead of pipes: another process of the same user could open the parent's pipes again through `/proc/PID/fd`, and read or change requests, answers and the startup report; it cannot open a socket so. The channel stays as private as the parent, which a process allowed to attach to it can still read.
+- A size whose pages would span more than `isize::MAX` bytes, the most a Rust slice may, is no longer mapped, though a 32-bit system could map it: work areas and protected stacks refuse it, and a secret of that size ends the program, as a size the system cannot map does.
+- On Unix an exchange with a worker that ends past its deadline fails with `TimedOut` when it failed for another reason too, as on Windows. `Worker::start_within` answers `Unsupported` on WebAssembly instead of reading a clock that is not there.
+- CI runs the tests on 32-bit Linux (`i686`), and the README tells the Windows MSVC toolchain, which CI runs the tests with, from the GNU target, which it only compiles.
 
 ## 0.1.1 (2026-11-24)
 

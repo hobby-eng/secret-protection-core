@@ -1,6 +1,6 @@
 # Third-party notices
 
-The versions below come from the library's [Cargo.lock](Cargo.lock). The fuzz targets have a [separate lockfile](fuzz/Cargo.lock) for development tools.
+The versions below come from the library's [Cargo.lock](Cargo.lock). The fuzz targets have a [separate lockfile](https://github.com/hobby-eng/secret-protection-core/blob/main/fuzz/Cargo.lock) for development tools, in the repository only: the published package leaves the fuzz targets out.
 
 ## Library dependencies
 

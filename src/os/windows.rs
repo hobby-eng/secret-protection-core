@@ -171,9 +171,8 @@ impl Drop for Pages {
 /// Windows refuses it.
 fn commit(bytes: usize) -> Option<NonNull<u8>> {
     let page = page_size();
-    let total = bytes
-        .checked_next_multiple_of(page)?
-        .checked_add(2 * page)?;
+    // No more than `isize::MAX` bytes in all, so that a slice of them is sound.
+    let total = super::reservation(bytes, page)?;
     // SAFETY: a new reservation, at an address Windows chooses, takes no memory that anything else
     // owns.
     let reserved = unsafe { VirtualAlloc(ptr::null(), total, MEM_RESERVE, PAGE_NOACCESS) };

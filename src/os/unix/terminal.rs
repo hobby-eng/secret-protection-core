@@ -3,7 +3,8 @@
 //! the process holds are used, as a worker isolated from opening files has them.
 #![allow(
     unsafe_code,
-    reason = "isatty, fcntl, fstat, tcgetattr, tcsetattr, read and write are foreign functions"
+    reason = "isatty, fcntl, fstat, tcgetattr, tcsetattr, read, write and poll are foreign \
+              functions"
 )]
 
 use std::io;
@@ -193,23 +194,52 @@ impl HiddenTerminal {
     /// whether it reached the end of what was waiting. On Linux such a read first takes in the
     /// input still on its way to the terminal.
     fn drain(&mut self) -> bool {
-        let mut sink = Zeroizing::new([0u8; 256]);
-        let mut taken = 0_usize;
-        loop {
-            // SAFETY: read writes at most the buffer's length into it, which lives for the call.
-            let read = unsafe { libc::read(self.input, sink.as_mut_ptr().cast(), sink.len()) };
-            match usize::try_from(read) {
-                Ok(0) => return true,
-                // More than DRAINED: no end in sight.
-                Ok(read) if taken + read > DRAINED => return false,
-                Ok(read) => taken += read,
-                Err(_) => match io::Error::last_os_error().kind() {
-                    io::ErrorKind::Interrupted => {}
-                    // Nothing waiting, where another program set the input not to wait.
-                    io::ErrorKind::WouldBlock => return true,
-                    _ => return false,
-                },
+        drop_waiting(self.input, DRAINED)
+    }
+}
+
+/// Reads and drops what waits on `input`, never more than `budget` bytes, and says whether that
+/// was all of it: with the budget spent, input still waiting, which `poll` sees without reading
+/// it, makes the answer false.
+fn drop_waiting(input: RawFd, budget: usize) -> bool {
+    let mut sink = Zeroizing::new([0u8; 256]);
+    let mut left = budget;
+    loop {
+        if left == 0 {
+            return !waiting(input);
+        }
+        let most = sink.len().min(left);
+        // SAFETY: read writes at most `most` bytes, within the buffer, which lives for the call.
+        let read = unsafe { libc::read(input, sink.as_mut_ptr().cast(), most) };
+        match usize::try_from(read) {
+            Ok(0) => return true,
+            Ok(read) => left = left.saturating_sub(read),
+            Err(_) => match io::Error::last_os_error().kind() {
+                io::ErrorKind::Interrupted => {}
+                // Nothing waiting, where another program set the input not to wait.
+                io::ErrorKind::WouldBlock => return true,
+                _ => return false,
+            },
+        }
+    }
+}
+
+/// Whether input waits on `input`, asked of `poll` without waiting; a failed poll counts as yes.
+fn waiting(input: RawFd) -> bool {
+    loop {
+        let mut entry = libc::pollfd {
+            fd: input,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: polls one descriptor through an entry that lives for the call.
+        match unsafe { libc::poll(&mut entry, 1, 0) } {
+            0 => return false,
+            polled if polled > 0 => {
+                return entry.revents & (libc::POLLIN | libc::POLLERR | libc::POLLNVAL) != 0;
             }
+            _ if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
+            _ => return true,
         }
     }
 }
@@ -513,6 +543,28 @@ mod tests {
             type_keys(&controller, bytes);
             let refused = hidden.next_char().map_err(|error| error.kind());
             assert_eq!(refused, Err(io::ErrorKind::InvalidData), "{bytes:?}");
+        }
+        Ok(())
+    }
+
+    /// A drain drops input below its budget or just at it whole, and with more waiting it fails
+    /// and leaves the rest unread: it never drops more than it may.
+    #[test]
+    fn a_drain_never_drops_more_than_its_budget() -> io::Result<()> {
+        use std::io::Write;
+        for (written, whole, left) in [(999, true, 0), (1000, true, 0), (1001, false, 1)] {
+            let (reader, mut writer) = io::pipe()?;
+            // SAFETY: fcntl takes a descriptor and integers.
+            unsafe {
+                let flags = libc::fcntl(reader.as_raw_fd(), libc::F_GETFL);
+                libc::fcntl(reader.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK);
+            }
+            writer.write_all(&vec![b'x'; written])?;
+            assert_eq!(drop_waiting(reader.as_raw_fd(), 1000), whole, "{written}");
+            let mut rest = [0u8; 8];
+            // SAFETY: read writes at most the buffer's length into it.
+            let read = unsafe { libc::read(reader.as_raw_fd(), rest.as_mut_ptr().cast(), 8) };
+            assert_eq!(usize::try_from(read).unwrap_or(0), left, "{written}");
         }
         Ok(())
     }

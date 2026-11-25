@@ -422,6 +422,11 @@ fn main() {
         "a worker on a terminal reads and writes it but cannot type into it",
         unix::a_worker_on_a_terminal_cannot_type_into_it,
     );
+    #[cfg(target_os = "linux")]
+    run(
+        "a worker's channel cannot be opened again through /proc",
+        unix::a_workers_channel_cannot_be_opened_again,
+    );
     #[cfg(all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64"),

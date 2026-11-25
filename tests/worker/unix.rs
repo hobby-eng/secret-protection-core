@@ -245,3 +245,31 @@ pub(super) fn kept() {
     // SAFETY: fcntl with F_GETFD takes integers and only reads.
     assert_ne!(unsafe { libc::fcntl(left, libc::F_GETFD) }, -1);
 }
+
+/// The parent's ends of a worker's channel are sockets on Linux: another process of the same user
+/// may open a pipe of this one again through `/proc/PID/fd`, which a socket refuses.
+#[cfg(target_os = "linux")]
+pub(super) fn a_workers_channel_cannot_be_opened_again() {
+    use secret_protection_core::{ChannelKind, open_channels};
+    // Sockets only: a descriptor of another kind may close meanwhile and give its number away.
+    let before: Vec<i32> = (open_channels().unwrap().channels.iter())
+        .filter(|channel| channel.kind == ChannelKind::Socket)
+        .map(|channel| channel.descriptor)
+        .collect();
+    let mut worker = Worker::start(Options::new(), &required()).unwrap();
+    let ends: Vec<i32> = (open_channels().unwrap().channels.into_iter())
+        .filter(|channel| !before.contains(&channel.descriptor))
+        .filter(|channel| channel.kind == ChannelKind::Socket)
+        .map(|channel| channel.descriptor)
+        .collect();
+    assert_eq!(ends.len(), 2, "{ends:?}");
+    for end in ends {
+        let path = format!("/proc/self/fd/{end}");
+        let refused = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .unwrap_err();
+        assert_eq!(refused.raw_os_error(), Some(libc::ENXIO), "{path}");
+    }
+    assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
+}

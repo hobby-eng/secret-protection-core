@@ -1,10 +1,12 @@
 [toolchain]
 channel = "1.99.1"
 profile = "minimal"
-# The browser build, every system this crate has code for (desktop and mobile), and a 32-bit
-# Linux without this crate's seccomp filter, for clippy.
+# The browser build, every system this crate has code for (desktop and mobile), and two 32-bit
+# Linux targets without this crate's seccomp filter: ARMv5 for clippy, and i686, whose tests CI
+# runs on its x86-64 runner.
 targets = [
   "wasm32-unknown-unknown",
+  "i686-unknown-linux-gnu",
   "x86_64-pc-windows-gnu",
   "aarch64-apple-darwin",
   "aarch64-apple-ios",

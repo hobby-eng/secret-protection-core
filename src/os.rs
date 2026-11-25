@@ -158,6 +158,17 @@ unsafe fn wipe_unwritten(start: *mut u8, bytes: usize) {
     region.zeroize();
 }
 
+/// The size of a reservation for `bytes` bytes in whole pages of `page` bytes between two guard
+/// pages, or `None` past `isize::MAX` bytes, the most a Rust slice may span: a 32-bit system can
+/// map more.
+#[cfg(any(unix, windows))]
+fn reservation(bytes: usize, page: usize) -> Option<usize> {
+    let total = bytes
+        .checked_next_multiple_of(page)?
+        .checked_add(page.checked_mul(2)?)?;
+    isize::try_from(total).is_ok().then_some(total)
+}
+
 /// Pages that a system's module mapped: `bytes` bytes from `start`, which belong to this value
 /// alone.
 #[cfg(any(unix, windows))]
@@ -459,5 +470,22 @@ mod tests {
         // SAFETY: the wipe wrote every byte.
         let block = unsafe { block.assume_init() };
         assert!(block.iter().all(|&byte| byte == 0));
+    }
+
+    /// A reservation never spans more than a Rust slice may, whatever the system would map; the
+    /// bound is the same arithmetic with 32-bit pointers, whose systems can map more.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn a_reservation_stays_within_what_a_slice_may_span() {
+        let page = 4096;
+        let most = usize::try_from(isize::MAX).unwrap();
+        assert_eq!(super::reservation(1, page), Some(3 * page));
+        assert_eq!(
+            super::reservation(most + 1 - 3 * page, page),
+            Some(most + 1 - page)
+        );
+        assert_eq!(super::reservation(most + 2 - 3 * page, page), None);
+        assert_eq!(super::reservation(usize::MAX, page), None);
+        assert!(crate::WorkArea::new(most + 2 - 3 * page).is_none());
     }
 }

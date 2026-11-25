@@ -39,6 +39,10 @@ const BTRFS_IOC_SUBVOL_CREATE: u32 = 0x5000_940e;
 
 /// Calls that the filter refuses whatever their arguments, by libc's numbers, a source of
 /// their own beside the filter's table, and by Linux 7.0's where libc 0.2.191 lacks them.
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 const REFUSED_CALLS: &[libc::c_long] = &[
     libc::SYS_socket,
     libc::SYS_socketpair,
@@ -142,7 +146,7 @@ const OLDER_CALLS: &[libc::c_long] = &[
     libc::SYS_utimes,
     libc::SYS_futimesat,
 ];
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(all(target_arch = "aarch64", target_endian = "little"))]
 const OLDER_CALLS: &[libc::c_long] = &[];
 
 /// In a thread of its own, so that the rest of the test process stays free: what the filter
@@ -196,6 +200,11 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
                     assert_eq!(super::seccomp_filters(), filters);
                 });
             });
+            // The filter's own targets: the calls exist under these numbers there.
+            #[cfg(all(
+                any(target_arch = "x86_64", target_arch = "aarch64"),
+                target_endian = "little"
+            ))]
             calls_are_refused(idle.id());
             #[cfg(all(
                 any(target_arch = "x86_64", target_arch = "aarch64"),
@@ -487,6 +496,10 @@ pub(super) fn install_a_filter_refusing_filters() {
     }
 }
 
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 fn calls_are_refused(idle: u32) {
     for &number in REFUSED_CALLS.iter().chain(OLDER_CALLS) {
         // SAFETY: a descriptor of -1 and null pointers: without the filter, every call fails at

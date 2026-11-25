@@ -78,9 +78,9 @@ impl Worker {
     /// finishes after it is ended by the launcher. On Windows the profile, the pipe and the
     /// process creation are calls that cannot be cut short: the deadline is read before and after
     /// them.
-    /// When the deadline passes, the worker is given up: its pipes close, and where a stable handle
-    /// exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it next
-    /// touches its pipes. The call returns after that shutdown, which waits up to a second, and
+    /// When the deadline passes, the worker is given up: its channels close, and where a stable
+    /// handle exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it
+    /// next touches its channels. The call returns after that shutdown, which waits up to a second, and
     /// after a termination up to a second more (see [`Worker::end`]). A deadline too far ahead for
     /// the clock to hold, such as `Duration::MAX`, waits without one.
     pub fn start_within(
@@ -88,12 +88,7 @@ impl Worker {
         required: &[Protection],
         deadline: Duration,
     ) -> Result<Self, WorkerError> {
-        Self::starting(
-            options,
-            required,
-            false,
-            Instant::now().checked_add(deadline),
-        )
+        Self::starting(options, required, false, due(deadline))
     }
 
     /// Starts a Linux or macOS worker whose standard error is this program's terminal, opened for
@@ -173,9 +168,9 @@ impl Worker {
     /// As [`Worker::call`], but the call fails with `TimedOut` when the exchange has not finished
     /// within `deadline`, an answer that arrives past it included, and later calls fail with
     /// `BrokenPipe`.
-    /// When the deadline passes, the worker is given up: its pipes close, and where a stable handle
-    /// exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it next
-    /// touches its pipes. The call returns after that shutdown, which waits up to a second, and
+    /// When the deadline passes, the worker is given up: its channels close, and where a stable
+    /// handle exists (Windows, and Linux with a pidfd) it is terminated; elsewhere it ends when it
+    /// next touches its channels. The call returns after that shutdown, which waits up to a second, and
     /// after a termination up to a second more (see [`Worker::end`]). A deadline too far ahead for
     /// the clock to hold, such as `Duration::MAX`, waits without one.
     pub fn call_within(
@@ -184,7 +179,7 @@ impl Worker {
         most: usize,
         deadline: Duration,
     ) -> io::Result<Secret> {
-        self.calling(request, most, Instant::now().checked_add(deadline))
+        self.calling(request, most, due(deadline))
     }
 
     fn calling(
@@ -251,6 +246,16 @@ impl Worker {
             process.read_exact_until(answer.as_mut_bytes(), deadline)?;
             Ok(answer)
         })
+    }
+}
+
+/// The instant `deadline` from now. A target that starts no worker answers `Unsupported` without
+/// one, before the clock is read: `wasm32-unknown-unknown` has none, and `Instant::now` panics.
+fn due(deadline: Duration) -> Option<Instant> {
+    if cfg!(any(unix, windows)) {
+        Instant::now().checked_add(deadline)
+    } else {
+        None
     }
 }
 

@@ -1,11 +1,12 @@
-//! The parent's side of a Unix worker: the launch by `posix_spawn` with private pipes, the
-//! terminal for a worker on it, reads and writes with a deadline, and the end.
+//! The parent's side of a Unix worker: the launch by `posix_spawn` with a private channel each
+//! way, the terminal for a worker on it, reads and writes with a deadline, and the end.
 #![allow(
     unsafe_code,
     reason = "posix_spawn, fcntl, open, ttyname_r, poll, setsid and their structures are foreign"
 )]
 
 use std::ffi::{CStr, CString};
+use std::fs::File;
 use std::io;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::mem::MaybeUninit;
@@ -22,8 +23,8 @@ use super::child::Child;
 
 /// The parent's end of a worker: the worker's standard input and output, and the process.
 pub(crate) struct WorkerProcess {
-    pub(crate) to: Option<io::PipeWriter>,
-    pub(crate) from: Option<io::PipeReader>,
+    pub(crate) to: Option<File>,
+    pub(crate) from: Option<File>,
     child: Child,
     exited: std::sync::Mutex<mpsc::Receiver<bool>>,
 }
@@ -67,9 +68,9 @@ impl WorkerProcess {
         if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
             variables.push(variable("LLVM_PROFILE_FILE", profile.as_bytes())?);
         }
-        let (input, to) = io::pipe()?;
-        let (from, output) = io::pipe()?;
-        let streams = [above_streams(input.into())?, above_streams(output.into())?];
+        let (input, to) = channel()?;
+        let (from, output) = channel()?;
+        let streams = [above_streams(input)?, above_streams(output)?];
         // Reserve the waiter before creating a child. It remains responsible for reaping
         // even when the parent cannot terminate the worker or drops a failed startup.
         #[cfg(target_os = "linux")]
@@ -103,14 +104,14 @@ impl WorkerProcess {
                 })??,
         };
         Ok(Self {
-            to: Some(to),
-            from: Some(from),
+            to: Some(File::from(to)),
+            from: Some(File::from(from)),
             child,
             exited: std::sync::Mutex::new(exited),
         })
     }
 
-    /// Closes both pipes: a worker that waits to read ends, and so does one that waits to write.
+    /// Closes both channels: a worker waiting to read ends, and so does one waiting to write.
     pub(crate) fn close(&mut self) {
         self.to = None;
         self.from = None;
@@ -118,17 +119,14 @@ impl WorkerProcess {
 
     /// Runs `work`, whose every read and write keeps the deadline by itself. The clock decides at
     /// the end too: an answer read past the deadline, which poll's steps of a millisecond let
-    /// through, is late all the same.
+    /// through, is late all the same (see [`settled`]).
     pub(crate) fn exchanging<T>(
         &mut self,
         deadline: Option<std::time::Instant>,
         work: impl FnOnce(&mut Self, Option<std::time::Instant>) -> io::Result<T>,
     ) -> io::Result<T> {
-        let result = work(self, deadline)?;
-        if deadline.is_some_and(|deadline| std::time::Instant::now() > deadline) {
-            return Err(late());
-        }
-        Ok(result)
+        let result = work(self, deadline);
+        settled(result, deadline, std::time::Instant::now())
     }
 
     /// Reads all of `buffer` from the worker; with a `deadline`, fails with `TimedOut` once it
@@ -157,7 +155,8 @@ impl WorkerProcess {
     }
 
     /// Writes all of `data` to the worker; with a `deadline`, as [`Self::read_exact_until`]. A
-    /// pipe that polls writable takes PIPE_BUF bytes without waiting, so the data goes in such pieces.
+    /// pipe that polls writable takes PIPE_BUF bytes without waiting, as does a socket with the
+    /// system's usual buffer, so the data goes in such pieces.
     pub(crate) fn write_all_until(
         &mut self,
         data: &[u8],
@@ -175,7 +174,7 @@ impl WorkerProcess {
         Ok(())
     }
 
-    /// Closes the pipes and waits for exit. A stable kernel handle permits a termination
+    /// Closes the channels and waits for exit. A stable kernel handle permits a termination
     /// request and a second bounded wait. The waiter still owns a child that survives.
     pub(crate) fn finish(&mut self) -> bool {
         self.close();
@@ -230,6 +229,31 @@ fn ready(
     }
 }
 
+/// A one-way channel between the parent and its worker: the end that reads and the end that
+/// writes, both closed on exec. On Linux a pair of connected sockets: another process of the same
+/// user may open a pipe of this process again through `/proc/PID/fd`, but not a socket.
+/// Elsewhere a pipe, as no other process can open this one's descriptors.
+fn channel() -> io::Result<(OwnedFd, OwnedFd)> {
+    #[cfg(target_os = "linux")]
+    let (reads, writes) = std::os::unix::net::UnixStream::pair()?;
+    #[cfg(not(target_os = "linux"))]
+    let (reads, writes) = io::pipe()?;
+    Ok((reads.into(), writes.into()))
+}
+
+/// What an exchange that ended at `finished` gives: `TimedOut` once the deadline had passed, an
+/// answer and an error alike, else what the work gave. Windows decides the same way.
+fn settled<T>(
+    result: io::Result<T>,
+    deadline: Option<std::time::Instant>,
+    finished: std::time::Instant,
+) -> io::Result<T> {
+    if deadline.is_some_and(|deadline| finished > deadline) {
+        return Err(late());
+    }
+    result
+}
+
 /// `name=value`, as the environment of a program holds it.
 fn variable(name: &str, value: &[u8]) -> io::Result<CString> {
     Ok(CString::new([name.as_bytes(), b"=", value].concat())?)
@@ -237,7 +261,7 @@ fn variable(name: &str, value: &[u8]) -> io::Result<CString> {
 
 /// Hands the launched child to the start waiting on `ready`, which takes it only while it still
 /// waits; a start that gave up at its deadline no longer owns it, so it is ended here where a
-/// stable handle allows, else when it finds its pipes closed. Then waits for it, for `done`.
+/// stable handle allows, else when it finds its channels closed. Then waits for it, for `done`.
 fn deliver(
     child: io::Result<Child>,
     ready: &mpsc::SyncSender<io::Result<Child>>,
@@ -589,5 +613,40 @@ mod launch_tests {
         launcher.join().unwrap();
         drop((writer, reader));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    /// An exchange that ends in time keeps what it gave, an error included; one that ends past
+    /// its deadline is `TimedOut`, whether it answered or failed.
+    #[test]
+    fn the_clock_decides_an_exchange_that_ends_late() {
+        let start = Instant::now();
+        let deadline = Some(start + Duration::from_secs(1));
+        let early = start + Duration::from_millis(500);
+        let late = start + Duration::from_secs(2);
+        let broken = || Err::<u8, _>(io::Error::from(io::ErrorKind::BrokenPipe));
+        let kind = |result: io::Result<u8>| result.map_err(|error| error.kind());
+        assert_eq!(kind(settled(Ok(7), deadline, early)), Ok(7));
+        assert_eq!(
+            kind(settled(broken(), deadline, early)),
+            Err(io::ErrorKind::BrokenPipe)
+        );
+        assert_eq!(
+            kind(settled(Ok(7), deadline, late)),
+            Err(io::ErrorKind::TimedOut)
+        );
+        assert_eq!(
+            kind(settled(broken(), deadline, late)),
+            Err(io::ErrorKind::TimedOut)
+        );
+        assert_eq!(
+            kind(settled(broken(), None, late)),
+            Err(io::ErrorKind::BrokenPipe)
+        );
     }
 }
