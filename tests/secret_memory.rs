@@ -251,6 +251,10 @@ fn six_hundred_secrets_made_one_after_another_report_their_core_dump_exclusion()
 
 /// RLIMIT_MEMLOCK, the most memory this process may lock.
 #[cfg(unix)]
+#[allow(
+    clippy::useless_conversion,
+    reason = "rlim_t is u64 on 64-bit systems and u32 on 32-bit ARM"
+)]
 fn lock_limit() -> u64 {
     let mut limit = libc::rlimit {
         rlim_cur: 0,
@@ -259,7 +263,7 @@ fn lock_limit() -> u64 {
     // SAFETY: getrlimit writes the struct, which lives for the call.
     let read = unsafe { libc::getrlimit(libc::RLIMIT_MEMLOCK, &mut limit) };
     assert_eq!(read, 0);
-    limit.rlim_cur
+    u64::from(limit.rlim_cur)
 }
 
 #[cfg(target_os = "linux")]
@@ -592,6 +596,10 @@ mod linux {
 
     /// Exercises a two-page secret at page-aligned limits from the smaller of the test cap
     /// and the process limit down to zero. Requires a process without CAP_IPC_LOCK.
+    #[allow(
+        clippy::useless_conversion,
+        reason = "rlim_t is u64 on 64-bit systems and u32 on 32-bit ARM"
+    )]
     pub(super) fn secrets_under_every_lock_limit() {
         // SAFETY: sysconf takes an integer and touches no memory of this process.
         let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
@@ -599,15 +607,15 @@ mod linux {
         let highest = super::lock_limit().min(HIGHEST_LOCK_LIMIT);
         for pages in (0..=highest / page).rev() {
             let limit = libc::rlimit {
-                rlim_cur: pages * page,
-                rlim_max: pages * page,
+                rlim_cur: (pages * page).try_into().unwrap(),
+                rlim_max: (pages * page).try_into().unwrap(),
             };
             // SAFETY: setrlimit reads the struct, which lives for the call.
             assert_eq!(unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &limit) }, 0);
             let mut secret = Secret::with_capacity(public.len());
             secret.push(&public).unwrap();
             assert_eq!(secret.as_bytes(), public, "{pages} pages");
-            let holds = limit.rlim_cur >= public.len() as u64;
+            let holds = u64::from(limit.rlim_cur) >= public.len() as u64;
             assert_eq!(secret.is_locked(), holds, "{pages} pages");
             drop(secret);
             // The strict constructors refuse what the limit does not hold, before any byte.

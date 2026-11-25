@@ -44,10 +44,11 @@ static EXIT_GATE: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new(
 /// How long such a worker stays, at most: long past every wait of its parent, so that within a
 /// check it ends only when it is killed.
 const LINGER_SECONDS: u32 = 30;
-/// Inodes of up to 16 FIFOs found at descriptors 3 through 255 before `main`.
+/// Inodes of up to 16 FIFOs found at descriptors 3 through 255 before `main`, in words, as
+/// 32-bit ARM has no 64-bit atomics and its inodes are 32-bit.
 #[cfg(unix)]
-static PIPES_BEFORE_MAIN: [std::sync::atomic::AtomicU64; 16] =
-    [const { std::sync::atomic::AtomicU64::new(0) }; 16];
+static PIPES_BEFORE_MAIN: [std::sync::atomic::AtomicUsize; 16] =
+    [const { std::sync::atomic::AtomicUsize::new(0) }; 16];
 
 /// Fills [`PIPES_BEFORE_MAIN`], before `main`, with calls that need nothing set up.
 #[cfg(unix)]
@@ -60,7 +61,10 @@ extern "C" fn record_pipes_before_main() {
         let open = unsafe { libc::fstat(descriptor, &mut status) } == 0;
         let pipe = open && status.st_mode & libc::S_IFMT == libc::S_IFIFO;
         if let Some(slot) = PIPES_BEFORE_MAIN.get(found).filter(|_| pipe) {
-            slot.store(status.st_ino, Ordering::Relaxed);
+            slot.store(
+                usize::try_from(status.st_ino).unwrap_or(usize::MAX),
+                Ordering::Relaxed,
+            );
             found += 1;
         }
     }
@@ -660,7 +664,10 @@ fn a_refused_answer_ends_the_worker() {
     let mut worker = Worker::start(Options::new(), &[]).unwrap();
     assert!(worker.call(b"huge", 10).is_err());
     within(Duration::from_secs(20), move || drop(worker));
-    #[cfg(target_os = "linux")]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     linux::a_failed_call_ends_the_worker_before_it_is_dropped();
 }
 

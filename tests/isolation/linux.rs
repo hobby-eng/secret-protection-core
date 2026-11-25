@@ -1,4 +1,8 @@
 //! What Linux and Android show of an isolated process: the checks and the roles of their own.
+#![allow(
+    clippy::useless_conversion,
+    reason = "a call's answer is a c_long, which is the c_int or u32 it is converted to on 32-bit ARM"
+)]
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -13,9 +17,11 @@ use std::ptr;
 use secret_protection_core::{Isolation, Secret};
 
 mod roles;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 mod threads;
 
 pub(crate) use roles::*;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub(crate) use threads::*;
 
 /// Requests of linux/fsverity.h, linux/fscrypt.h and linux/btrfs.h that change a file or make
@@ -181,6 +187,7 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
                 });
             });
             calls_are_refused(idle.id());
+            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
             other_processes_are_out_of_reach(idle.id());
             connecting_is_refused(&unconnected, listener.local_addr().unwrap().port());
             abstract_connecting_is_refused(&unix_unconnected, &name);
@@ -344,6 +351,7 @@ pub(super) fn options_add_one_filter_at_most() {
 
 /// With the signal option alone, the fcntl rule refuses owners, F_SETSIG and O_ASYNC, and lets
 /// locks and other flags through, which only the lock option would refuse.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub(super) fn the_signal_option_alone_refuses_owners_and_async() {
     use secret_protection_core::Options;
     std::thread::scope(|scope| {
@@ -455,6 +463,8 @@ fn calls_are_refused(idle: u32) {
 }
 
 /// Limits, scheduling and pages of another process are refused; this process's own stay open.
+/// Only where the filter is written, which also has every call checked here.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 fn other_processes_are_out_of_reach(idle: u32) {
     let pid = libc::pid_t::try_from(idle).unwrap();
     // SAFETY: each call reads or writes only the values given, which live for the call; with

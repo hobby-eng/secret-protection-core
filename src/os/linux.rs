@@ -48,7 +48,7 @@ pub(super) fn secret_pages(bytes: usize) -> Option<NonNull<u8>> {
     // the descriptor does not get it, and so cannot map the secret.
     // SAFETY: memfd_secret takes one flags argument and returns a new descriptor or -1.
     let descriptor = unsafe { libc::syscall(number, libc::O_CLOEXEC) };
-    let descriptor = i32::try_from(descriptor).ok().filter(|&fd| fd >= 0)?;
+    let descriptor = as_descriptor(descriptor)?;
     // SAFETY: the descriptor was just opened and nothing else owns it; it is closed on return,
     // while the mapping stays.
     let file = unsafe { OwnedFd::from_raw_fd(descriptor) };
@@ -888,13 +888,19 @@ fn network_empty() -> bool {
 }
 
 /// `Ok` after closing what a probe opened, else the error number of the refusal.
-fn opened(descriptor: libc::c_long) -> Result<(), i32> {
-    if descriptor < 0 {
+fn opened(value: impl TryInto<libc::c_int>) -> Result<(), i32> {
+    let Some(descriptor) = as_descriptor(value) else {
         return Err(std::io::Error::last_os_error().raw_os_error().unwrap_or(0));
-    }
+    };
     // SAFETY: closes the descriptor the probe just opened, once.
-    unsafe { libc::close(descriptor as libc::c_int) };
+    unsafe { libc::close(descriptor) };
     Ok(())
+}
+
+/// A descriptor as a call returned it, `None` for a failure: `open` and `socket` return a
+/// `c_int`, `syscall` a `c_long`, which is the same type on some processors and wider on others.
+fn as_descriptor(value: impl TryInto<libc::c_int>) -> Option<libc::c_int> {
+    value.try_into().ok().filter(|&descriptor| descriptor >= 0)
 }
 
 /// Whether the filter refuses a new socket and, on Linux, an io_uring. The probe asks for a Unix
@@ -903,7 +909,7 @@ fn opened(descriptor: libc::c_long) -> Result<(), i32> {
 fn sockets_refused() -> bool {
     // SAFETY: socket takes integers and touches no memory of this process.
     let socket = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, 0) };
-    let refused = opened(socket.into()) == Err(REFUSED);
+    let refused = opened(socket) == Err(REFUSED);
     // An io_uring could open a socket without the socket call. An Android app's policy ends the
     // process at any io_uring call, so it is not probed there; the filter refuses it all the same.
     #[cfg(target_os = "linux")]
@@ -935,7 +941,7 @@ fn io_uring_refused() -> bool {
 fn writing_refused() -> bool {
     // SAFETY: the path is a NUL-terminated literal; open touches nothing else.
     let file = unsafe { libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC) };
-    opened(file.into()) == Err(REFUSED)
+    opened(file) == Err(REFUSED)
 }
 
 #[cfg(all(
