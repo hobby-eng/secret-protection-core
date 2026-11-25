@@ -237,9 +237,10 @@ mod tests {
             .unwrap()
             .read_exact_at(&mut below, start)
             .unwrap();
-        let word = !black_box(complement);
-        let (words, _) = below.as_chunks::<8>();
-        words.iter().any(|chunk| u64::from_ne_bytes(*chunk) == word)
+        let word = (!black_box(complement)).to_ne_bytes();
+        // At every byte: 32-bit x86 aligns a `u64` to 4 bytes only, so the frames' words need not
+        // start where 8-byte steps from the window's start would look.
+        below.windows(word.len()).any(|bytes| bytes == word)
     }
 
     /// A refused protected stack says which refusal it was.
