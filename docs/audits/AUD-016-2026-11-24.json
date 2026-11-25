@@ -56,7 +56,9 @@
     "reviewed": "Source, documentation, dependencies and workflows.",
     "conversion": "Reviews 1 and 3 arrived as text, review 2 as its agent's report; finding IDs, categories and wording are this record's; severities as given.",
     "procedureSha256": {
-      "AUDIT_STANDARD.md": "c43e25bbcbdd6d22d52a38f571a759f5b688af062b980c3adecd5326efc082ec",
+      "FULL_AUDIT_GUIDE.md": "a50d485b6dd0363689edc00c7b06a55929f32bb27c2cda6524c6a7ba3fec9378",
+      "audits/AUDIT_STANDARD.md": "3cfd02140a9b2a0cb9a330fc734728ba03f42fa0b556e632a9546ea605771b52",
+      "audits/AUDIT_TEMPLATE.md": "a3330c86441a07f6f0dea7c5a6b81a2e7c1ffe6add24f7dc2bf63747bc40a379",
       "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
     }
   },
@@ -1209,5 +1211,171 @@
     "Reviews 1 and 2 were static; none of their findings was reproduced by running code before the fixes.",
     "Review 3 checked one snapshot of the remediation; its own findings were fixed after it.",
     "Not run: Windows and macOS tests, Android, iOS and WebAssembly at run time, cargo audit, a new coverage measurement."
+  ],
+  "grants": [
+    {
+      "name": "Grant or mechanism",
+      "where": "Where",
+      "admits": "What it still admits",
+      "narrowedBy": "Narrowed by"
+    },
+    {
+      "name": "Linux user, network and IPC namespaces",
+      "where": "`src/os/linux.rs`",
+      "admits": "Entered only after the dumpable flag reads back as cleared",
+      "narrowedBy": "SEC003, SEC011"
+    },
+    {
+      "name": "`no_new_privs` and the seccomp filter",
+      "where": "`src/os/linux.rs`, `src/os/linux/seccomp.rs`",
+      "admits": "Descriptors opened before isolation keep their authority",
+      "narrowedBy": "SEC004 to SEC006, SEC012 to SEC014"
+    },
+    {
+      "name": "`fcntl` with the options",
+      "where": "`src/os/linux/seccomp.rs`",
+      "admits": "Bookkeeping commands; `F_SETFL` without `O_ASYNC`",
+      "narrowedBy": "SEC004, SEC005, SEC012, SEC013"
+    },
+    {
+      "name": "Calls on a process",
+      "where": "`src/os/linux/seccomp.rs`",
+      "admits": "The caller, named 0",
+      "narrowedBy": "SEC006, SEC014"
+    },
+    {
+      "name": "Terminal ioctls on Linux",
+      "where": "`src/os/linux/seccomp.rs`",
+      "admits": "Reading and changing settings, the window size",
+      "narrowedBy": "SEC002"
+    },
+    {
+      "name": "Landlock layer",
+      "where": "`src/os/linux.rs`",
+      "admits": "What older or refused ABIs leave to the filter",
+      "narrowedBy": "—"
+    },
+    {
+      "name": "macOS sandbox",
+      "where": "`src/os/apple.rs`",
+      "admits": "Reads other than terminal devices; data writes and ioctls on `/dev/null` and the own terminal, including `TIOCSTI` through a controlling terminal of a process that keeps one",
+      "narrowedBy": "SEC002, SEC010, SEC015"
+    },
+    {
+      "name": "Terminal on a worker's standard error",
+      "where": "`src/os/unix/worker.rs`",
+      "admits": "Output, control sequences included, and the terminal's settings; no controlling terminal",
+      "narrowedBy": "SEC002"
+    },
+    {
+      "name": "Unix pipes, file actions, environment and program file",
+      "where": "`src/os/unix/worker.rs`",
+      "admits": "Kernel pipe copies; the program path on macOS",
+      "narrowedBy": "SEC008"
+    },
+    {
+      "name": "pidfd or wait ownership",
+      "where": "`src/os/unix/child.rs`, `src/os/unix/worker.rs`",
+      "admits": "Without a stable handle, a worker that never reaches its pipes stays until it ends",
+      "narrowedBy": "API007"
+    },
+    {
+      "name": "Guarded pages, locks, dump and fork advice, small stack pages",
+      "where": "`src/os/unix.rs`",
+      "admits": "Refusals by the system, kernel copies of work areas, abrupt exits",
+      "narrowedBy": "SEC007"
+    },
+    {
+      "name": "Windows named pipe, process ID and nonce",
+      "where": "`src/os/windows/worker.rs`",
+      "admits": "Local clients that contend for the pipe are put off",
+      "narrowedBy": "—"
+    },
+    {
+      "name": "Windows process and thread access lists at creation",
+      "where": "`src/os/windows/worker.rs`",
+      "admits": "Handles opened before them by privileged users",
+      "narrowedBy": "SEC001"
+    },
+    {
+      "name": "Windows job, mitigations, low token, thread inventory",
+      "where": "`src/os/windows.rs`",
+      "admits": "A writable console of a process that isolates itself",
+      "narrowedBy": "DOC004"
+    },
+    {
+      "name": "`ClosedSecret` page protection",
+      "where": "`src/protect/closed.rs`",
+      "admits": "What Windows does with a lock under `PAGE_NOACCESS`",
+      "narrowedBy": "SEC009 (open)"
+    },
+    {
+      "name": "Release workflow permissions and provenance",
+      "where": "`.github/workflows/release.yml`",
+      "admits": "Attestation of a tag whose checks passed",
+      "narrowedBy": "BLD001, BLD004"
+    }
+  ],
+  "acceptance": [
+    {
+      "guarantee": "Guarantee",
+      "test": "Test",
+      "mustPassOn": "Must pass on"
+    },
+    {
+      "guarantee": "Secrets stay out of swap and dumps where the system grants it, wipe on drop, and report each property",
+      "test": "`secret_memory`: pages kept out of swap and core dumps, lock limits, work area, fork",
+      "mustPassOn": "Linux x86-64 and ARM64, macOS, Windows"
+    },
+    {
+      "guarantee": "A locked closed secret stays locked while closed",
+      "test": "`secret_memory`: the closed secret's working-set flags",
+      "mustPassOn": "Windows (SEC009)"
+    },
+    {
+      "guarantee": "Isolation reports only confirmed outcomes with their reach, and the process-wide rule refuses one thread",
+      "test": "`isolation`: a process of one thread, an isolated thread; unit test of `require_process_wide`",
+      "mustPassOn": "Linux x86-64 and ARM64, macOS, Windows"
+    },
+    {
+      "guarantee": "The Linux filter refuses new sockets, `io_uring`, programs, file changes, `TIOCSTI` and calls on other processes, and with the options locks, leases, delegations, signal owners and `O_ASYNC`",
+      "test": "`isolation`: an isolated thread, options with one more filter",
+      "mustPassOn": "Linux x86-64 and ARM64"
+    },
+    {
+      "guarantee": "Another process cannot read an isolated process's memory",
+      "test": "`isolation`: a process of one thread, read from outside",
+      "mustPassOn": "Linux, Windows"
+    },
+    {
+      "guarantee": "The macOS sandbox refuses the network, file writes and other terminals",
+      "test": "`isolation`: a process of one thread on macOS",
+      "mustPassOn": "macOS"
+    },
+    {
+      "guarantee": "A Windows worker is created with its access lists and cannot be opened for reading",
+      "test": "unit test `a_worker_is_made_with_its_access_lists`",
+      "mustPassOn": "Windows"
+    },
+    {
+      "guarantee": "A worker starts clean, is admitted only process-wide, has no controlling terminal and cannot type into a terminal",
+      "test": "`worker`: start-up roles, without `setsid`, on a terminal",
+      "mustPassOn": "Linux, macOS; the terminal worker is not offered on Windows"
+    },
+    {
+      "guarantee": "A start or call past its deadline fails with `TimedOut` in bounded time and ends the worker",
+      "test": "`worker`: a call past its deadline",
+      "mustPassOn": "Linux, macOS, Windows"
+    },
+    {
+      "guarantee": "A cleared stack holds none of the work below the caller's frame, in debug and optimized builds",
+      "test": "unit test `a_cleared_stack_holds_none_of_the_work`",
+      "mustPassOn": "Linux x86-64 and ARM64 (debug and release)"
+    },
+    {
+      "guarantee": "A release is made only from a tag whose checks, audit and fuzzing passed with the checked-in lockfiles",
+      "test": "`release.yml` on the tag",
+      "mustPassOn": "GitHub Actions"
+    }
   ]
 }

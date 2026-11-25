@@ -1,0 +1,3801 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-017",
+  "auditNumber": 17,
+  "date": "2026-11-25",
+  "title": "Four reviews of the changes since secret-protection-core 0.1.1 and their remediation",
+  "reviewer": {
+    "name": "Codex, Gemini and an independent Claude agent",
+    "model": "gpt-6.2-sol; gemini-4-hydrogen; claude-opus-5-5",
+    "reasoningEffort": null,
+    "reviews": [
+      {
+        "review": 1,
+        "reviewer": "Codex",
+        "model": "gpt-6.2-sol",
+        "reasoningEffort": null,
+        "snapshot": "a0fad153b3e361ca58e6256ac6746e65331588a1",
+        "method": "Full pre-release audit against the audit procedure, with 64 recorded checks."
+      },
+      {
+        "review": 2,
+        "reviewer": "Gemini",
+        "model": "gemini-4-hydrogen",
+        "reasoningEffort": "xhigh",
+        "snapshot": "a0fad153b3e361ca58e6256ac6746e65331588a1 with the uncommitted TSYNC changes",
+        "method": "Four read-only agents and a coordinator, plus dprint, Clippy on six targets and the Linux suites."
+      },
+      {
+        "review": 3,
+        "reviewer": "An independent Claude agent (CORE-53)",
+        "model": "claude-opus-5-5",
+        "reasoningEffort": null,
+        "snapshot": "the remediation working tree on a0fad15",
+        "method": "Read-only review of the remediation of reviews 1 and 2, with a fork probe and the stack tests under coverage."
+      },
+      {
+        "review": 4,
+        "reviewer": "Codex",
+        "model": "gpt-6.2-sol",
+        "reasoningEffort": null,
+        "snapshot": "3ae17640023ff19749f93fb195245ea2dc48eaf4, e0809b29e7be581fa2eef6b93a8e0118668429c5, 306996f0a756a8ce6b2b6da5f6071953a87e0563, 2807c51e86ae442927592dd75bc5f9d44623b74a",
+        "method": "Follow-up review of each remediation commit, with the Linux suites in the test, release and instrumented builds, Clippy on every target, links, packaging and fuzzing."
+      }
+    ]
+  },
+  "snapshot": {
+    "commit": "a0fad153b3e361ca58e6256ac6746e65331588a1",
+    "commitComplete": true,
+    "workingTree": {
+      "branch": "feature/all-threads",
+      "files": 122,
+      "workingTreeStatusAtCapture": [
+        " M CHANGELOG.md",
+        " M SECURITY.md",
+        " M docs/API.md",
+        " M docs/TECHNICAL.md",
+        " M src/os/linux.rs",
+        " M src/os/linux/seccomp.rs",
+        " M src/protect.rs",
+        " M src/protect/options.rs",
+        " M src/worker.rs",
+        " M tests/isolation/folders.rs",
+        " M tests/isolation/linux.rs",
+        " M tests/isolation/main.rs",
+        "?? tests/isolation/linux/threads.rs"
+      ],
+      "commitTreeMatchesManifest": true,
+      "diffFromReleaseSha256": "d7b353279e55043e015859dfb63c098f5a688ef5d338af859bbfcbf5c1f48aeb",
+      "initialSnapshot": "60cf95fb4bf3acfae95385427b0c531bf6d60df5d575a1427586e8e611537daa",
+      "intermediateSnapshots": [
+        "ebf4369e9cc22a3f5942f46febf18096982bd07d6cb336fbb837de2aa7d4eff5",
+        "502984c520e0f910717ff61a33647824813d47ada3ddc1be9d8a195430663424",
+        "2b1e3e401e294e9009b9ef0c2b1ef56ebfed3bf90ab4d16cb343f68296c01efc"
+      ],
+      "changedSinceInitial": [
+        "SECURITY.md",
+        "docs/API.md",
+        "docs/TECHNICAL.md",
+        "src/os/linux.rs",
+        "src/os/linux/seccomp.rs",
+        "src/protect.rs",
+        "src/protect/options.rs",
+        "tests/isolation/folders.rs",
+        "tests/isolation/linux/threads.rs",
+        "tests/isolation/main.rs"
+      ]
+    },
+    "sourceFingerprint": "826f97de9d0c1b1f8a1aac5f36dcb82fe1ce8dfd19659167657bc57cf87f8177",
+    "remediationCommits": [
+      "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "2807c51e86ae442927592dd75bc5f9d44623b74a",
+      "f3da0e27551f96c9a5f354bbbebc0445cce05b56"
+    ]
+  },
+  "releaseDecision": {
+    "status": "hold",
+    "blockers": [
+      "AUD-017-SEC003",
+      "AUD-017-SEC004",
+      "AUD-017-SEC005",
+      "AUD-017-SEC006",
+      "AUD-017-SEC009",
+      "AUD-017-SEC029",
+      "AUD-017-BLD001"
+    ],
+    "acceptance": "The native runs on Linux ARM64, macOS and Windows pass every acceptance criterion at the release candidate."
+  },
+  "scope": {
+    "repository": "secret-protection-core",
+    "procedureSha256": {
+      "FULL_AUDIT_GUIDE.md": "a50d485b6dd0363689edc00c7b06a55929f32bb27c2cda6524c6a7ba3fec9378",
+      "audits/AUDIT_STANDARD.md": "3cfd02140a9b2a0cb9a330fc734728ba03f42fa0b556e632a9546ea605771b52",
+      "audits/AUDIT_TEMPLATE.md": "a3330c86441a07f6f0dea7c5a6b81a2e7c1ffe6add24f7dc2bf63747bc40a379",
+      "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+    },
+    "inventory": [
+      {
+        "path": ".github/workflows/audit.yml",
+        "sha256": "0b781ec4564a55454e745d9b57e59bb0e77345328d55e14ba4566251e06aa8bf",
+        "group": "CI and release workflows",
+        "reviewedFor": "Advisory and dependency check entry points"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "sha256": "9172afeb5ccb80b9c03904c4e1cf838a2a7692a72cc63ebcddc9f2bf281cde2b",
+        "group": "CI and release workflows",
+        "reviewedFor": "Format, lint, notice parity, host/native platform tests"
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "sha256": "cb0c423e1011674beb39f7e15a562af826c551fbbb9f11039b59afdfda21733d",
+        "group": "CI and release workflows",
+        "reviewedFor": "Exact tag, runtime/CI/advisory/fuzz prerequisites, package and attestation"
+      },
+      {
+        "path": ".gitignore",
+        "sha256": "b824220c6110f2b8ccb25db135e6f98ae6b54ef7ed3fd32c08ed8d5dbdf7ec10",
+        "group": "Root inputs",
+        "reviewedFor": "Exclusion of package builds, fuzz artifacts and local audit evidence"
+      },
+      {
+        "path": "AGENTS.md",
+        "sha256": "2e8c5d1c9193f4a8ba5ea388956aa67464a82bbf6655dbe5dd7028517635bc46",
+        "group": "Root inputs",
+        "reviewedFor": "Project commands, toolchain, governance and platform claims"
+      },
+      {
+        "path": "CHANGELOG.md",
+        "sha256": "f0f2d1ca6abf648941e3e4032f9d44be58a9927a3c00d29afe745ef2435a489b",
+        "group": "Root inputs",
+        "reviewedFor": "Versioned notices and unreleased API and behavior changes"
+      },
+      {
+        "path": "Cargo.lock",
+        "sha256": "0e6571d3ff32b97c2163cb9202196061d94b99cff341b5e6b7d6b0c76a8f2a4a",
+        "group": "Root inputs",
+        "reviewedFor": "Exact normal, target-specific and test dependency graph"
+      },
+      {
+        "path": "Cargo.toml",
+        "sha256": "eb1c808b1b6b16fb77d95306a851b8be7d674992f45c3cf9f75b27a01e3585f4",
+        "group": "Root inputs",
+        "reviewedFor": "Public crate metadata, dependency features, tests, cfg and compiler profiles"
+      },
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "group": "Root inputs",
+        "reviewedFor": "Apache-2.0 license alongside Cargo package metadata"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "9c44407fa4ecf62d982f0244a4a3afbc3d5d74afbd93d6bc4bba3d1d5c3e5044",
+        "group": "Root inputs",
+        "reviewedFor": "MIT license alongside Cargo package metadata"
+      },
+      {
+        "path": "README.md",
+        "sha256": "6a2f78f6b80948663d3dcea0f18e586b89150d20035aaba94bf5df4436772fdd",
+        "group": "Root inputs",
+        "reviewedFor": "Public entry points, examples, platform claims, package instructions and prior coverage"
+      },
+      {
+        "path": "SECURITY.md",
+        "sha256": "468b06982de22b40ae106aa795035b44854f8415960992f2ed56c35cfc01c0b8",
+        "group": "Root inputs",
+        "reviewedFor": "Threat model, retained local authority, kernel assumptions and disclosure contact"
+      },
+      {
+        "path": "THIRD_PARTY_NOTICES.md",
+        "sha256": "c05883af10689ed90ea7b25608c03e6ba79c40428f674fa48087077111ab58c5",
+        "group": "Root inputs",
+        "reviewedFor": "Both-directions package/version comparison against the locked dependency tree"
+      },
+      {
+        "path": "clippy.toml",
+        "sha256": "330d3040793d707bb2a91d6d06f22e105ee6dfde5cd5060d42304c6e07522bea",
+        "group": "Root inputs",
+        "reviewedFor": "Project lint thresholds"
+      },
+      {
+        "path": "docs/API.md",
+        "sha256": "eed8cdf2fc04141edf2e89a3eeb4047185881ac31500fef7254395182a1a85be",
+        "group": "Current documentation",
+        "reviewedFor": "Public operations, behavior, failure, target and reach contracts"
+      },
+      {
+        "path": "docs/COVERAGE.md",
+        "sha256": "e06fe47ef3537c075eb4e107748eac2623d6e7b3a9e01984c0c543e47bd93d1e",
+        "group": "Current documentation",
+        "reviewedFor": "Coverage command and evidence freshness"
+      },
+      {
+        "path": "docs/README.md",
+        "sha256": "82e379abda3f881c08d24499f6509aec4fa3654c6f2a3dda4e8ebdb25a7af2a6",
+        "group": "Current documentation",
+        "reviewedFor": "Documentation entry points and internal links"
+      },
+      {
+        "path": "docs/TECHNICAL.md",
+        "sha256": "4afabf9f050207693d38d0441d4fe96523bd3213fcdd53c660b728cd80842f4b",
+        "group": "Current documentation",
+        "reviewedFor": "OS mechanism and invariants"
+      },
+      {
+        "path": "docs/audits/AUD-001-2026-11-15.json",
+        "sha256": "d708ada0e22e5c130d3207e49109a01a985b5a1faf42ea6d9cee4254fc4d92ec",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-001-2026-11-15.md",
+        "sha256": "f86ea3d93b4b7465672ac8142a7381a860f8df6a6be7a17141671760308853a7",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-001-harnesses/README.md",
+        "sha256": "9c749018ba366f7570dae4714205d59a4ff1396516c121da84d6f647b2807b12",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-001-harnesses/report_state.rs",
+        "sha256": "d2a796e7a69f2025fa16a9e977bafdd34a30030b8c819b2b38e051e4b360e2b7",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-002-2026-11-15.json",
+        "sha256": "ab590083235e1c79297deea5a79bbf094281b6f6159b11306b62aef589002d70",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-002-2026-11-15.md",
+        "sha256": "90105eb75934be43b957430954d8adbb7bf1ce2d3316fe6a0cc47793d7a482f8",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/.gitignore",
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/Cargo.lock",
+        "sha256": "e3a8e301aca1efa46e49b7ec555911287029bf1d539556499ad7762461229894",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/Cargo.toml",
+        "sha256": "7f39ecea7c7879e5ca7106fe718cd711514e38dcd0394f4f0b46f21e64bac965",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/README.md",
+        "sha256": "edfb199555744fb5b2ed92d7b9d750dc7a67987f325e776093838925efb821f6",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/src/linux.rs",
+        "sha256": "3a127c006c20f71ccd85cf24d27f84b413650c871918bf3937f2448ecf287697",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-002-harnesses/src/main.rs",
+        "sha256": "5bd62ffea1aaf8357c047cbb158a567123af193457c453b64f5bb396af15fa87",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-003-2026-11-15.json",
+        "sha256": "bfafe93c07c0a6866f5e5f9ead52a616b23b68f0c11128bbeca8436fa4cd5329",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-003-2026-11-15.md",
+        "sha256": "560620653344f8f6e6b87282263f94d34f97c0f9128bf0fed387ecf771f53b49",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-004-2026-11-15.json",
+        "sha256": "9af1f50a2e3ca506aa3e9144c0f1b0628f7fccf30e409ec4d3171c9661a6ef90",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-004-2026-11-15.md",
+        "sha256": "27cecc528238b1bc5f4ad79901906aac8a43c8794ac1a3b88b0284a81af5e63a",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-005-2026-11-15.json",
+        "sha256": "a87abef95a64aa737238e447190d1f387528239bd150ffb0e43090238b5260d8",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-005-2026-11-15.md",
+        "sha256": "3e95856d276ec7217f84c9cc7b2429e33dbcf740d149f08df9ef86b60baa0f8d",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-005-harnesses/.gitignore",
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-005-harnesses/Cargo.lock",
+        "sha256": "f4786e6b2fcf71788adc1da1db3ce332c74f1d3aabc0618c31a4198973ec1c46",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-005-harnesses/Cargo.toml",
+        "sha256": "d8d6f2c63939093e85d6758d7ccd5a5ab737f3d5f0b3f4b043cf0929df9fcd1d",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-005-harnesses/README.md",
+        "sha256": "8558c4e3ed39748a42b19b489ef83fac03011863c0537e19f62ecfd1521954a0",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-005-harnesses/src/main.rs",
+        "sha256": "c5ef8445dbb6d221351370a25ea6508e3e48f74c775305a3f154ba9b187f5cc4",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-006-2026-11-15.json",
+        "sha256": "0d660409c4cd0a8a60a00c8119f369292b9f348e3e6cd2e42a0104c9d3412a68",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-006-2026-11-15.md",
+        "sha256": "47fb824e39ebecdb24a3a24ede1df4b0d278e79a8bdbe3d78bc3cb9f293f053f",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-006-harnesses/README.md",
+        "sha256": "b8df7cfba84684728299c9a3e7117d568f63e700cb2dd3b9b8e4f42d1ce37e28",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-006-harnesses/fallback.mjs",
+        "sha256": "e5a4ac007b4528f3c2fb69c18e1b6da9d9a7bf32aa6c68ab5a8204223bce56f6",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-006-harnesses/fallback.rs",
+        "sha256": "09e246cde061d0badcd649208edefba1eb56a002ef700bf02cf2938ee18ee9f8",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-007-2026-11-15.json",
+        "sha256": "7aa2ab92eb654eba0971ba3e4be1274e2a1aa147fbcfa553184c8ba902307f07",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-007-2026-11-15.md",
+        "sha256": "c5deda6eaf30fbb764ef886aaaf579d4ba94405bb7ee29fe304b6fbfb7c98fe1",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-008-2026-11-15.json",
+        "sha256": "0410d370687a22c67c3aa6b46870a32221ed366643392d492f8d2a33636fae2e",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-008-2026-11-15.md",
+        "sha256": "10f737e8a6dde22f946ff6688a480cc9ac34402cc1dce11551ca6e496b53fd1e",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-009-2026-11-15.json",
+        "sha256": "51a47b01783a8fef9fa456c921dcf38eed4886955effdeae35d3ec2018feca64",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-009-2026-11-15.md",
+        "sha256": "3982142910e1891dd5847f4028229eee11778366cd9b8a3c1facd99095877ff0",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-010-2026-11-15.json",
+        "sha256": "96cd965d416ffd7a1c274169380a08ba324d6c95783c0ac0bc79d7c42d96b49e",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-010-2026-11-15.md",
+        "sha256": "01f5950876205176f03c53c2f4060970416e8eb4b43907acf39dee85d56a4998",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-011-2026-11-15.json",
+        "sha256": "137df42344894a60abbc0a373adb45a84857ca3af6f5b1eb30951c28d78fabc7",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-011-2026-11-15.md",
+        "sha256": "bf7153a3d65e261f921987ee6645d81d63bc1fd12e0108794002ad11ab8a3e4c",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-012-2026-11-15.json",
+        "sha256": "1dcd9ff0398bcd49a11eed3c073d97abac318fe55e65c872684f26c06284c212",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-012-2026-11-15.md",
+        "sha256": "c33ba6cea2f2fe9db49e0825980b9aac35c03bbfdca6cae518ef4fccb2acb923",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/.gitignore",
+        "sha256": "a25271a0f289ec36baa8c7b268153d5e99d2b83d752873ca317e943a6977a93d",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/Cargo.lock",
+        "sha256": "86b2f748c6aeefaa5402ecc283d49e4055d7d09b4abfca4a08a579c61e0c04c1",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/Cargo.toml",
+        "sha256": "906bb76c015e4089a0ae1acb81405e92bf2e39339062619745beac5c67da4c6e",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/README.md",
+        "sha256": "7d2d8e66a6376705bf948d0c34cff2196804005038afb208f03fc405ccccfeca",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/library/Cargo.toml",
+        "sha256": "398f0c19d835565dde9918bf174908b1249b160cb9fe9a4ca8235b7d654a11cb",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/library/src/lib.rs",
+        "sha256": "990df866e8c7128a73bc4640dc94b80b8cd38f07c46c4b9ce1605d0a0f913198",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/program/Cargo.toml",
+        "sha256": "b2bade0ad36b3991b0297525bb5138bfae08382f89966fb8f8f441186a817a3e",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-012-harnesses/program/src/main.rs",
+        "sha256": "38e757f15dfdf78c304e8c306948743215df6db18b30267721f100df27b38efa",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-013-2026-11-15.json",
+        "sha256": "2e25550d9898c88c2832bb327b759621a3ae207ca4657c926b460b0347b65f51",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-013-2026-11-15.md",
+        "sha256": "08ecd3c2f91cac025bfb69e2a5c5a7dd87c6254b05c0430dc4430d12c5f975a9",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-014-2026-11-15.json",
+        "sha256": "ea572896cbe433e9fad2358f48c07af8b8989e9a4d5cf363c3e0960116270007",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-014-2026-11-15.md",
+        "sha256": "a91b44cb53c4077523e565db479fec2c74fe7178683327619e41ef7199e3d7ea",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-014-harnesses/README.md",
+        "sha256": "d19c931f1998206d5c06f72262165db2874a744660103e03e1089b7f9d644c8a",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-014-harnesses/api.rs",
+        "sha256": "0dca909e1966971d6251824df0dfe14c001b891ea1f996b0203add574ce56701",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Historical harness or fixture input. Classification and provenance only."
+      },
+      {
+        "path": "docs/audits/AUD-015-2026-11-15.json",
+        "sha256": "5868ffa0afe5ead64f063d946028d33bdd428eb3b7786a783248e64b8d02784f",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-015-2026-11-15.md",
+        "sha256": "af21a2777c8d84d65fcaa1f7bcf56dda520c33455fd92c8519b6c8458a691224",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/AUD-016-2026-11-24.json",
+        "sha256": "f724a902de1878f55c43d05646daf7f8391732d23ea35ce6e59a8067e720e50a",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Schema, identity, finding references and relationship to historical Markdown"
+      },
+      {
+        "path": "docs/audits/AUD-016-2026-11-24.md",
+        "sha256": "71a15bbf334d8926cf804401e40cb8754d5bb78d793ea680a8953e0fdeddf712",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/HISTORY.md",
+        "sha256": "ca7fa0854392d12ad1c009b2cbfe2d5896a8cc591d99f5141d0c6997a55edbd3",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "docs/audits/README.md",
+        "sha256": "4740759ba8ae50e3b3c95b057058109fe491c11475bd5de8de43f268718675f3",
+        "group": "Audit records and historical artifacts",
+        "reviewedFor": "Report or harness role, index and retained-evidence relationship"
+      },
+      {
+        "path": "dprint.json",
+        "sha256": "f02eb7f6fa10c82e56547a38b3756a3b98eedf9e9b683c05fff3b1cd9783fe77",
+        "group": "Root inputs",
+        "reviewedFor": "Pinned Markdown formatting configuration"
+      },
+      {
+        "path": "fuzz/.gitignore",
+        "sha256": "e005979318db417d742efd014c6d72a7405128832d26e586fff772c031fc3445",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Pinned parser fuzz configuration, inputs and generated output boundaries"
+      },
+      {
+        "path": "fuzz/Cargo.lock",
+        "sha256": "828672895321271da59130fe231de88549244a65047b4e4a937498da549d345f",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Pinned parser fuzz configuration, inputs and generated output boundaries"
+      },
+      {
+        "path": "fuzz/Cargo.toml",
+        "sha256": "d3d019dde690dc832ed0ce8521ff7d248dda3b696e67c20886783139b6942a79",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Pinned parser fuzz configuration, inputs and generated output boundaries"
+      },
+      {
+        "path": "fuzz/fuzz_targets/keystrokes.rs",
+        "sha256": "bb72d40edc32381f260868d8121df7753977698dab25518487e0c3e19f76abfa",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Keystroke wire and bounded editing semantics"
+      },
+      {
+        "path": "fuzz/fuzz_targets/report.rs",
+        "sha256": "7ccff449d22064d04823bbc50e77875ee9817f4875822c2b893b09a089efb88c",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Isolation report serialization and parser invariants"
+      },
+      {
+        "path": "fuzz/fuzz_targets/setting.rs",
+        "sha256": "b39742764c2f630665c050351f07bc399bf4375a4e99820c63c6a203ff7d979f",
+        "group": "Fuzz workspace",
+        "reviewedFor": "Worker setting parser and option round-trip"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "sha256": "fa234d3dd3df69ed4d2c4df26cae075a1122e3db8e0031459be448a0f5049213",
+        "group": "Root inputs",
+        "reviewedFor": "Pinned Rust, required components and target list"
+      },
+      {
+        "path": "src/channels.rs",
+        "sha256": "6229c46b1a03d2c68cc11ed8d761b10b9c9249f8cac58b3bb0b3867b6705b34d",
+        "group": "Production source",
+        "reviewedFor": "Descriptor and mapping data model, allowlist and completion"
+      },
+      {
+        "path": "src/fuzzing.rs",
+        "sha256": "2645778747d1f4a412d6ab3a557a3c6ae80574b918eb83515ff8a8c40652ad33",
+        "group": "Production source",
+        "reviewedFor": "Setting, bitmask and report fuzz entry points"
+      },
+      {
+        "path": "src/input.rs",
+        "sha256": "e9724bff1c1fc3da002cbd0253199e31ba4a983b8307afe8f3ce9a3a69974595",
+        "group": "Production source",
+        "reviewedFor": "Keystroke wire, UTF-8, edits, hidden-read dispatch and cleanup"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "99f8634c2ce48b6bf231ff8a49939b3493f4d3707c43e5c0ec9c1f783ee01b97",
+        "group": "Production source",
+        "reviewedFor": "Public exports, target conditions and internal fuzz seam"
+      },
+      {
+        "path": "src/os.rs",
+        "sha256": "7dae87f2990339d75599020b96ce26946f8bea27e96a0a783a6f61184dcd5820",
+        "group": "Production source",
+        "reviewedFor": "Target selection, unsupported paths, memory-access abstraction"
+      },
+      {
+        "path": "src/os/apple.rs",
+        "sha256": "f0513801c28f18be691b8b4d86da62463b5f3a897cadeca1f711a209c42750d0",
+        "group": "Production source",
+        "reviewedFor": "macOS and iOS protections, availability probes, profile and memory region inventory"
+      },
+      {
+        "path": "src/os/linux.rs",
+        "sha256": "df98dccbc343732acb798445faf5758ccf517e672fee6ce32d3a94abd18e7053",
+        "group": "Production source",
+        "reviewedFor": "Linux and Android secret memory, namespaces, seccomp/Landlock orchestration, reach, probes"
+      },
+      {
+        "path": "src/os/linux/mappings.rs",
+        "sha256": "108c573dacec28dde50f2bccbea3d5186c103eb8ce8d66c4e11ab60a7fbc9dc0",
+        "group": "Production source",
+        "reviewedFor": "smaps grammar, pending flags, write capability and secret-memory ownership"
+      },
+      {
+        "path": "src/os/linux/seccomp.rs",
+        "sha256": "2a9fcbe88da1b23f109157f7f5a2ad447c3eeac9a8ac742d7ec79de58f46e4fa",
+        "group": "Production source",
+        "reviewedFor": "x86-64/AArch64 tables, BPF branches, arguments, flags, TSYNC and marker"
+      },
+      {
+        "path": "src/os/unix.rs",
+        "sha256": "0d218636653deec78a5c72cb8e8e869653ebb66c98c09f6cf565a5e36bd0f9a9",
+        "group": "Production source",
+        "reviewedFor": "Page allocation, lock, fork behavior, stack execution, descriptor inventory and worker streams"
+      },
+      {
+        "path": "src/os/unix/child.rs",
+        "sha256": "814cff6664b36244a3b43950af52bb02a432f625aa5d29468646b7d950f09d3a",
+        "group": "Production source",
+        "reviewedFor": "Child identity, wait and pidfd lifetime"
+      },
+      {
+        "path": "src/os/unix/forks.rs",
+        "sha256": "2e9bc7cdb2a283ee8092c87af9ce0b903933724f4f8328596804ac4c938b0cc9",
+        "group": "Production source",
+        "reviewedFor": "Fork generation, gate and parent/child cleanup"
+      },
+      {
+        "path": "src/os/unix/terminal.rs",
+        "sha256": "7c2736d0b8d66debd5c16ea07ba1eca7b575f145c3f15aa74664fd4129150a5c",
+        "group": "Production source",
+        "reviewedFor": "Descriptor choice, termios, UTF-8, draining, prompt, restore"
+      },
+      {
+        "path": "src/os/unix/worker.rs",
+        "sha256": "95181c58e47ee1704d1b8f65b13d5bd59408592ae86f5c4e2c63bb52ed492fb3",
+        "group": "Production source",
+        "reviewedFor": "Spawn, descriptor actions, deadlines, cleanup and executable selection"
+      },
+      {
+        "path": "src/os/windows.rs",
+        "sha256": "4b6133da123892c03971515fb719063dacad98eb1d511606b068c1c204547a6b",
+        "group": "Production source",
+        "reviewedFor": "Memory lock and protection, WER, ACLs, impersonation and mitigations"
+      },
+      {
+        "path": "src/os/windows/console.rs",
+        "sha256": "a9ecb4c97a2a10f18d723c874a8c73a75566f8911d8f384f76ea79562d03e832",
+        "group": "Production source",
+        "reviewedFor": "Console handle, mode, UTF-16, buffer discard and output"
+      },
+      {
+        "path": "src/os/windows/threads.rs",
+        "sha256": "7559fb2daeb9e300b310e80ec620f31e46cf17cd3ba0b510a67328ea6ce717ac",
+        "group": "Production source",
+        "reviewedFor": "Bounded native thread census and identity checks"
+      },
+      {
+        "path": "src/os/windows/worker.rs",
+        "sha256": "b0dc0dbf9a661a6745b1a5c00af161669d3e594461d486fb78c5593d01164c56",
+        "group": "Production source",
+        "reviewedFor": "AppContainer, start attributes, pipes, nonce, process permissions, deadlines and cleanup"
+      },
+      {
+        "path": "src/protect.rs",
+        "sha256": "ecfce7702dee617b6275253ff95ee3467f3ec2174b2e00bd22c79126e303755e",
+        "group": "Production source",
+        "reviewedFor": "Secret and work-area lifecycle, report, requirements, measures and secret output"
+      },
+      {
+        "path": "src/protect/closed.rs",
+        "sha256": "7ffcafa235e4f6813bad094a05956d01ef27a7afd3f4586d24d010a6ad0acdcc",
+        "group": "Production source",
+        "reviewedFor": "Protected transitions, closure borrow, unwind and wiping"
+      },
+      {
+        "path": "src/protect/folder.rs",
+        "sha256": "3c53f6781ed045d55cb186be4a288bc6538329c4e71463a40306c2b1dee19fb0",
+        "group": "Production source",
+        "reviewedFor": "Creation, held identity, permissions, scope and emptiness"
+      },
+      {
+        "path": "src/protect/options.rs",
+        "sha256": "1a90b7157cf7be3ab47a30dcd9bac814d4c8432d326ba2cdf7f55d06beeb0eb7",
+        "group": "Production source",
+        "reviewedFor": "Options and bitmask, protection order, outcomes and requirements"
+      },
+      {
+        "path": "src/stack.rs",
+        "sha256": "8ab92cdc33545089c1afaa6c380444fed056a44053d1967a83cd92bff71c919e",
+        "group": "Production source",
+        "reviewedFor": "Protected stacks, ordinary stack clearing, normal and exceptional lifetime"
+      },
+      {
+        "path": "src/worker.rs",
+        "sha256": "717223351d05dace4beccf7b91afe2e1a96701c9169de989361d7ec1914faaf2",
+        "group": "Production source",
+        "reviewedFor": "Admission, framing, deadline contract, request wiping, shutdown and service"
+      },
+      {
+        "path": "tests/isolation/folders.rs",
+        "sha256": "61cac71107986849a1fc5bb4d529ce90b52772cd65b474d8f51a5e9b04e665ea",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Folder grants, shared mapping checks, stale grants and inherited folder policy"
+      },
+      {
+        "path": "tests/isolation/linux.rs",
+        "sha256": "af411a527d3fce4c866857b470c289e7f24f497fc2e99779755079ac8c784892",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Linux test dispatch and prerequisites"
+      },
+      {
+        "path": "tests/isolation/linux/roles.rs",
+        "sha256": "8e9e329248565dc3a05ca3602dda9f79298751ac16907c1bbff76c66555abd36",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Disposable Linux operation fixtures"
+      },
+      {
+        "path": "tests/isolation/linux/threads.rs",
+        "sha256": "104e25441129978b8ade1e62fb25749cc3174874d22f9465f68a1e8fb809d71d",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "TSYNC positive, thread scope, divergent seccomp, repeated installation"
+      },
+      {
+        "path": "tests/isolation/main.rs",
+        "sha256": "22f71a487d54cab3af8faa331f3935710d6e934c9e16db076c171473f4634ab4",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Common isolation, permissions and report expectations"
+      },
+      {
+        "path": "tests/isolation/windows.rs",
+        "sha256": "931622277cdb7317fb3e13be83c3de21c1eb5d8a7a255d8a292fc8a607951cdd",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Windows-specific policy, threads and handles"
+      },
+      {
+        "path": "tests/secret_memory.rs",
+        "sha256": "fa005b3075c3ede703a68c2a40a8d705e96f8f3cd5ed65efd55930d0e34f152b",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Page properties, lock state, wiping, fork, stack and fallback"
+      },
+      {
+        "path": "tests/support/run.rs",
+        "sha256": "69b61e7beefbc04257dec62b72a9fb1893e33c063da6a832ae3583f5dae35ce3",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Fixture result, child failure and explicit skip handling"
+      },
+      {
+        "path": "tests/worker.rs",
+        "sha256": "96d3b1b19387f8204262a1258f66ef92320e7f5e2bd1ce49e150f33f5b1879c3",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Worker lifecycle, bounded framing, timeouts, terminal and descriptor expectations"
+      },
+      {
+        "path": "tests/worker/linux.rs",
+        "sha256": "45176d6eb082ae7f704dc80651c169e7bc3e152ba47b5eb1a4eb9311d494d7c2",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Linux pidfd, procfs, timing and fork cases"
+      },
+      {
+        "path": "tests/worker/unix.rs",
+        "sha256": "166f48e5f180d05e30b9a5b585e8dc333a3f34abbfb1a89a1f3b5d8f6310b1f1",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Inherited descriptors, POSIX ownership, PTY and cleanup"
+      },
+      {
+        "path": "tests/worker/windows.rs",
+        "sha256": "bd28f0f94caabccca170411b17e9e5811c447e1c58b6ca55ce5457bf2b77dcf5",
+        "group": "Tests and fixture drivers",
+        "reviewedFor": "Native Windows launch, pipes, running/suspended permissions and timeout"
+      }
+    ],
+    "operations": {
+      "src/channels.rs": [
+        "OpenChannels::only",
+        "open_channels"
+      ],
+      "src/input.rs": [
+        "Keystroke::to_bytes",
+        "Keystroke::from_bytes",
+        "KeystrokeBytes::as_bytes",
+        "SecretLine::with_capacity",
+        "SecretLine::apply",
+        "SecretLine::push",
+        "SecretLine::remove_last",
+        "SecretLine::clear",
+        "SecretLine::characters",
+        "SecretLine::as_secret",
+        "SecretLine::as_str",
+        "read_hidden_line"
+      ],
+      "src/protect.rs": [
+        "Secret::with_capacity",
+        "Secret::locked",
+        "Secret::push",
+        "Secret::truncate",
+        "Secret::as_bytes",
+        "Secret::as_str",
+        "Secret::capacity",
+        "Secret::is_locked",
+        "Secret::is_out_of_dumps",
+        "Secret::is_out_of_children",
+        "Secret::zeroed",
+        "Secret::as_mut_bytes",
+        "WorkArea::new",
+        "WorkArea::locked",
+        "WorkArea::as_slice",
+        "WorkArea::as_mut_slice",
+        "WorkArea::is_locked",
+        "WorkArea::is_out_of_dumps",
+        "WorkArea::is_out_of_children",
+        "Isolation::enter",
+        "Isolation::enter_with",
+        "Isolation::enter_with_folders",
+        "Isolation::enter_requiring",
+        "Isolation::enter_requiring_process_wide",
+        "Isolation::require",
+        "Isolation::require_process_wide",
+        "Isolation::has",
+        "Isolation::outcome",
+        "Isolation::measures",
+        "write_secret"
+      ],
+      "src/protect/options.rs": [
+        "Options::new",
+        "Options::refuse_file_locks",
+        "Options::refuse_sendmsg",
+        "Options::refuse_dynamic_code",
+        "Options::microsoft_signed_only",
+        "Options::signals_to_self_only",
+        "Options::lock_all_memory",
+        "Options::all_threads"
+      ],
+      "src/protect/closed.rs": [
+        "ClosedSecret::with_capacity",
+        "ClosedSecret::locked",
+        "ClosedSecret::push",
+        "ClosedSecret::truncate",
+        "ClosedSecret::read",
+        "ClosedSecret::write",
+        "ClosedSecret::len",
+        "ClosedSecret::is_empty",
+        "ClosedSecret::capacity",
+        "ClosedSecret::is_closed",
+        "ClosedSecret::is_locked",
+        "ClosedSecret::is_out_of_dumps",
+        "ClosedSecret::is_out_of_children"
+      ],
+      "src/protect/folder.rs": [
+        "WritableFolder::create",
+        "WritableFolder::path",
+        "WritableFolder::is_private"
+      ],
+      "src/stack.rs": [
+        "run_on_protected_stack",
+        "with_cleared_stack",
+        "clear_stack"
+      ],
+      "src/worker.rs": [
+        "Worker::start",
+        "Worker::start_within",
+        "Worker::start_on_terminal",
+        "Worker::isolation",
+        "Worker::call",
+        "Worker::call_within",
+        "Worker::end",
+        "serve"
+      ],
+      "src/fuzzing.rs": [
+        "setting",
+        "options_again",
+        "report",
+        "report_bytes"
+      ]
+    },
+    "reportProtections": [
+      "NoCoreDumps",
+      "NoMemoryReading",
+      "NoNewSockets",
+      "EmptyNetwork",
+      "NoFileChanges",
+      "SpeculationLimited",
+      "WholeProcess",
+      "FileLocksRefused",
+      "SendmsgRefused",
+      "DynamicCodeRefused",
+      "MicrosoftSignedOnly",
+      "SignalsToSelfOnly",
+      "SignalsWithinLayer",
+      "MemoryLocked",
+      "NoNewPrograms",
+      "NoPlantedLibraries",
+      "DesktopRestricted",
+      "LowIntegrity",
+      "FolderWrites"
+    ],
+    "regularPublicCallables": 79,
+    "reviewMethod": [
+      "Independent Linux/Android filter pass",
+      "Independent macOS/iOS and Windows pass",
+      "Common Rust memory, input, worker and fallback pass",
+      "Governance, archive and release pass",
+      "Independent cross-check of TSYNC, procfs, stack, terminal and scope completeness"
+    ]
+  },
+  "checks": [
+    {
+      "id": "CHECK-SEC-001",
+      "status": "reviewed",
+      "evidence": "Threat model, developer/caller ownership, pre-existing authority, fail-closed entry and target fallbacks."
+    },
+    {
+      "id": "CHECK-SEC-002",
+      "status": "findings",
+      "evidence": "All isolation backends, worker admission, headers, handles, transport, transcripts and reports."
+    },
+    {
+      "id": "CHECK-SEC-003",
+      "status": "findings",
+      "evidence": "Namespaces, new sockets, inherited descriptors and mappings, worker IPC, folder exceptions."
+    },
+    {
+      "id": "CHECK-SEC-004",
+      "status": "reviewed",
+      "evidence": "Windows worker nonce generation and transport admission. Protocol encryption and key derivation are absent."
+    },
+    {
+      "id": "CHECK-SEC-005",
+      "status": "findings",
+      "evidence": "Secret, ClosedSecret, WorkArea, protected/cleared stack, fork, zeroize, input and output, unwind."
+    },
+    {
+      "id": "CHECK-SEC-006",
+      "status": "not-applicable",
+      "evidence": "SPC has a WebAssembly fallback and no browser UI, worker binding, storage or script injection surface."
+    },
+    {
+      "id": "CHECK-SEC-007",
+      "status": "findings",
+      "evidence": "Filesystem confinement and grants, deadlines, shutdown, startup, OS diagnostics."
+    },
+    {
+      "id": "CHECK-SEC-008",
+      "status": "findings",
+      "evidence": "Grant inventory below. Each OS option and each report outcome checked against its platform evidence."
+    },
+    {
+      "id": "CHECK-FUN-001",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-002",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-003",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-004",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-005",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-006",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-FUN-007",
+      "status": "not-applicable",
+      "evidence": "The crate exposes no wallet, crypto protocol, recovery, or provider operations."
+    },
+    {
+      "id": "CHECK-API-001",
+      "status": "findings",
+      "evidence": "Rust dependency contracts, FFI layouts, OS calls, capabilities, pinned version and source compatibility."
+    },
+    {
+      "id": "CHECK-API-002",
+      "status": "findings",
+      "evidence": "Scope report and re-entry, deadlines, worker admission, races, cancellation and restore."
+    },
+    {
+      "id": "CHECK-API-003",
+      "status": "not-applicable",
+      "evidence": "No monetary or export schema."
+    },
+    {
+      "id": "CHECK-API-004",
+      "status": "findings",
+      "evidence": "Worker options, isolation reports, keystrokes and hidden input encodings, native output boundaries."
+    },
+    {
+      "id": "CHECK-BLD-001",
+      "status": "findings",
+      "evidence": "Root, fuzz and historical manifests, lockfiles, cfg, test versus release and lint policy."
+    },
+    {
+      "id": "CHECK-BLD-002",
+      "status": "findings",
+      "evidence": "Host and target matrix and explicit native limitations. Native ARM optimized acceptance remains outstanding."
+    },
+    {
+      "id": "CHECK-BLD-003",
+      "status": "reviewed",
+      "evidence": "Both lockfiles via offline RustSec, dependency notice closure and pinned workflow dependencies."
+    },
+    {
+      "id": "CHECK-BLD-004",
+      "status": "not-applicable",
+      "evidence": "No canonical browser artifact or Docker release recipe. The WASM target is compiled."
+    },
+    {
+      "id": "CHECK-BLD-005",
+      "status": "findings",
+      "evidence": "CI dependencies, lockfile, package, release/tag attestation and exact-byte acceptance."
+    },
+    {
+      "id": "CHECK-UI-001",
+      "status": "not-applicable",
+      "evidence": "No application UI, browser viewport, QR or user navigation is distributed by this crate."
+    },
+    {
+      "id": "CHECK-UI-002",
+      "status": "not-applicable",
+      "evidence": "No application UI, browser viewport, QR or user navigation is distributed by this crate."
+    },
+    {
+      "id": "CHECK-UI-003",
+      "status": "not-applicable",
+      "evidence": "No application UI, browser viewport, QR or user navigation is distributed by this crate."
+    },
+    {
+      "id": "CHECK-ARC-001",
+      "status": "findings",
+      "evidence": "Shared and OS dispatch, resource ownership, allocation/page seams, placement of worker and audit code."
+    },
+    {
+      "id": "CHECK-ARC-002",
+      "status": "findings",
+      "evidence": "Duplicate policy, cost of repeating a protection, parser behavior and maintainability."
+    },
+    {
+      "id": "CHECK-ARC-003",
+      "status": "findings",
+      "evidence": "Production paths, tests and untested OS behavior, coverage, report accuracy."
+    },
+    {
+      "id": "CHECK-DOC-001",
+      "status": "findings",
+      "evidence": "README, API, Technical, Security, Changelog, Coverage, capability claims."
+    },
+    {
+      "id": "CHECK-DOC-002",
+      "status": "findings",
+      "evidence": "Toolchain, build, install, legal and updated handoff documentation."
+    },
+    {
+      "id": "CHECK-DOC-003",
+      "status": "findings",
+      "evidence": "All current historical report pairs and index. Prior finding statuses mapped below."
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-017-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux TSYNC propagates folder permissions without their Landlock boundary",
+      "severity": "high",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/linux.rs:542",
+        "src/os/linux.rs:589",
+        "src/os/linux.rs:608",
+        "src/os/linux/seccomp.rs:521"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://docs.kernel.org/7.0/userspace-api/landlock.html#sys-landlock-restrict-self",
+          "https://man7.org/linux/man-pages/man2/seccomp.2.html"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The seccomp forms that allow folder writes and the markers for Landlock must reach only threads that actually hold the matching Landlock policy.",
+      "observed": "The caller-only Landlock fallback sets LAYER, SCOPE and possibly FOLDERS. The same rules, including those bits and the folder-write seccomp forms, can be installed process-wide by seccomp TSYNC. Sibling entry subsequently interprets the copied marks as evidence of its own Landlock. This remains present after the mid-audit changes for skipping already-installed filters.",
+      "impact": "Sibling threads can receive the folder-write permissions without the path boundary. Reports on subsequent entry can also confirm a signal scope that did not reach that thread. The initial WholeProcess refusal does not revoke the peer's installed policy.",
+      "recommendedFix": "Keep per-thread Landlock provenance separate from filters, validate coverage before propagating the path-dependent policy, and fail closed when the Landlock boundary cannot be proved across the threads receiving the permissions.",
+      "requiredVerification": "Require a passing per-thread audit on ABI 6–7, on ABI 8 and when a host refuses Landlock TSYNC. Include folders, re-entry and independent evidence for each primitive.",
+      "relatedFindings": [
+        "AUD-016-API002"
+      ],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC001)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC014",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Concurrent Linux isolation calls race",
+      "severity": "high",
+      "status": "verified",
+      "releaseBlocking": true,
+      "legacyId": "GEM-SEC002",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs"
+        ]
+      },
+      "reproduction": "Two threads call `enter_with(Options::new().all_threads())` and `enter_with_folders` at once.",
+      "expected": "One isolation of the process at a time.",
+      "observed": "Both read no layer and no filter; one call's empty layer, put on every thread, closed the folders the other granted while it reported `FolderWrites` Confirmed.",
+      "impact": "A false report, and folders closed under a program that was told they are open.",
+      "recommendedFix": "Serialize the critical section.",
+      "requiredVerification": "Source review of the guard; the fork case where another thread held it.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Landlock TSYNC can replace a sibling's protection before seccomp refuses synchronization",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/linux.rs:581",
+        "src/os/linux.rs:589",
+        "src/os/linux.rs:621",
+        "docs/API.md:146",
+        "docs/TECHNICAL.md:65"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://docs.kernel.org/7.0/userspace-api/landlock.html#sys-landlock-restrict-self",
+          "https://man7.org/linux/man-pages/man2/seccomp.2.html"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Previously installed protection should remain in force when strict admission fails, as the API guide promises.",
+      "observed": "Landlock ABI 8 applies the caller's domain to siblings. This can replace a sibling's stricter or different domain. Seccomp runs afterwards and can refuse a divergent filter tree. The implementation cannot roll back the already successful Landlock call. The technical guide mentions domain replacement, while the API's general promise also covers strict failure.",
+      "impact": "A sibling can be left with different path authority after the overall process-wide check fails. This applies to explicit multithreaded opt-in where differently sandboxed siblings coexist.",
+      "recommendedFix": "Require a controlled process with a common known starting policy or decline this combination. Define which operations can replace another thread's policy and what each failure leaves in force.",
+      "requiredVerification": "Verify the policy of every thread after strict success and after a refused second primitive, including a host-supplied Landlock domain.",
+      "relatedFindings": [
+        "AUD-016-API002"
+      ],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC003",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux thread census can certify whole-process reach with a surviving sibling",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/linux.rs:244",
+        "src/os/linux.rs:305",
+        "src/os/linux.rs:355",
+        "src/os/linux.rs:710",
+        "src/os/linux.rs:739"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://github.com/torvalds/linux/blob/v7.0/fs/proc/base.c#L3686-L3751",
+          "https://github.com/torvalds/linux/blob/v7.0/include/linux/pid.h#L235-L248",
+          "https://github.com/torvalds/linux/blob/v7.0/kernel/exit.c#L128-L147"
+        ],
+        "challenge": "A review correctly distinguished exiting after emission (which cannot yield a count of one) from exiting after the iterator takes its task reference but before it reads the PID. The latter branch skips emission, advances the index and ends the walk. A still-live leader does not prevent omission of a sibling."
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Single-thread reach is reported only when the process really has one thread or the relevant policy is synchronized.",
+      "observed": "The kernel task directory iterator can skip an exiting entry before returning its name. If that task dies, its successor lookup can end the iteration. Directory position can advance even though the entry was omitted. A short successful listing can therefore leave a surviving sibling uncounted. The code trusts a count of one, skips TSYNC and marks the calling thread's filter process-wide. The same incomplete walk is trusted by traced(), so a skipped thread can also leave a tracer unreported.",
+      "impact": "A caller that explicitly requires process-wide measures can proceed on a false reach report. This predicate was present before TSYNC and now also decides whether an explicitly requested synchronization runs.",
+      "recommendedFix": "Use an authoritative kernel thread count for the single-thread path. Require synchronization or return unconfirmed reach where the applicable process scope cannot be established.",
+      "requiredVerification": "Exercise reports during sibling exit and thread churn and confirm that any passing strict admission establishes the declared scope.",
+      "relatedFindings": [
+        "AUD-016-API002"
+      ],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC004",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "macOS channel checks miss some writable shared file mappings",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/apple.rs:248",
+        "src/os/apple.rs:272",
+        "src/channels.rs:71",
+        "SECURITY.md:21"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/vm/vm_map.c#L15156-L15189",
+          "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/vm/vm_map.c#L6002-L6010"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "A complete inventory used by only() accounts for all writable shared mappings, including those whose original descriptor is closed.",
+      "observed": "XNU can report a singly mapped external object as SM_PRIVATE. Inheritance can be changed independently of shared backing. The two predicates used to identify a shared mapping therefore miss a writable mapping that remains shared with its backing file.",
+      "impact": "A clean channel report may leave a writable route to a file despite the descriptor check and the no-file-write policy for newly opened channels.",
+      "recommendedFix": "Treat ambiguous potentially writable file-backed mappings conservatively, or mark the inventory incomplete. Use the kernel view rather than fork-inheritance behavior alone to establish sharing.",
+      "requiredVerification": "Require a native macOS fixture that confirms a complete account of writable file mappings across descriptor closure, distinct inheritance settings and single versus multiple mappings.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC005)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC005",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "macOS folder privacy can ignore inherited ACL permissions",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/protect/folder.rs:81",
+        "src/protect/folder.rs:106",
+        "docs/API.md:187"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemDetails/FileSystemDetails.html"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "is_private() promises only the user can reach the folder when it returns true.",
+      "observed": "The flag is computed solely from st_mode in hold(). On macOS a directory can inherit extended ACL entries that grant access despite mode 0700.",
+      "impact": "Callers can place sensitive output in a folder that other identities can reach after receiving a positive privacy check.",
+      "recommendedFix": "Inspect effective ACLs on the held directory and default to unconfirmed where access exclusivity cannot be established, or narrow the API to report verified mode bits alone.",
+      "requiredVerification": "Verify native creation below restrictive and permissive inherited ACLs and distinguish filesystem permission support from privacy.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC011)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC006",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows reports successful hidden input after failed console discards",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/windows/console.rs:59",
+        "src/os/windows/console.rs:134",
+        "src/input.rs:196"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/console/flushconsoleinputbuffer#parameters",
+          "https://learn.microsoft.com/en-us/windows/console/setconsolemode#parameters"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Input queued before the prompt and the unused end of a paste are discarded, or the function restores settings and returns an error.",
+      "observed": "FlushConsoleInputBuffer is called twice without checking its result. Its console handle must have GENERIC_WRITE. The read and mode checks can work with GENERIC_READ.",
+      "impact": "A valid read-oriented console handle can admit input that was queued or echoed before the hidden prompt. The suffix of a paste can reach the next reader.",
+      "recommendedFix": "Require a successful initial discard before reading. Surface an ending discard failure while still restoring mode, and maintain the documented behavior for redirected handles.",
+      "requiredVerification": "Verify on native Windows with console input handles of both access classes, queued input, cancellation and restore.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC010)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC007",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Unix hidden input does not verify or report an incomplete restore and drain",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/unix/terminal.rs:64",
+        "src/os/unix/terminal.rs:138",
+        "src/os/unix/terminal.rs:152",
+        "src/input.rs:207"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://man7.org/linux/man-pages/man3/tcsetattr.3.html#CAVEATS"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Restoration should verify the original terminal state, and input should be drained without waiting under verified hidden settings.",
+      "observed": "Startup checks tcsetattr with tcgetattr because a partial change can return success. Restore uses only the setter. It ignores failure to enter the drain mode, drain errors and exhaustion, and reads without checking that nonblocking drain attributes actually took effect.",
+      "impact": "After an apparently successful call the terminal may still be in a changed mode or leave input for the next reader. If the assumed drain mode did not apply, an attempted drain can wait for input.",
+      "recommendedFix": "Read back the changed fields before draining and after restoring. Always attempt the restore and return an error when the documented restore or discard could not be established. State any deliberate discard bound.",
+      "requiredVerification": "Validate successful and failed restoration with ordinary PTY fixtures and a controlled partial-change failure.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC008",
+        "review GEM-SEC009)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC008",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Stack clearing does not run when the callback unwinds",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/stack.rs:92",
+        "src/stack.rs:102",
+        "docs/API.md:376"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The promised best-effort stack wipe runs when a callback exits and the process continues, or the contract defines the normal-return boundary.",
+      "observed": "Both wrappers run the callback before making an ordinary call to the wipe. A callback panic that unwinds skips the wipe. The optimized canary exercise covers normal return.",
+      "impact": "A consumer that catches panics can retain secret-bearing stack residue. Panic-abort builds already terminate the process. The separate protected-stack thread service has its own cleanup.",
+      "recommendedFix": "Clear during unwind as well as normal return, or explicitly restrict this wrapper to normal return and direct callers that require unwind cleanup to the appropriate API.",
+      "requiredVerification": "Check the contract and an unwind-enabled optimized test with a synthetic marker.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC003)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC009",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "macOS folder grant is expressed by pathname after the identity check",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/apple.rs:103",
+        "src/os/apple.rs:307",
+        "src/protect/folder.rs:112",
+        "docs/API.md:191"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The granting contract either retains the checked folder's identity or requires trusted stable ancestors for a path grant.",
+      "observed": "The constructor holds a directory descriptor and the grant checks identity and emptiness. The sandbox profile then retains only a pathname. It cannot express that held identity against a later directory or ancestor replacement.",
+      "impact": "The later policy can apply to different storage when another process can replace components of the path. The exact Seatbelt behavior for replacement and links requires native verification.",
+      "recommendedFix": "Document and enforce an explicit parent-trust and stability condition, or use an object-bound rule. If neither can be verified, keep the path-dependent claim out of the supported grant.",
+      "requiredVerification": "Confirm native Seatbelt behavior under folder and ancestor replacement and with existing links. Check that intended storage stays within the contract.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC013",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A synchronized Linux worker can pass clean startup with an unchecked descriptor table",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/worker.rs:349",
+        "src/worker.rs:356",
+        "src/os/unix.rs:311",
+        "src/os/unix.rs:375",
+        "docs/TECHNICAL.md:111"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Admission establishes both whole-process policy and clean startup across the worker contexts allowed to run.",
+      "observed": "The worker checks the serving thread's descriptor table, then accepts process-wide policy including synchronized or cached reach. A startup sibling can have a separate table. TSYNC does not remove descriptors already open in it. The technical guide documents the census boundary but the worker still reports clean startup.",
+      "impact": "Where a linked startup library or runtime legitimately starts a sibling with a separate table before serve(), the worker may take secret requests without the documented clean-start condition for the worker as a whole.",
+      "recommendedFix": "Require an independently established one-thread startup for workers, or inspect each relevant table before admission. Keep the standalone TSYNC decision and worker admission distinct.",
+      "requiredVerification": "Verify worker admission with and without pre-existing sibling contexts. The passing path must prove both policy scope and startup authority.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC015",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A child of fork cannot signal itself under the inherited rule",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "GEM-SEC004",
+      "affectedFiles": [
+        "src/os/linux/seccomp.rs",
+        "docs/API.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux/seccomp.rs",
+          "docs/API.md"
+        ]
+      },
+      "reproduction": "Isolate with `signals_to_self_only`, fork, call `kill(getpid(), 0)` in the child.",
+      "expected": "The documentation says what the child can signal.",
+      "observed": "The inherited rule names the parent; the child can signal the parent only, and after isolating itself again with the option, no process at all.",
+      "impact": "A child that relies on `raise` or `abort` fails in a way the documentation did not name.",
+      "recommendedFix": "Document it.",
+      "requiredVerification": "A fork test asserts `EACCES` for the child's signal to itself.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC016",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows integrity checks of threads with the hardened access list",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "GEM-SEC007",
+      "affectedFiles": [
+        "src/os/windows.rs",
+        "src/os/windows/threads.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows.rs",
+          "src/os/windows/threads.rs"
+        ]
+      },
+      "reproduction": "Enter isolation twice in a process with threads, or start a thread during the call.",
+      "expected": "`LowIntegrity` reads Confirmed where every thread is low.",
+      "observed": "A thread opened after it got the hardened list may refuse the token query, reading Unknown; an ended thread's pinned handle stayed in the map.",
+      "impact": "An honest Unknown where a Confirmed would hold; a handle kept until the call returned.",
+      "recommendedFix": "Drop an ended thread's handle; reconsider the thread access list.",
+      "requiredVerification": "A native Windows run of the thread integrity checks.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC018",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The tracer check accepted a walk cut short",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "N1",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs"
+        ]
+      },
+      "reproduction": "A thread ends while `/proc/self/task` is listed, so a traced thread after it is never read.",
+      "expected": "A walk that missed a thread reports unknown.",
+      "observed": "The walk counted a thread whose status it could not read, so a short walk passed.",
+      "impact": "`NoMemoryReading` Confirmed while a thread was traced.",
+      "recommendedFix": "Count the statuses read; compare with the kernel's count before and after.",
+      "requiredVerification": "Source review; the tracer roles.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC019",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The macOS path grant read Confirmed where another user could redirect it",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "N4",
+      "affectedFiles": [
+        "src/os/apple.rs",
+        "docs/API.md",
+        "SECURITY.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/apple.rs",
+          "docs/API.md",
+          "SECURITY.md"
+        ]
+      },
+      "reproduction": "A folder made in a group-writable parent, granted, then replaced by another user.",
+      "expected": "A program can tell before it grants.",
+      "observed": "The documented example passed `require_process_wide` with `is_private` false.",
+      "impact": "Secret output can land in another user's folder.",
+      "recommendedFix": "Check privacy in the example and document the attack.",
+      "requiredVerification": "A native macOS run of the folder roles.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC026",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The filter marks of 0.1.1 and 0.2.0 were the same",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "legacyId": "R1-SEC001",
+      "affectedFiles": [
+        "src/os/linux/seccomp.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux/seccomp.rs"
+        ]
+      },
+      "reproduction": "A program holds 0.1.1 through one dependency and 0.2.0 through another; 0.1.1 isolates first.",
+      "expected": "0.2.0 never takes 0.1.1's filter for its own.",
+      "observed": "Both answered the same private marks, so 0.2.0 could skip its own filter and report rules the older one lacks.",
+      "impact": "Confirmed protections that do not hold in a mixed program.",
+      "recommendedFix": "Marks of their own for the 0.2 line.",
+      "requiredVerification": "A test with a filter answering the old marks.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC027",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The TSYNC check before the layer was not a transaction",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "legacyId": "R1-SEC002",
+      "affectedFiles": [
+        "src/os/linux.rs",
+        "docs/TECHNICAL.md",
+        "docs/API.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs",
+          "docs/TECHNICAL.md",
+          "docs/API.md"
+        ]
+      },
+      "reproduction": "The filter's TSYNC refused after the check and the layer, by the instruction limit or a thread's new filter.",
+      "expected": "A stated contract for what a refusal leaves.",
+      "observed": "The guide promised the filter's TSYNC would go through; each retry added another allowing filter.",
+      "impact": "An overbroad promise and growing filters.",
+      "recommendedFix": "State the contract; limit the retries.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC028",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The worker checked for one thread after its descriptor census",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "R1-SEC003",
+      "affectedFiles": [
+        "src/worker.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/worker.rs"
+        ]
+      },
+      "reproduction": "A short-lived startup thread opens a descriptor after the census and ends before the count.",
+      "expected": "One thread is established before the census.",
+      "observed": "The count came after the census.",
+      "impact": "A worker admitted with an unchecked descriptor.",
+      "recommendedFix": "Check the thread count first.",
+      "requiredVerification": "Source review; the worker suite.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC029",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "macOS privacy ignored volumes mounted to ignore owners",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "legacyId": "R1-SEC004",
+      "affectedFiles": [
+        "src/protect/folder.rs",
+        "src/os/apple.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/protect/folder.rs",
+          "src/os/apple.rs"
+        ]
+      },
+      "reproduction": "A folder made on a volume mounted with `MNT_IGNORE_OWNERSHIP`.",
+      "expected": "`is_private` false there.",
+      "observed": "Mode 0700 and no access list read as private although the volume checks no owners.",
+      "impact": "Secret output in a folder every user can reach.",
+      "recommendedFix": "Check the mount flag on the folder and above.",
+      "requiredVerification": "A native macOS run.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC031",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A remembered TSYNC check went stale across callers",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "legacyId": "R2-SEC001",
+      "affectedFiles": [
+        "src/os/linux.rs",
+        "src/protect/options.rs",
+        "docs/API.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs",
+          "src/protect/options.rs",
+          "docs/API.md"
+        ]
+      },
+      "reproduction": "After a partial result another thread holds its own filter; a later caller relies on the earlier check.",
+      "expected": "A layer TSYNC only after a check of that moment.",
+      "observed": "A success was remembered for the whole process.",
+      "impact": "Other threads' layers replaced before the filter's TSYNC found the trees apart.",
+      "recommendedFix": "Use the record only to refuse another try.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "OpenChannels is a breaking Rust API change under the old package version",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/channels.rs:53",
+        "Cargo.toml:3"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://doc.rust-lang.org/cargo/reference/semver.html"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Release versioning reflects changes that invalidate a consumer's existing Rust source.",
+      "observed": "OpenChannels gained a public field and became non_exhaustive. Previously legal external literals and exhaustive patterns fail here. Cargo.toml still says 0.1.1, the published baseline used for the audit.",
+      "impact": "Publishing under the existing version cannot represent the changed crate. A patch version would also leave existing semver consumers exposed to the source break.",
+      "recommendedFix": "Assign a new version. Preserve source compatibility for a compatible increment, or document migration and use the next breaking pre-1.0 series if keeping the type change.",
+      "requiredVerification": "Build a downstream API compatibility fixture and ensure the package, release tag and changelog agree.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-API006",
+      "category": "API",
+      "kind": "finding",
+      "title": "The Windows pipe wait skipped the deadline after a put-off client",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "GEM-SEC006",
+      "affectedFiles": [
+        "src/os/windows/worker.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows/worker.rs"
+        ]
+      },
+      "reproduction": "Another process keeps opening the worker's pipe during a timed start.",
+      "expected": "The start fails at its deadline.",
+      "observed": "`accept` put the client off and listened again without checking the deadline or the worker.",
+      "impact": "A start held past its deadline for as long as another process keeps taking the pipe.",
+      "recommendedFix": "Check both on every turn.",
+      "requiredVerification": "A native Windows run of the timed start.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "A mouse report could delete a typed character",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "GEM-FUN001",
+      "affectedFiles": [
+        "src/input.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/input.rs"
+        ]
+      },
+      "reproduction": "Mouse tracking in the X10 mode, a click at column or row 95.",
+      "expected": "A mouse report changes nothing in the line.",
+      "observed": "Its byte 0x7F was taken for Backspace, which ended the report early and let its last byte into the line.",
+      "impact": "A secret typed with a stray click is wrong without the user seeing why.",
+      "recommendedFix": "Take every byte of the report.",
+      "requiredVerification": "A test types such a report.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Release does not run the required optimized stack acceptance on both Linux architectures",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        ".github/workflows/ci.yml:64",
+        ".github/workflows/ci.yml:91",
+        ".github/workflows/release.yml:48",
+        "docs/audits/AUD-016-2026-11-24.md:267",
+        "Cargo.toml:94"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The stack-clear claim is exercised under the actual release profile on Linux x86-64 and ARM64.",
+      "observed": "The workflow runs cargo test with the test profile. Packaging compiles but does not execute the release suite. The release profile uses different LTO settings. This audit supplies release x86-64 evidence only.",
+      "impact": "The tag pipeline can pass without validating the compiler-sensitive wipe under the release settings on ARM64.",
+      "recommendedFix": "Run the focused existing optimized stack acceptance on both Linux architectures as a release prerequisite.",
+      "requiredVerification": "Record native optimized test runs for both target architectures on the exact release candidate.",
+      "relatedFindings": [
+        "AUD-016-BLD001"
+      ],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD003",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The documented Linux coverage run fails the stack-clear acceptance test",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "docs/COVERAGE.md:29",
+        "src/stack.rs:136",
+        "src/stack.rs:148"
+      ],
+      "evidence": {
+        "level": "executed documented coverage recipe and source",
+        "sources": [],
+        "localLogs": [
+          "latest/coverage.log",
+          "final/coverage-repeat.log"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The documented coverage recipe completes the suite and can produce a measured coverage record for the candidate.",
+      "observed": "Under the documented LLVM continuous-profile instrumentation, the normal-return stack marker assertion fails: assertion failed: !stack_holds(MARK). The uninstrumented test and release profiles pass the same existing fixture. The test inspects up to twice the intended wipe depth, so this result by itself does not locate residue inside the promised region.",
+      "impact": "The current source cannot be assigned a fresh full coverage result from the documented procedure. The case also shows the instrumented build is sensitive to frame layout or marker placement.",
+      "recommendedFix": "Localize the marker relative to the documented wipe window and keep independent acceptance for the optimized uninstrumented build. Make the coverage recipe reproducible and account explicitly for any instrumentation-specific limit.",
+      "requiredVerification": "Re-run the documented full coverage command and the optimized release stack check. Report the actual LLVM-instrumented result without replacing failed evidence with a previous coverage percentage.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-BLD001)"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD006",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "dprint failed, and a test failed with inherited descriptors",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "GEM-BLD001",
+      "affectedFiles": [
+        "docs/API.md",
+        "tests/isolation/folders.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "docs/API.md",
+          "tests/isolation/folders.rs"
+        ]
+      },
+      "reproduction": "`dprint check`; the isolation suite started with descriptors above 2 open.",
+      "expected": "Both pass.",
+      "observed": "A table was not formatted, and the `shared-memory` role expected only descriptors 0 to 2.",
+      "impact": "Gates fail on an ordinary run.",
+      "recommendedFix": "Format; take the descriptors open at the role's start.",
+      "requiredVerification": "`dprint check`; the suite with inherited descriptors.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD007",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Native platforms and several cases were untested",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "GEM-BLD002",
+      "affectedFiles": [
+        "tests/"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "tests/"
+        ]
+      },
+      "reproduction": "The change set ran on Linux x86-64 only.",
+      "expected": "Every guarantee has a test on its system.",
+      "observed": "No native Windows, macOS or ARM64 run; no tests for unwinding, a sibling with a filter of its own, or a speculation role that cannot exercise a refusal.",
+      "impact": "Defects on other systems stay unseen until a release.",
+      "recommendedFix": "Add the tests; run CI natively.",
+      "requiredVerification": "Native CI on the release candidate.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD010",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Linux without this crate's filter did not build",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "legacyId": "R3-BLD001",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs"
+        ]
+      },
+      "reproduction": "Build for a Linux processor other than x86-64 and AArch64.",
+      "expected": "The Landlock-only build compiles.",
+      "observed": "The fallback module lacked `share_filters`.",
+      "impact": "No build on such processors.",
+      "recommendedFix": "A conservative fallback.",
+      "requiredVerification": "A build for such a target.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC009",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The guide wrongly let a forked child lift the inherited signal rule",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N2",
+      "affectedFiles": [
+        "docs/API.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "docs/API.md"
+        ]
+      },
+      "reproduction": "Fork, isolate again with `signals_to_self_only`, `kill(getpid(), 0)`.",
+      "expected": "The guide matches the kernel.",
+      "observed": "The guide said the child's own rule restores signals to itself; every filter runs, so the inherited one still refuses them.",
+      "impact": "A program relies on signals the kernel refuses.",
+      "recommendedFix": "Correct the sentence and test it.",
+      "requiredVerification": "The fork test.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC010",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The stack-clearing contract was stale",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N3",
+      "affectedFiles": [
+        "docs/API.md",
+        "docs/TECHNICAL.md",
+        "src/stack.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "docs/API.md",
+          "docs/TECHNICAL.md",
+          "src/stack.rs"
+        ]
+      },
+      "reproduction": "Read the guide after the guard change.",
+      "expected": "The guide states unwinding, WebAssembly and the cushion.",
+      "observed": "It promised 128 KiB of zeros on every target and said nothing of unwinding.",
+      "impact": "A WebAssembly caller would rely on a clearing that does not happen.",
+      "recommendedFix": "Update the contract.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC010",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux may exempt a reopened shared secret-memory mapping after fork",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/linux/mappings.rs:8",
+        "src/os/linux/mappings.rs:66",
+        "src/os/linux.rs:115"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://github.com/torvalds/linux/blob/v7.0/mm/secretmem.c"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Only secret memory that the current process actually owns is omitted from channel inventory.",
+      "observed": "Atomic address slots are inherited at fork, while the associated secret mapping is excluded. The exception compares the address and a kernel-supplied name common to memfd_secret mappings.",
+      "impact": "Under address reuse a continuing child's mapping from another process can be mistaken for an owned allocation. The issue is confined to the own-secret exclusion and continuing child path.",
+      "recommendedFix": "Use process-specific ownership and backing identity for the exception, or clear ownership inherited from a process that no longer owns the mapping.",
+      "requiredVerification": "Verify that inherited metadata cannot hide any mapping acquired by the child from elsewhere.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC011",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The macOS region census treats a general query error as end of enumeration",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/apple.rs:248",
+        "src/os/apple.rs:260",
+        "src/os/apple.rs:291"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/proc_info.c#L1049-L1063",
+          "https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/wrappers/libproc/libproc.c"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Completion is based on a recognized end of the region walk.",
+      "observed": "proc_pidinfo returns zero for syscall errors as well as the end condition. The caller breaks for every zero. The ABI landmarks can have been seen before the failure.",
+      "impact": "A partial walk may be reported complete when the kernel query fails late.",
+      "recommendedFix": "Distinguish error from the documented end condition and return an incomplete result for other kernel failures.",
+      "requiredVerification": "Verify behavior on both a normal end and a failed query after the last landmark.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC005)"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC012",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux file-change filtering leaves an inode-wide write hint mutable",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/linux/seccomp.rs:339",
+        "docs/API.md:199"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": [
+          "https://github.com/torvalds/linux/blob/v7.0/fs/fcntl.c"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The file-change promise names which inode attributes stay unchanged.",
+      "observed": "The fcntl filter permits F_SET_RW_HINT. The kernel setter can update the inode's write hint through a read-only descriptor when its ownership check passes.",
+      "impact": "An inode-level I/O hint can change outside granted directories. No change of file bytes or access mode follows.",
+      "recommendedFix": "Refuse the inode-wide setter or explicitly narrow the attribute promise.",
+      "requiredVerification": "Verify the named metadata contract with an ordinary owner-controlled temporary file.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC017",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows size conversions and the label SID went unchecked",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "GEM-SEC012",
+      "affectedFiles": [
+        "src/os/windows.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows.rs"
+        ]
+      },
+      "reproduction": "A working-set change of a size above `isize::MAX`; a label whose SID pointer is null.",
+      "expected": "Sizes and SIDs are checked before use.",
+      "observed": "`cast_signed` converted sizes, and `integrity_of` read sub-authorities of an unchecked SID.",
+      "impact": "A wrong working-set change or a read through a bad pointer, if the system ever answered so.",
+      "recommendedFix": "Check the conversions and the SID.",
+      "requiredVerification": "Source review; the Windows build.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC023",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The count of filters missed some divergent threads",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N5",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs"
+        ]
+      },
+      "reproduction": "A thread with fewer, different filters than the caller; Linux before 5.9; a listing cut short.",
+      "expected": "TSYNC only where every thread's filters descend from the caller's.",
+      "observed": "The count of `Seccomp_filters` passed such threads and failed where the line is missing.",
+      "impact": "A layer TSYNC before a refused filter TSYNC.",
+      "recommendedFix": "A kernel check instead of a count.",
+      "requiredVerification": "Source review; the foreign sibling role.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC024",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The entering flag ignored a fork without its handler",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N6",
+      "affectedFiles": [
+        "src/os/linux.rs",
+        "src/os/unix/forks.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs",
+          "src/os/unix/forks.rs"
+        ]
+      },
+      "reproduction": "A child of a raw `clone`, or after a failed `pthread_atfork`, while another thread held the flag.",
+      "expected": "The child takes the flag over.",
+      "observed": "The flag held only the fork count, which such a child shares with its parent: it would spin forever.",
+      "impact": "A hang at the child's first isolation.",
+      "recommendedFix": "Store the holder's process number too.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC025",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The secret slots were keyed on the process number",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N7",
+      "affectedFiles": [
+        "src/os/linux/mappings.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux/mappings.rs"
+        ]
+      },
+      "reproduction": "A child in a PID namespace of its own with its parent's number.",
+      "expected": "A child never takes its parent's slots.",
+      "observed": "The owner was the process number alone.",
+      "impact": "Memory the parent recorded left out of the child's channel check.",
+      "recommendedFix": "Use the fork count.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC030",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A child named itself the slots' owner before emptying them",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "R1-SEC005",
+      "affectedFiles": [
+        "src/os/linux/mappings.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux/mappings.rs"
+        ]
+      },
+      "reproduction": "A check in another thread of a child between the owner's change and the emptying.",
+      "expected": "No moment where stale slots count as the child's.",
+      "observed": "The owner changed first.",
+      "impact": "A stale slot accepted for one check.",
+      "recommendedFix": "Empty first, then publish.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "macOS file-change probe can run inside the requested write grant",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/apple.rs:362",
+        "src/os/apple.rs:371"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "A file-change probe samples an ungranted path when folder grants coexist with the boundary.",
+      "observed": "A caller's temporary directory can fall beneath one of the granted directories. The probe then opens a file in a path that is supposed to be writable.",
+      "impact": "The returned report can refuse NoFileChanges even when the profile correctly constrains the rest of the filesystem. A strict caller may refuse otherwise valid startup.",
+      "recommendedFix": "Probe a known ungranted path or report unknown if there is no suitable location.",
+      "requiredVerification": "Verify a valid nested temporary location under a grant on macOS.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-SEC011)"
+      ]
+    },
+    {
+      "id": "AUD-017-API003",
+      "category": "API",
+      "kind": "finding",
+      "title": "Unix folder creation trusts a replaceable child in a mutable parent",
+      "severity": "low",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/protect/folder.rs:58",
+        "src/protect/folder.rs:68",
+        "src/protect/folder.rs:81"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Folder creation either operates in an appropriately trusted parent or ensures the descriptor and cleanup target are exactly the new directory.",
+      "observed": "mkdirat and the subsequent open are separate. O_NOFOLLOW protects against a link, but a directory can be replaced in a parent where another process has rename authority. fchmod precedes the ownership check and rollback unlinks a name.",
+      "impact": "Under that parent-directory precondition a caller can receive a different same-UID folder, change permissions on a replacement, or clean up the wrong empty directory.",
+      "recommendedFix": "Require a trusted parent directory, validate ownership before applying changes and make rollback conditional on credible identity.",
+      "requiredVerification": "Verify normal and rejected creation under controlled parent mutation on both Unix implementations.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-API004",
+      "category": "API",
+      "kind": "finding",
+      "title": "Hidden input writes a potentially blocking line break before restoring the terminal",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/input.rs:207",
+        "src/input.rs:212",
+        "src/os/unix/terminal.rs:97"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "After editing, cancellation and error paths restore the terminal as promptly as possible.",
+      "observed": "The cosmetic output uses a blocking write and precedes explicit restoration, regardless of the edit result.",
+      "impact": "An unavailable or flow-controlled output can delay cancellation and keep the input terminal in its hidden mode.",
+      "recommendedFix": "Restore before the optional line break. If bounded return is promised, keep cosmetic output bounded too.",
+      "requiredVerification": "Check cancel and restore behavior with a terminal output sink that cannot currently drain.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-API005",
+      "category": "API",
+      "kind": "finding",
+      "title": "macOS filters out valid own-terminal paths",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/apple.rs:112",
+        "src/os/apple.rs:125",
+        "src/os/apple.rs:136"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "A supported terminal named by its own standard descriptor is granted the operations described in the API.",
+      "observed": "The general deny pattern recognizes /dev/cu.* and the exception accepts only alphanumeric basenames. The dot disqualifies standard serial console names.",
+      "impact": "The process's own serial terminal can lose the required input or terminal-mode operations after isolation.",
+      "recommendedFix": "Admit benign punctuation in literal device names while keeping profile string handling conservative, or state the exact scope of supported names.",
+      "requiredVerification": "Verify the generated profile and native own-terminal behavior for PTYs and supported serial-console names.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-API007",
+      "category": "API",
+      "kind": "finding",
+      "title": "The macOS probe name could be taken first",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "N9",
+      "affectedFiles": [
+        "src/os/apple.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/apple.rs"
+        ]
+      },
+      "reproduction": "Another user creates the probe's name in `/private/tmp` first.",
+      "expected": "The probe cannot be made to fail by another user.",
+      "observed": "The name was predictable, and a taken name read as Refused.",
+      "impact": "A strict start refused by another user.",
+      "recommendedFix": "A random name; a taken name reads unknown.",
+      "requiredVerification": "A native macOS run.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-API008",
+      "category": "API",
+      "kind": "finding",
+      "title": "A repeated macOS call could probe inside an earlier grant",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "R1-API001",
+      "affectedFiles": [
+        "src/os/apple.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/apple.rs"
+        ]
+      },
+      "reproduction": "Isolate with folders, then call again without them.",
+      "expected": "The probe keeps out of every granted folder.",
+      "observed": "Only the current call's folders were kept out.",
+      "impact": "`NoFileChanges` Refused although it holds.",
+      "recommendedFix": "Keep the profile's grants.",
+      "requiredVerification": "A native macOS run.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API009",
+      "category": "API",
+      "kind": "finding",
+      "title": "A new folder is first observed by name",
+      "severity": "low",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "legacyId": "R1-API002",
+      "affectedFiles": [
+        "src/protect/folder.rs",
+        "docs/API.md"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/protect/folder.rs",
+          "docs/API.md"
+        ]
+      },
+      "reproduction": "A parent where another user swaps entries between `mkdirat` and `fstatat`.",
+      "expected": "A stated precondition.",
+      "observed": "The first observation is by name.",
+      "impact": "A different folder in a mutable parent.",
+      "recommendedFix": "State or check a trusted parent.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API010",
+      "category": "API",
+      "kind": "finding",
+      "title": "Terminal output after a failed restore, speeds and the drain limit",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "R1-API003",
+      "affectedFiles": [
+        "src/input.rs",
+        "src/os/unix/terminal.rs",
+        "src/os/windows/console.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/input.rs",
+          "src/os/unix/terminal.rs",
+          "src/os/windows/console.rs"
+        ]
+      },
+      "reproduction": "A restore that fails; settings that differ only in speed; exactly 64 KiB waiting.",
+      "expected": "No output after a failed restore; speeds compared; the documented limit exact.",
+      "observed": "The line break was written anyway, speeds were not compared, and exactly 64 KiB failed.",
+      "impact": "A blocked output delays the error; a changed speed goes unseen.",
+      "recommendedFix": "Fix each.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API011",
+      "category": "API",
+      "kind": "finding",
+      "title": "A Windows output that may not be written could shadow a usable one",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "R1-API004",
+      "affectedFiles": [
+        "src/os/windows/console.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows/console.rs"
+        ]
+      },
+      "reproduction": "Standard error a console handle without write access, standard output a usable console.",
+      "expected": "The prompt goes to the usable console.",
+      "observed": "The first console was taken and the prompt failed.",
+      "impact": "Hidden input fails before reading.",
+      "recommendedFix": "Fall back on a write refusal.",
+      "requiredVerification": "A native Windows run.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-API012",
+      "category": "API",
+      "kind": "finding",
+      "title": "A write-only Windows console was skipped",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "R2-API001",
+      "affectedFiles": [
+        "src/os/windows/console.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows/console.rs"
+        ]
+      },
+      "reproduction": "Standard error a console opened for writing only.",
+      "expected": "The prompt goes there.",
+      "observed": "`GetConsoleMode`, which needs read access, filtered it out.",
+      "impact": "No prompt.",
+      "recommendedFix": "Select outputs for writing.",
+      "requiredVerification": "A native Windows run.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Tests assert a complete channel inventory on Unix targets lacking mapping support",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/channels.rs:96",
+        "src/os/apple.rs:402",
+        "src/os/unix.rs:403",
+        "tests/isolation/main.rs:337"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Targets with unsupported mapping inventory test an incomplete result, while complete-case tests require mapping support.",
+      "observed": "The two fixtures are gated only by Unix and assert complete. iOS and other Unix fallbacks intentionally return no mapping census. Android uses the Linux census and its result is contingent on native proc visibility.",
+      "impact": "The iOS and fallback tests cannot be green as written even if the FD census works.",
+      "recommendedFix": "Gate complete-case assertions on mapping support and test intentional refusal elsewhere.",
+      "requiredVerification": "Exercise the supported and unsupported census contracts with native or target-appropriate tests.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD004",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "TSYNC process bookkeeping breaks the advertised fallback on some Linux targets",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/linux.rs:529",
+        "src/os/linux.rs:847",
+        "docs/TECHNICAL.md:57"
+      ],
+      "evidence": {
+        "level": "source and pinned toolchain target capability query",
+        "sources": [
+          "https://github.com/rust-lang/rust/blob/master/compiler/rustc_target/src/spec/targets/armv5te_unknown_linux_gnueabi.rs#L17"
+        ],
+        "localLogs": [
+          "armv5-rustc-cfg.log"
+        ]
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Linux targets outside the two seccomp architectures can still build the Landlock-only fallback where the toolchain supports it.",
+      "observed": "The process marker names AtomicU64 unconditionally in the Linux/Android module. Some Rust Linux targets, including armv5te-unknown-linux-gnueabi, provide only atomics up to 32 bits.",
+      "impact": "Those targets fail to compile before reaching the fallback. The configured x86-64 and ARM64 targets both provide 64-bit atomics.",
+      "recommendedFix": "Compile the process cache only on supported seccomp architectures or gate on target_has_atomic=64 and provide the conservative fallback.",
+      "requiredVerification": "Compile a representative fallback target without 64-bit atomics and the supported Linux targets.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD005",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The new forked TSYNC fixture can pass on a refused outcome",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "tests/isolation/linux/threads.rs:141",
+        "tests/isolation/linux/threads.rs:167",
+        "src/protect.rs:492"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "A fixture that verifies process-wide self-signalling protection requires both the expected outcome and reach.",
+      "observed": "The new forked test asserts Reach::Process but omits Outcome::Confirmed. A process-scoped attempted measure can have a refusal outcome.",
+      "impact": "The fixture can stay green without protecting the post-fork child as claimed.",
+      "recommendedFix": "Assert Confirmed and Process together and keep the child process's policy expectation explicit.",
+      "requiredVerification": "Confirm the fixture rejects a missing self-signalling protection and passes on a valid synchronized policy.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD008",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "A flag of the 64-bit record was not gated",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N8",
+      "affectedFiles": [
+        "src/os/linux.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs"
+        ]
+      },
+      "reproduction": "Build for a target without 64-bit atomics.",
+      "expected": "A clean build.",
+      "observed": "`ON_EVERY_THREAD` was unused there.",
+      "impact": "A failed lint.",
+      "recommendedFix": "Gate it.",
+      "requiredVerification": "A build for such a target.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD009",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Regression tests were missing",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "N12",
+      "affectedFiles": [
+        "tests/"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "tests/"
+        ]
+      },
+      "reproduction": "Review of the test list against the fixes.",
+      "expected": "A test per fix where the host can run one.",
+      "observed": "Several fixed paths had none.",
+      "impact": "Regressions could return unseen.",
+      "recommendedFix": "Add the tests the host can run.",
+      "requiredVerification": "The suites; native runs for the rest.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-BLD011",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Conversions failed the lint on 32-bit ARM",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "R4-BLD001",
+      "affectedFiles": [
+        "src/os/linux.rs",
+        "tests/"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux.rs",
+          "tests/"
+        ]
+      },
+      "reproduction": "`cargo clippy --all-targets --target armv5te-unknown-linux-gnueabi -- -D warnings`.",
+      "expected": "A clean lint.",
+      "observed": "`c_long` is `c_int` there, so three conversions were useless; the tests did not build.",
+      "impact": "A failed gate on such targets.",
+      "recommendedFix": "Portable conversions.",
+      "requiredVerification": "The lint on that target.",
+      "reportedBy": [
+        "review 4"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Descriptor numbers alone do not prove that only trusted channels remain",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/channels.rs:67",
+        "README.md:47",
+        "docs/API.md:210",
+        "docs/API.md:275"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The strict integration example distinguishes the authority of a descriptor from its number and its own time-of-check assumptions.",
+      "observed": "The example permits descriptors 0–2 without inspecting kind, peer or destination. only() compares numbers and observes only the calling thread's descriptor table. The example uses the thread-accepting require() path.",
+      "impact": "An integration may accept redirected standard I/O or assume process-wide closure it has not established.",
+      "recommendedFix": "Describe the inventory as a point-in-time caller-thread view, validate accepted channels by purpose and use strict process-wide admission when required.",
+      "requiredVerification": "Review the example under redirected streams, per-thread descriptor tables and the intended isolation reach.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Post-fork allocation guidance omits the multithreaded-parent restriction",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/API.md:142",
+        "docs/TECHNICAL.md:31",
+        "src/os/linux.rs:135"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Continuing child support states the parent's supported thread state.",
+      "observed": "The guide tells a child to allocate a replacement buffer. Linux registration uses a Once, and allocating in a child before exec is not generally safe after a multithreaded fork. The child can inherit in-progress synchronization.",
+      "impact": "A caller following the guidance without the precondition can deadlock.",
+      "recommendedFix": "Scope the recommendation to a genuinely single-threaded parent or fresh execution, and retain the existing inherited-reference restriction.",
+      "requiredVerification": "Review the fork contract and use only supported child lifecycle paths in the fixtures.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The detailed call deadline table omits the overflow-to-unbounded behavior",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/API.md:345",
+        "src/worker.rs:170",
+        "CHANGELOG.md:15"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "The deadline's representation limit is visible consistently in the public API guide.",
+      "observed": "Worker::call_within documents that an unrepresentable Instant remains unbounded. The API table still describes a deadline generically.",
+      "impact": "A guide reader can rely on a bound the call deliberately does not apply.",
+      "recommendedFix": "State the overflow behavior in the table and cross-link the Rust API.",
+      "requiredVerification": "Compare documented cases for representable and unrepresentable durations.",
+      "relatedFindings": [
+        "AUD-016-API005"
+      ],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC005",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "AUD-016 machine record omits parts of its Markdown assurance record",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/audits/AUD-016-2026-11-24.json",
+        "docs/audits/AUD-016-2026-11-24.md",
+        "docs/audits/README.md"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Current audit companions preserve the same grant and acceptance evidence and procedure identity.",
+      "observed": "The two AUD-016 reports agree on the 32 findings and three observations and the JSON validates. The JSON omits the grant and acceptance rows and part of the procedure identity. Its fourth-review source data is less specific.",
+      "impact": "Machine consumers cannot reconstruct all of the acceptance and provenance evidence from the companion.",
+      "recommendedFix": "Mirror the grant, review snapshot and acceptance rows when folding this record into the audit index.",
+      "requiredVerification": "Compare substantive fields in both companions as well as schema, IDs and index links.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC006",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Unix timed startup promises a launch cutoff that the launcher does not enforce",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/worker.rs:75",
+        "src/os/unix/worker.rs:35",
+        "src/os/unix/worker.rs:46",
+        "src/os/unix/worker.rs:79"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "An advertised cutoff covers scheduling and preparation before the operating-system spawn call.",
+      "observed": "The caller checks expiry at entry. After preparation, the independent launcher calls spawn without checking expiry on that thread. The rendezvous then handles cleanup if the caller has stopped waiting.",
+      "impact": "A child can start after the specified cutoff even though startup admission fails or the caller has timed out. No request must have been sent for this to occur.",
+      "recommendedFix": "Recheck in the launcher as close as possible to spawn and describe the residual scheduling and native launch window. Preserve handoff cleanup.",
+      "requiredVerification": "Verify the documented cutoff and abandoned-child outcome with a controlled delayed launch.",
+      "relatedFindings": [
+        "AUD-016-API005",
+        "AUD-016-API007"
+      ],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC007",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Linux TSYNC documentation blurs old Landlock and no Landlock",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/API.md:229",
+        "docs/TECHNICAL.md:65",
+        "src/os/linux.rs:355",
+        "tests/isolation/linux/threads.rs:44"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "WholeProcess guidance distinguishes Landlock ABI 1–7, successful ABI 8 and no available Landlock layer.",
+      "observed": "The option table says WholeProcess stays refused below ABI 8. The actual code and test intentionally allow it with a process-wide filter when there is no installed Landlock layer.",
+      "impact": "A caller can misread WholeProcess as evidence that Landlock exists, or believe a passing seccomp-only result contradicts the contract.",
+      "recommendedFix": "State the presence, reach and independent role of each enforcement mechanism in the option table and guide.",
+      "requiredVerification": "Check the API table against the existing tests and availability-dependent report.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC008",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Stale and missing documentation",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "GEM-DOC001",
+      "affectedFiles": [
+        "docs/TECHNICAL.md",
+        "docs/audits/README.md",
+        "tests/secret_memory.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "docs/TECHNICAL.md",
+          "docs/audits/README.md",
+          "tests/secret_memory.rs"
+        ]
+      },
+      "reproduction": "Read the module table, the audit index and the memory tests.",
+      "expected": "Documents follow the code.",
+      "observed": "The module table missed five modules, the index called a 0.1.1 run final, and a counting allocator nothing read stayed in the tests.",
+      "impact": "Readers miss modules and misread the CI evidence.",
+      "recommendedFix": "Update them.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-DOC011",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Documents that no longer matched the code",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N10",
+      "affectedFiles": [
+        "docs/API.md",
+        "docs/TECHNICAL.md",
+        "README.md",
+        "SECURITY.md",
+        "Cargo.toml"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "docs/API.md",
+          "docs/TECHNICAL.md",
+          "README.md",
+          "SECURITY.md",
+          "Cargo.toml"
+        ]
+      },
+      "reproduction": "Read the hidden input, README and security texts after the fixes.",
+      "expected": "Documents follow the code.",
+      "observed": "Old mouse behaviour, missing refusals, an overstated `only`, `all_threads` without its limits, the removed allocator still described.",
+      "impact": "Readers act on behaviour the code no longer has.",
+      "recommendedFix": "Update them.",
+      "requiredVerification": "Source review.",
+      "reportedBy": [
+        "review 3"
+      ]
+    },
+    {
+      "id": "AUD-017-ARC001",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Folder validation reads every entry even after a directory is known nonempty",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/protect/folder.rs:208",
+        "src/protect/folder.rs:223"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "An emptiness check stops after the first non-dot entry.",
+      "observed": "The loop counts every name before returning the boolean.",
+      "impact": "A grant already bound to fail can incur work proportional to an arbitrarily populated output directory.",
+      "recommendedFix": "Stop on the first non-dot entry and preserve cleanup and error handling.",
+      "requiredVerification": "Verify empty, nonempty and inaccessible directories through the normal grant API.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1"
+      ]
+    },
+    {
+      "id": "AUD-017-ARC002",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "The Windows platform module exceeds the shared source-size budget",
+      "severity": "low",
+      "status": "accepted",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/windows.rs:1"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Production modules follow CORE-15 or carry the documented exemption.",
+      "observed": "The Windows platform module is over the production-file size bound and no exemption was found. Worker, thread census and console already have their own modules.",
+      "impact": "Page protection, process mitigation, ACL, impersonation and tests are harder to isolate during native review.",
+      "recommendedFix": "Extract a cohesive responsibility such as page allocation or process ACLs when next changing the module.",
+      "requiredVerification": "Run the same Windows checks after any move and verify the documented size budget.",
+      "relatedFindings": [],
+      "reportedBy": [
+        "review 1",
+        "review 2 (GEM-BLD001)"
+      ]
+    },
+    {
+      "id": "AUD-017-ARC003",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Smaller design points",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "legacyId": "GEM-ARC001",
+      "affectedFiles": [
+        "src/os/linux/seccomp.rs",
+        "src/os/windows/worker.rs",
+        "src/os/apple.rs",
+        "src/protect.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/linux/seccomp.rs",
+          "src/os/windows/worker.rs",
+          "src/os/apple.rs",
+          "src/protect.rs"
+        ]
+      },
+      "reproduction": "Source review.",
+      "expected": "Functions within CORE-15, honest results, kept landmarks.",
+      "observed": "`seccomp::program` long; Windows `finish` false when the worker ended between its wait and the termination; the macOS heap landmark not kept; public bool fields of `Isolation`.",
+      "impact": "A false `finish`, and a landmark the optimizer could remove.",
+      "recommendedFix": "Fix each.",
+      "requiredVerification": "Source review; the Windows build.",
+      "reportedBy": [
+        "review 2"
+      ]
+    },
+    {
+      "id": "AUD-017-ARC004",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Coding rules: the size exception and the place of the access-list calls",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "legacyId": "N11",
+      "affectedFiles": [
+        "src/os/windows.rs",
+        "src/protect/folder.rs",
+        "src/os/apple.rs"
+      ],
+      "evidence": {
+        "level": "source review",
+        "sources": [
+          "src/os/windows.rs",
+          "src/protect/folder.rs",
+          "src/os/apple.rs"
+        ]
+      },
+      "reproduction": "Source review against CORE-15 and RUST-07.",
+      "expected": "Exceptions at the place; foreign calls in the OS modules.",
+      "observed": "`windows.rs` without its exception; the Apple access-list calls in `folder.rs`, linked on iOS too.",
+      "impact": "Rule drift; an unchecked link on iOS.",
+      "recommendedFix": "Write the exception; move the calls.",
+      "requiredVerification": "Source review; the Apple builds.",
+      "reportedBy": [
+        "review 3"
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-017-SEC020",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "Windows native acceptance still owns the closed-page lock question",
+      "severity": "info",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/windows.rs:104",
+        "src/protect/closed.rs:146",
+        "tests/secret_memory.rs"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "A closed page previously reported locked remains locked across protected access transitions on Windows.",
+      "observed": "The earlier native check remains pending. Cross-target compilation and Linux checks do not establish VirtualLock residency through the Windows page-state transition.",
+      "impact": "Release verification on Windows remains incomplete.",
+      "recommendedFix": "Retain the current acceptance question and its evidence at the exact release candidate.",
+      "requiredVerification": "Execute the existing native Windows working-set fixture and record the page state across transitions.",
+      "relatedFindings": [
+        "AUD-016-SEC009"
+      ]
+    },
+    {
+      "id": "AUD-017-SEC021",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "The idempotent TSYNC case was revised during review",
+      "severity": "info",
+      "status": "withdrawn",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/linux.rs:577",
+        "src/os/linux.rs:617",
+        "src/os/linux/seccomp.rs:513",
+        "tests/isolation/linux/threads.rs:110"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Repeated equivalent isolation does not spend additional kernel layers after process scope is established.",
+      "observed": "The first snapshot could append identical rules on each call. The later snapshot adds process-scope records and skips those additions on the established single-policy path.",
+      "impact": "The original finding is withdrawn for the later bytes on the common established-policy path. There is a repeat fixture for that path. Mixed domains and partial synchronization still need distinct evidence.",
+      "recommendedFix": "Retain an idempotency regression and revisit the scope records together with the independent Landlock/seccomp finding.",
+      "requiredVerification": "Check repeated calls at the layer budget and verify the recorded process-wide state.",
+      "relatedFindings": []
+    },
+    {
+      "id": "AUD-017-SEC022",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "Suspended Windows worker evidence names the process and first thread",
+      "severity": "info",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/windows/worker.rs:191",
+        "src/os/windows.rs:579"
+      ],
+      "evidence": {
+        "level": "source and platform contracts",
+        "sources": []
+      },
+      "reproduction": "Source assessment. Acceptance is a defensive regression for the stated invariant.",
+      "expected": "Evidence about pre-main ACL coverage identifies which objects the test inspected.",
+      "observed": "Creation ACLs are set for the worker process and its first thread. The reviewed evidence does not cover any additional thread created by loader or runtime before main.",
+      "impact": "The process and initial-thread claim is supported by the source. A stronger claim about all early Windows threads remains unverified.",
+      "recommendedFix": "Keep native acceptance and documentation scoped to the objects actually observed.",
+      "requiredVerification": "Check process and first-thread restrictions on the native runner and investigate additional early threads if a universal claim is needed.",
+      "relatedFindings": [
+        "AUD-016-SEC001"
+      ]
+    }
+  ],
+  "remediation": [
+    {
+      "id": "AUD-017-SEC001",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The filter goes onto other threads only where the layer did, by this call's TSYNC or as recorded for the process, or where the calling thread holds no layer at all. Below ABI 8 both stay on the calling thread and report `Reach::Thread`. Tests: the thread roles on every ABI, and `sibling-then-folders` (folders granted beside a running thread, then `all_threads`: the other thread keeps its sockets)."
+    },
+    {
+      "id": "AUD-017-SEC014",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Linux isolation calls run one at a time (`Entering`), a flag that carries the process's mark, its number and fork count, so a child of `fork` made while another thread held it takes it over."
+    },
+    {
+      "id": "AUD-017-SEC002",
+      "status": "verified",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "evidence": "Before the layer's TSYNC a filter that allows everything goes onto every thread with TSYNC (`seccomp::share_filters`), which the kernel refuses, putting it nowhere, in just that case; the whole call then stays on the calling thread. The layer's TSYNC is tried once per process, right after that check (follow-ups SEC027, SEC031). A call that falls short later leaves other threads more restricted, never less, as the guides say; the option's precondition, no Landlock layer of their own on other threads, is written in the rustdoc and the guides. Test: `foreign-sibling`."
+    },
+    {
+      "id": "AUD-017-SEC003",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "The count of threads is the kernel's own, the `Threads:` line of `/proc/self/status`. `traced` counts only the statuses it read and requires that number to equal the count before and after its walk, else walks again, up to three times, then reports unknown (follow-up SEC018). An atomic view of the threads does not exist, so heavy churn can still make it unknown."
+    },
+    {
+      "id": "AUD-017-SEC004",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "The walk uses `PROC_PIDREGIONPATHINFO`, which returns each region with the file it maps. A writable region that maps a file counts unless it is copy-on-write or empty, whatever its inheritance; names come from the same call."
+    },
+    {
+      "id": "AUD-017-SEC005",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "On macOS `is_private` is false when an access list on the folder or above it allows anything to anyone or cannot be read, and when the volume is mounted to ignore owners (follow-up SEC029)."
+    },
+    {
+      "id": "AUD-017-SEC006",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "A failed first discard refuses the reading; the last runs only after a switch that read back, after the mode is restored, and fails the call; the restored mode is read back."
+    },
+    {
+      "id": "AUD-017-SEC007",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The drain runs only under hidden settings with `VMIN` 0 that read back and must reach the end of the waiting input; the original settings, speeds included, are read back after the restore; each failure is an error, and the restore's error wins. `fcntl` failure refuses the descriptor, and an unknown device matches nothing."
+    },
+    {
+      "id": "AUD-017-SEC008",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "A guard clears when the frame is left, by return or unwinding; the work runs below a 2 KiB cushion of unwritten stack, so the clearing starts above its frames; zeros are written once, in place; WebAssembly clears nothing. Tests mark the work, the closure's own locals and a panicking work."
+    },
+    {
+      "id": "AUD-017-SEC009",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "On macOS `is_private` is false when a folder above, up to the root, belongs to someone other than the user or root, lets its group or others write without the sticky bit, carries an access list that allows anything to anyone, or lies on a volume mounted to ignore owners. The grant stays by path, as the guides and `SECURITY.md` say; the example checks `is_private` before granting."
+    },
+    {
+      "id": "AUD-017-SEC013",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "A worker isolates itself without `all_threads` and, on Linux, is unclean unless it has one thread, by the kernel's count, checked before its descriptor census (follow-up SEC028)."
+    },
+    {
+      "id": "AUD-017-SEC015",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The option's row says that the child cannot lift the inherited rule and what it can signal before and after isolating itself; the fork test asserts `EACCES`."
+    },
+    {
+      "id": "AUD-017-SEC016",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "An ended thread's pinned handle is dropped at once, and the branch that could no longer run went with it. The access list is not widened: every process of the user would get the right, and a refused query reads Unknown, never Confirmed."
+    },
+    {
+      "id": "AUD-017-SEC018",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "Only the statuses read count; the walk must equal the kernel's count before and after, else it runs again, up to three times, then reports unknown."
+    },
+    {
+      "id": "AUD-017-SEC019",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "The example checks `is_private` before granting, and `SECURITY.md` describes the redirection; `is_private` covers the folders above (SEC009)."
+    },
+    {
+      "id": "AUD-017-SEC026",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The 0.2 line answers its own marks; the `old-marks` test installs a filter answering 0.1's and finds that 0.2 puts in its own."
+    },
+    {
+      "id": "AUD-017-SEC027",
+      "status": "verified",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "evidence": "The guides state that a call falling short leaves other threads more restricted, never less; the allowing filter goes in once at most (SEC031)."
+    },
+    {
+      "id": "AUD-017-SEC028",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The count comes first, then the census, then the worker's own streams."
+    },
+    {
+      "id": "AUD-017-SEC029",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "`is_private` is false when the folder or one above lies on such a volume, or `fstatfs` fails."
+    },
+    {
+      "id": "AUD-017-SEC031",
+      "status": "verified",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "evidence": "The layer's TSYNC is tried once per process, right after its own check; later calls that would need it stay on the calling thread, and the rustdoc says so."
+    },
+    {
+      "id": "AUD-017-API001",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The version is 0.2.0 in `Cargo.toml` and both lockfiles, and the changelog opens with the breaking changes."
+    },
+    {
+      "id": "AUD-017-API006",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "Every turn of the loop checks the worker and the deadline first."
+    },
+    {
+      "id": "AUD-017-FUN001",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Every byte of a mouse report from 0x20 up, DEL included, belongs to it; a byte below ends it and counts, so Enter is never swallowed. A test types the report."
+    },
+    {
+      "id": "AUD-017-BLD001",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "CI runs `cargo test --release --lib stack::` on Linux x86-64 and ARM64, and a release runs CI first."
+    },
+    {
+      "id": "AUD-017-BLD003",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The test passes the word's complement and makes the word only after the reading. Under continuous profiling the `shared-memory` check leaves the profile file's mapping out. The documented recipe passes all checks; `docs/COVERAGE.md` and the README give its result."
+    },
+    {
+      "id": "AUD-017-BLD006",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The guide is formatted, and the role takes the descriptors open at its start as expected."
+    },
+    {
+      "id": "AUD-017-BLD007",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "Tests for the closure's locals, unwinding, a sibling with its own filter, folders beside a running thread, the 0.1 marks and the child's signals; the speculation role says when it cannot check. Native runs follow the push."
+    },
+    {
+      "id": "AUD-017-BLD010",
+      "status": "verified",
+      "fixCommit": "2807c51e86ae442927592dd75bc5f9d44623b74a",
+      "verificationCommit": "2807c51e86ae442927592dd75bc5f9d44623b74a",
+      "evidence": "The fallback answers false, and the layer stays on the calling thread there."
+    },
+    {
+      "id": "AUD-017-DOC009",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Corrected; the fork test asserts `EACCES` (SEC015)."
+    },
+    {
+      "id": "AUD-017-DOC010",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The guides and the rustdoc state unwinding, the 2 KiB cushion, the free stack needed, captures and returns, panic-abort builds and WebAssembly."
+    },
+    {
+      "id": "AUD-017-SEC010",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The slots belong to the process that wrote them, by a mark of its number and fork count; a child empties them before it names itself their owner (follow-ups SEC025, SEC030)."
+    },
+    {
+      "id": "AUD-017-SEC011",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "Only `EINVAL`, no region at or after the address, ends the walk; any other error leaves the inventory incomplete."
+    },
+    {
+      "id": "AUD-017-SEC012",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The filter refuses both whenever it refuses file changes."
+    },
+    {
+      "id": "AUD-017-SEC017",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Sizes go through `isize::try_from`, and the SID must be non-null and pass `IsValidSid`."
+    },
+    {
+      "id": "AUD-017-SEC023",
+      "status": "verified",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "evidence": "The count is gone: a filter that allows everything goes onto every thread with TSYNC first, which the kernel refuses in exactly the divergent case (SEC002, SEC031)."
+    },
+    {
+      "id": "AUD-017-SEC024",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The flag holds the process mark: number and fork count where 64-bit atomics hold both."
+    },
+    {
+      "id": "AUD-017-SEC025",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The owner is the process mark, number and fork count."
+    },
+    {
+      "id": "AUD-017-SEC030",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The slots are emptied before the owner is published with release ordering."
+    },
+    {
+      "id": "AUD-017-API002",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "The probe runs in the temporary directory, else `/private/tmp`, whichever lies outside the folders the profile in place grants, compared without regard to letter case, under a random name; a name taken first, or no place outside, reads Unknown (follow-ups API007, API008)."
+    },
+    {
+      "id": "AUD-017-API003",
+      "status": "accepted",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The folder made is identified right after `mkdirat`; the folder opened must be that one and the user's before its mode changes; a failure removes the name only while it still names that folder. The first observation remains by name: the parent must be one no one else can change, as the API guide says (follow-up API009)."
+    },
+    {
+      "id": "AUD-017-API004",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The restore comes first, and the line break is written only after a good restore (follow-up API010)."
+    },
+    {
+      "id": "AUD-017-API005",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "A name may hold dots, dashes and underscores after a first letter or digit."
+    },
+    {
+      "id": "AUD-017-API007",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "The name carries 8 random bytes from `getentropy`, and a taken name reads Unknown."
+    },
+    {
+      "id": "AUD-017-API008",
+      "status": "fixed",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": null,
+      "evidence": "The grants of the profile this crate put in are kept, and every later probe keeps out of them."
+    },
+    {
+      "id": "AUD-017-API009",
+      "status": "accepted",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "Accepted as a documented precondition: the parent must be one that no one else can change."
+    },
+    {
+      "id": "AUD-017-API010",
+      "status": "verified",
+      "fixCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "verificationCommit": "e0809b29e7be581fa2eef6b93a8e0118668429c5",
+      "evidence": "The line break follows only a good restore; speeds are compared; a drain fails only above 64 KiB; the Windows first discard has a message of its own."
+    },
+    {
+      "id": "AUD-017-API011",
+      "status": "fixed",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": null,
+      "evidence": "A write refused for access, handle or function passes to the next standard output that is a character device (API012)."
+    },
+    {
+      "id": "AUD-017-API012",
+      "status": "fixed",
+      "fixCommit": "306996f0a756a8ce6b2b6da5f6071953a87e0563",
+      "verificationCommit": null,
+      "evidence": "Outputs are the standard handles that are character devices; the console write decides."
+    },
+    {
+      "id": "AUD-017-BLD002",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The test expects a complete inventory on Linux, Android and macOS and an incomplete one elsewhere."
+    },
+    {
+      "id": "AUD-017-BLD004",
+      "status": "verified",
+      "fixCommit": "f3da0e27551f96c9a5f354bbbebc0445cce05b56",
+      "verificationCommit": "f3da0e27551f96c9a5f354bbbebc0445cce05b56",
+      "evidence": "The record and its flag exist only with 64-bit atomics; the process mark falls back to the fork count. The build without this crate's filter compiles and lints on 32-bit ARM (follow-ups BLD010, BLD011)."
+    },
+    {
+      "id": "AUD-017-BLD005",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "It asserts Confirmed together with the reach, and that the child cannot signal itself."
+    },
+    {
+      "id": "AUD-017-BLD008",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "It is gated with the record."
+    },
+    {
+      "id": "AUD-017-BLD009",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "Tests added where the host can run them (BLD007); a host that refuses Landlock TSYNC, the `Entering` race, terminal and console failures and a late launch remain untested."
+    },
+    {
+      "id": "AUD-017-BLD011",
+      "status": "verified",
+      "fixCommit": "f3da0e27551f96c9a5f354bbbebc0445cce05b56",
+      "verificationCommit": "f3da0e27551f96c9a5f354bbbebc0445cce05b56",
+      "evidence": "One helper takes a descriptor from whatever a call returned; the tests build there too."
+    },
+    {
+      "id": "AUD-017-DOC001",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The guide, the README and the rustdoc say what `only` compares and sees; the example uses `require_process_wide`."
+    },
+    {
+      "id": "AUD-017-DOC003",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Both guides say so, and that a child of a process with threads should only `exec` or `_exit`."
+    },
+    {
+      "id": "AUD-017-DOC004",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The `start_within` and `call_within` rows say so."
+    },
+    {
+      "id": "AUD-017-DOC005",
+      "status": "fixed",
+      "fixCommit": "the commit that adds this record",
+      "verificationCommit": null,
+      "evidence": "The AUD-016 JSON carries its grants, its acceptance criteria and the procedure files' digests."
+    },
+    {
+      "id": "AUD-017-DOC006",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The launcher thread checks it again right before the spawn; the guide names the launch itself as the window left."
+    },
+    {
+      "id": "AUD-017-DOC007",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The option row, the rustdoc and the technical guide name ABI 8 and later, ABI 1 to 7, no Landlock, and processors without the filter."
+    },
+    {
+      "id": "AUD-017-DOC008",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The table lists every module, the index names the run's version, and the allocator is gone with its comments."
+    },
+    {
+      "id": "AUD-017-DOC011",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Each text follows the code."
+    },
+    {
+      "id": "AUD-017-ARC001",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "It stops at the first entry that is not `.` or `..`."
+    },
+    {
+      "id": "AUD-017-ARC002",
+      "status": "accepted",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "Accepted with the CORE-15 exception written at the place: 826 lines, a few over, which a move could not make clearer and which no native run here could check. `src/os/linux.rs`, 55 over after the remediation, moved its Landlock module to `src/os/linux/landlock_layer.rs`."
+    },
+    {
+      "id": "AUD-017-ARC003",
+      "status": "fixed",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": null,
+      "evidence": "The last wait decides `finish`; `black_box` keeps the heap landmark. Accepted: `program` has 149 lines of code, within CORE-15's 150 for one whole, and the public bool fields of `Isolation`, report data kept with its outcomes since AUD-016-API004."
+    },
+    {
+      "id": "AUD-017-ARC004",
+      "status": "verified",
+      "fixCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "verificationCommit": "3ae17640023ff19749f93fb195245ea2dc48eaf4",
+      "evidence": "The `long:` exception heads `windows.rs`; the access-list and volume calls live in `src/os/apple.rs`, on macOS only."
+    }
+  ],
+  "grants": [
+    {
+      "name": "Linux writable folders",
+      "where": "`src/os/linux.rs`, `src/os/linux/seccomp.rs`, `src/os/linux/landlock_layer.rs`",
+      "admits": "New, empty, held folders granted by a first Landlock layer; the filter lets new files, folders, links, renames and removals through where Landlock decides",
+      "narrowedBy": "SEC001, SEC014"
+    },
+    {
+      "name": "macOS writable folders",
+      "where": "`src/os/apple.rs`, `src/protect/folder.rs`",
+      "admits": "Sandbox rules by path; another user may redirect the path where `is_private` is false",
+      "narrowedBy": "SEC005, SEC009, SEC019, SEC029"
+    },
+    {
+      "name": "`Options::all_threads` (TSYNC)",
+      "where": "`src/os/linux.rs`, `src/os/linux/seccomp.rs`",
+      "admits": "The caller's layer replaces other threads' layers once per process, after a kernel check of their filters; a call that falls short leaves them more restricted, never less",
+      "narrowedBy": "SEC001, SEC002, SEC003, SEC027, SEC031"
+    },
+    {
+      "name": "Existing descriptors and shared memory",
+      "where": "`src/channels.rs`, `src/os/linux/mappings.rs`, `src/os/apple.rs`",
+      "admits": "Whatever the program named in `only`; channels of other threads' own tables",
+      "narrowedBy": "SEC004, SEC010, SEC011, SEC030, DOC001"
+    },
+    {
+      "name": "Hidden terminal input",
+      "where": "`src/input.rs`, `src/os/unix/terminal.rs`",
+      "admits": "The terminal's settings changed while reading, restored and read back; up to 64 KiB of waiting input dropped",
+      "narrowedBy": "SEC007, API004, API010, FUN001"
+    },
+    {
+      "name": "Windows console input",
+      "where": "`src/os/windows/console.rs`",
+      "admits": "Echo and line editing off while reading; the prompt on a console the process may write to",
+      "narrowedBy": "SEC006, API011, API012"
+    },
+    {
+      "name": "Unix worker pipes and executable",
+      "where": "`src/os/unix/worker.rs`, `src/worker.rs`",
+      "admits": "Kernel pipe copies; a worker with one thread at its start, checked before its descriptors",
+      "narrowedBy": "SEC013, SEC028, DOC006"
+    },
+    {
+      "name": "Windows worker IPC and recovery",
+      "where": "`src/os/windows/worker.rs`",
+      "admits": "Local clients that contend for the pipe are put off, within the deadline",
+      "narrowedBy": "API006"
+    },
+    {
+      "name": "Optional reports",
+      "where": "`src/os/linux/seccomp.rs`",
+      "admits": "Private marks of the 0.2 line; a cooperative host's filter can still imitate them",
+      "narrowedBy": "SEC026"
+    },
+    {
+      "name": "Stack and secret copies",
+      "where": "`src/stack.rs`",
+      "admits": "Frames above the cleared window, registers, captures and returns; nothing cleared on WebAssembly",
+      "narrowedBy": "SEC008, DOC010"
+    }
+  ],
+  "acceptance": [
+    {
+      "guarantee": "A granted folder takes new files, nothing outside it does, and a folder no longer new is not granted",
+      "test": "`isolation`: the folder roles",
+      "mustPassOn": "Linux x86-64 and ARM64, macOS"
+    },
+    {
+      "guarantee": "`all_threads` reaches other threads only with the layer, and keeps off a thread with its own filter",
+      "test": "`isolation`: the thread roles, `sibling-then-folders`, `foreign-sibling`",
+      "mustPassOn": "Linux x86-64 and ARM64 on every Landlock ABI"
+    },
+    {
+      "guarantee": "A filter of the 0.1 line is never taken for this version's",
+      "test": "`isolation`: `old-marks`",
+      "mustPassOn": "Linux x86-64 and ARM64"
+    },
+    {
+      "guarantee": "The channel check names writable shared memory and file mappings",
+      "test": "`isolation`: `shared-memory`",
+      "mustPassOn": "Linux, macOS"
+    },
+    {
+      "guarantee": "`is_private` is false where others may reach or redirect the folder",
+      "test": "`isolation`: the folder role's shared parent",
+      "mustPassOn": "macOS, Linux"
+    },
+    {
+      "guarantee": "Hidden input restores and reads back the terminal, and drops waiting input",
+      "test": "`worker`: the terminal role; unit tests of the key parser",
+      "mustPassOn": "Linux, macOS; Windows console natively"
+    },
+    {
+      "guarantee": "A cleared stack holds none of the work, also after a panic",
+      "test": "unit tests of `stack`",
+      "mustPassOn": "Linux x86-64 and ARM64, debug and release"
+    },
+    {
+      "guarantee": "A worker with another thread at its start is unclean",
+      "test": "`worker`: a worker with a thread before `main`",
+      "mustPassOn": "Linux"
+    },
+    {
+      "guarantee": "The build without this crate's filter compiles and lints",
+      "test": "Clippy on `armv5te-unknown-linux-gnueabi`",
+      "mustPassOn": "a 32-bit Linux target"
+    }
+  ],
+  "limitations": [
+    "Native execution only on Linux x86-64, kernel 7.0, Landlock ABI 8; Windows, macOS, Linux ARM64, Android, iOS and WebAssembly were compiled or linked, not run.",
+    "The macOS region census, access lists, volume flags, ancestors and probe, and the Windows console paths, were checked against their platforms' sources and documentation only.",
+    "Untested: a host that refuses Landlock TSYNC, the filter instruction limit, a second layer TSYNC, the Entering race, terminal and console failures, and a late Unix launch."
+  ],
+  "historicalEvidence": {
+    "priorReport": "AUD-016",
+    "matches": 35,
+    "historicalReportsMatchingSchema": 16,
+    "advisoryDatabase": "1d328b6bb9f2f350bf65c1c81ab68781cb9e018a",
+    "advisoryDatabaseCommitUtc": "2026-11-24T09:21:37Z",
+    "localPackageSha256": "5d55826b1a15beb33e811c15df20f5a10af107e7f33d5b2109e1df721ea6e83a",
+    "localPackageSnapshot": "826f97de9d0c1b1f8a1aac5f36dcb82fe1ce8dfd19659167657bc57cf87f8177",
+    "initialLocalPackageSha256": "d30643a0874a6483e649ed6430e64ce54984945d644201f96a933511699b2023",
+    "historicalHarnesses": "AUD-001, AUD-002, AUD-005, AUD-006, AUD-012 and AUD-014. Purpose, revision and inventory checked. No executions attributed to this snapshot."
+  }
+}
