@@ -157,11 +157,13 @@ pub enum Protection {
     DesktopRestricted,
     /// [`Isolation::low_integrity`].
     LowIntegrity,
+    /// [`Isolation::folder_writes`].
+    FolderWrites,
 }
 
 impl Protection {
     /// How many protections there are.
-    pub(crate) const COUNT: usize = 18;
+    pub(crate) const COUNT: usize = 19;
 
     /// Every protection, in the order of the fields of [`Isolation`].
     pub const ALL: [Self; Self::COUNT] = [
@@ -183,6 +185,7 @@ impl Protection {
         Self::NoPlantedLibraries,
         Self::DesktopRestricted,
         Self::LowIntegrity,
+        Self::FolderWrites,
     ];
 
     /// Its place in [`Protection::ALL`].
@@ -210,6 +213,7 @@ impl Protection {
             Self::NoPlantedLibraries => "no planted libraries",
             Self::DesktopRestricted => "no writing to the clipboard or to other windows",
             Self::LowIntegrity => "low integrity",
+            Self::FolderWrites => "writes only beneath the granted folders",
         }
     }
 }

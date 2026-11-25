@@ -11,9 +11,13 @@ use zeroize::Zeroize;
 use crate::os::Pages;
 
 mod closed;
+#[cfg(unix)]
+mod folder;
 mod options;
 
 pub use closed::ClosedSecret;
+#[cfg(unix)]
+pub use folder::WritableFolder;
 pub use options::{Missing, Options, Outcome, Protection};
 
 /// Why bytes were not put in a [`Secret`], or a buffer was not made.
@@ -262,8 +266,8 @@ pub struct Isolation {
     /// no IPv4 routes. The check does not read interface flags or the IPv6 routing table.
     pub empty_network: bool,
     /// Files cannot be opened for writing, created, renamed or removed, apart from the exceptions
-    /// docs/TECHNICAL.md names for each system. Not offered on Windows, whose low integrity level
-    /// still writes where a low label allows it; refused on Linux without the seccomp filter,
+    /// docs/TECHNICAL.md names for each system and beneath folders `enter_with_folders` granted.
+    /// Not offered on Windows, whose low integrity level still writes where a low label allows it; refused on Linux without the seccomp filter,
     /// whose Landlock layer alone leaves modes, owners, extended attributes and times.
     pub no_file_changes: bool,
     /// Linux and Android require both mitigation states to be permanently disabled or unnecessary.
@@ -306,6 +310,10 @@ pub struct Isolation {
     /// Windows read low integrity or below on the primary token and on the effective tokens
     /// of the threads it inspected. A later impersonation can change a thread's rights.
     pub low_integrity: bool,
+    /// This call granted the folders `enter_with_folders` was given: new files and folders can
+    /// be made, written, renamed and removed beneath them, on Linux also linked, and no file
+    /// changes anywhere else (Linux with Landlock, and macOS).
+    pub folder_writes: bool,
     /// What became of each protection, by its place in [`Protection::ALL`].
     outcomes: [Outcome; Protection::COUNT],
     /// Which protections reach every thread of the process.
@@ -323,6 +331,16 @@ impl Isolation {
     /// As [`Isolation::enter`], with the protections that `options` turns on as well.
     pub fn enter_with(options: Options) -> Self {
         crate::os::enter(options)
+    }
+
+    /// As [`Isolation::enter_with`], and lets the program make files and folders beneath
+    /// `folders`, and nowhere else: [`Protection::FolderWrites`]. Each folder must still be the
+    /// new, empty one [`WritableFolder::create`] made, and this must be the process's first
+    /// isolation, as a later layer only narrows what an earlier one allows. Linux and macOS;
+    /// docs/API.md lists the calls let through.
+    #[cfg(unix)]
+    pub fn enter_with_folders(options: Options, folders: &[&WritableFolder]) -> Self {
+        crate::os::enter_granting(options, folders)
     }
 
     /// The strict mode: as [`Isolation::enter_with`], but refuses with [`Missing`] when a
@@ -505,6 +523,7 @@ impl Findings {
             no_planted_libraries: has(Protection::NoPlantedLibraries),
             desktop_restricted: has(Protection::DesktopRestricted),
             low_integrity: has(Protection::LowIntegrity),
+            folder_writes: has(Protection::FolderWrites),
             outcomes: self.outcomes,
             process_wide: self.process_wide,
         }

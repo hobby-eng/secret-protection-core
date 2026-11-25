@@ -188,6 +188,8 @@ pub(super) fn reserve(bytes: usize) -> Option<NonNull<u8>> {
 /// Gives back the pages that [`reserve`] reserved for `bytes` bytes at `start`, guards included,
 /// whatever was mapped between them.
 pub(super) fn release(start: NonNull<u8>, bytes: usize) {
+    #[cfg(target_os = "linux")]
+    super::linux::forget_secret(start);
     let page = page_size();
     let total = bytes.next_multiple_of(page) + 2 * page;
     // SAFETY: the reservation belongs to the caller alone and nothing borrows it any more.
@@ -398,7 +400,15 @@ pub(crate) fn open_channels() -> io::Result<crate::OpenChannels> {
             }
         }
     }
-    Ok(crate::OpenChannels { channels, complete })
+    let shared_mappings = super::shared_mappings().unwrap_or_else(|| {
+        complete = false;
+        Vec::new()
+    });
+    Ok(crate::OpenChannels {
+        channels,
+        shared_mappings,
+        complete,
+    })
 }
 
 #[cfg(not(target_vendor = "apple"))]

@@ -14,10 +14,12 @@ mod protect;
 mod stack;
 mod worker;
 
-pub use channels::{Channel, ChannelKind, OpenChannels, open_channels};
+pub use channels::{Channel, ChannelKind, OpenChannels, SharedMapping, open_channels};
 pub use input::{Keystroke, KeystrokeBytes, SecretLine};
 #[cfg(any(unix, windows))]
 pub use input::{LineEnd, read_hidden_line};
+#[cfg(unix)]
+pub use protect::WritableFolder;
 #[cfg(not(target_arch = "wasm32"))]
 pub use protect::write_secret;
 pub use protect::{

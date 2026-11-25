@@ -1,4 +1,5 @@
-//! [`open_channels`]: what a process still has open after isolation that could carry a secret out.
+//! [`open_channels`]: what a process still has open after isolation that could carry a secret out:
+//! descriptors, and memory shared with something outside it.
 
 use std::io;
 
@@ -35,21 +36,59 @@ pub struct Channel {
     pub writable: Option<bool>,
 }
 
-/// The descriptors found open, and whether the look at them was whole.
+/// Memory the process can write that is shared with whatever else maps the same memory or file:
+/// after isolation a write there still reaches another process or a file, with no descriptor open.
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SharedMapping {
+    /// Where it starts.
+    pub start: usize,
+    /// How many bytes it spans.
+    pub length: usize,
+    /// What the system names it, such as a file's path, `/dev/zero (deleted)` for shared anonymous
+    /// memory, `/SYSV…` or `/memfd:…`; empty when it has no name.
+    pub name: String,
+}
+
+/// The descriptors and shared memory found, and whether the look at them was whole.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenChannels {
     /// The descriptors, sorted by number, standard streams included.
     pub channels: Vec<Channel>,
-    /// Whether every descriptor was listed and examined. When false, a channel may be missing or
-    /// unknown, and an empty list proves nothing.
+    /// The shared mappings the process can write, now or after `mprotect`, sorted by address.
+    /// This crate's own secret memory is left out.
+    pub shared_mappings: Vec<SharedMapping>,
+    /// Whether every descriptor and mapping was listed and examined. When false, a channel may be
+    /// missing or unknown, and empty lists prove nothing.
     pub complete: bool,
 }
 
-/// The descriptors visible to the calling thread. On Linux each thread can have a separate
-/// descriptor table. Another thread sharing that table may open or close an entry
-/// meanwhile. Isolation keeps descriptors opened before it usable, so this shows what is left: a
-/// socket, or anything open for writing, is a way out the program chose. Fails where the system
-/// can't list them (`Unsupported` on Windows and in WebAssembly).
+impl OpenChannels {
+    /// `Ok` when the look was whole and found no descriptor beyond `expected` and no shared
+    /// mapping: the check to make after isolation, before a secret is read, as no new channel can
+    /// open then. Else what was unexpected, with `complete` as found.
+    pub fn only(&self, expected: &[i32]) -> Result<(), Self> {
+        let unexpected = Self {
+            channels: (self.channels.iter())
+                .filter(|channel| !expected.contains(&channel.descriptor))
+                .copied()
+                .collect(),
+            shared_mappings: self.shared_mappings.clone(),
+            complete: self.complete,
+        };
+        let clean = unexpected.complete
+            && unexpected.channels.is_empty()
+            && unexpected.shared_mappings.is_empty();
+        if clean { Ok(()) } else { Err(unexpected) }
+    }
+}
+
+/// The descriptors visible to the calling thread, and the shared memory of the process. On Linux
+/// each thread can have a separate descriptor table, and another thread sharing that table may
+/// open or close an entry meanwhile. Isolation keeps descriptors and mappings made before it
+/// usable, so this shows what is left; [`OpenChannels::only`] requires that nothing else is.
+/// Fails where the system can't list them (`Unsupported` on Windows and in WebAssembly).
 pub fn open_channels() -> io::Result<OpenChannels> {
     crate::os::open_channels()
 }

@@ -11,11 +11,11 @@ mod unix;
 mod windows;
 
 #[cfg(target_vendor = "apple")]
-pub(crate) use apple::{enter, evidence};
+pub(crate) use apple::{enter_granting, evidence, shared_mappings};
 #[cfg(not(any(unix, windows)))]
 pub(crate) use heap::Pages;
 #[cfg(any(target_os = "linux", target_os = "android"))]
-pub(crate) use linux::{enter, evidence};
+pub(crate) use linux::{enter_granting, evidence, shared_mappings};
 #[cfg(unix)]
 pub(crate) use unix::{
     HiddenTerminal, WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean,
@@ -30,6 +30,33 @@ pub(crate) use windows::{
     HiddenTerminal, WorkerProcess, enter, evidence, leave_terminal, open_channels, run_on_stack,
     starts_clean, worker_streams, write_secret,
 };
+
+/// The isolation without folders to write in.
+#[cfg(any(target_os = "linux", target_os = "android", target_vendor = "apple"))]
+pub(crate) fn enter(options: crate::protect::Options) -> crate::protect::Isolation {
+    enter_granting(options, &[])
+}
+
+/// Other Unix systems have no way here to list shared memory: the channel check stays incomplete.
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "android", target_vendor = "apple"))
+))]
+pub(crate) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
+    None
+}
+
+/// Other Unix systems apply no isolation, so they grant no folder either.
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "android", target_vendor = "apple"))
+))]
+pub(crate) fn enter_granting(
+    options: crate::protect::Options,
+    _folders: &[&crate::WritableFolder],
+) -> crate::protect::Isolation {
+    enter(options)
+}
 
 /// How long a worker gets to end by itself once its pipes are closed, and again once it was
 /// killed.

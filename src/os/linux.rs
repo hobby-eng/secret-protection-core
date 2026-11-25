@@ -83,8 +83,15 @@ pub(super) fn secret_pages(bytes: usize) -> Option<NonNull<u8>> {
         super::unix::release(start, bytes);
         return None;
     }
+    mappings::remember(start);
     Some(start)
 }
+
+mod mappings;
+
+#[cfg(target_os = "linux")]
+pub(super) use mappings::forget as forget_secret;
+pub(crate) use mappings::shared_mappings;
 
 /// Keeps `fork` out while a descriptor of secret memory is open. A child made by `fork` at that
 /// moment would inherit the descriptor and could map the pages a secret is written to later.
@@ -221,8 +228,16 @@ fn charge_pages(mapped: *mut libc::c_void, bytes: usize) -> bool {
 /// itself, so a refusal with another number did not come from them.
 const REFUSED: i32 = libc::EACCES;
 
-pub(crate) fn enter(options: Options) -> Isolation {
+pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder]) -> Isolation {
     use Protection as P;
+    use std::os::fd::AsFd;
+    // Granted only while each is still the new, empty folder made, and only by a first layer.
+    let asked = !folders.is_empty();
+    let fresh: Vec<_> = if folders.iter().all(|folder| folder.still_new()) {
+        folders.iter().map(|folder| folder.as_fd()).collect()
+    } else {
+        Vec::new()
+    };
     // A program isolates itself early, often while it has one thread: the gate of secret
     // memory is asked for now, for the secrets that threads make later.
     #[cfg(target_os = "linux")]
@@ -264,7 +279,7 @@ pub(crate) fn enter(options: Options) -> Isolation {
     // Seccomp and Landlock require no_new_privs of an unprivileged process: no program it starts
     // can gain privileges, as a set-user-ID program would.
     // SAFETY: as above.
-    let held = if unsafe {
+    let (held, granted) = if unsafe {
         libc::prctl(
             libc::PR_SET_NO_NEW_PRIVS,
             1 as libc::c_ulong,
@@ -274,9 +289,9 @@ pub(crate) fn enter(options: Options) -> Isolation {
         )
     } == 0
     {
-        restrict(whole_process, wanted)
+        restrict(whole_process, wanted, &fresh)
     } else {
-        seccomp::held()
+        (seccomp::held(), false)
     };
     // SAFETY: PR_GET_DUMPABLE takes no pointer and returns the flag.
     let dumpable = unsafe {
@@ -352,6 +367,14 @@ pub(crate) fn enter(options: Options) -> Isolation {
         whole_process,
     );
     found.set(P::MemoryLocked, memory, true);
+    // This call's layer took the folders, which keeps writes beneath them, and the filter lets
+    // them through in the granted forms.
+    found.option(
+        P::FolderWrites,
+        asked,
+        granted && rule(seccomp::FOLDERS),
+        whole_process,
+    );
     found.finish()
 }
 
@@ -484,7 +507,7 @@ static LAYERED_PROCESS: AtomicU32 = AtomicU32::new(0);
 /// the layer, which the threads it starts answer too, or from what the thread or the process
 /// recorded. Only a layer the kernel took is ever recorded.
 fn layer_bits(held: Option<u32>) -> u32 {
-    let marked = held.unwrap_or(0) & (seccomp::LAYER | seccomp::SCOPE);
+    let marked = held.unwrap_or(0) & (seccomp::LAYER | seccomp::SCOPE | seccomp::FOLDERS);
     #[cfg(target_os = "linux")]
     return marked | LAYERED_THREAD.get() | LAYERED_PROCESS.load(Ordering::Relaxed);
     #[cfg(target_os = "android")]
@@ -496,22 +519,32 @@ fn layer_bits(held: Option<u32>) -> u32 {
 /// is recorded, so a refused layer or filter is tried again by the next call; a filter goes in
 /// only when it adds a bit. A filter installed by someone else (Android, containers) doesn't
 /// count.
-fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
+fn restrict(
+    whole_process: bool,
+    wanted: u32,
+    folders: &[std::os::fd::BorrowedFd<'_>],
+) -> (Option<u32>, bool) {
     let held = seccomp::held();
     let layer = layer_bits(held);
+    // Whether this call's layer took `folders`: an earlier layer may hold other folders.
     #[cfg(target_os = "linux")]
-    let layer = if layer & seccomp::LAYER == 0 {
-        let applied = landlock_layer::restrict_self();
+    let (layer, granted) = if layer & seccomp::LAYER == 0 {
+        // Folders only with a first filter as well: an earlier one keeps every write closed.
+        let folders = if held.is_none() { folders } else { &[] };
+        let applied = landlock_layer::restrict_self(folders);
         LAYERED_THREAD.set(applied);
         if whole_process {
             LAYERED_PROCESS.store(applied, Ordering::Relaxed);
         }
-        applied
+        (applied, applied & seccomp::FOLDERS != 0)
     } else {
-        layer
+        (layer, false)
     };
     #[cfg(target_os = "android")]
-    let _ = whole_process;
+    let granted = {
+        let _ = (whole_process, folders);
+        false
+    };
     let rules = held.unwrap_or(0) | wanted | layer;
     // A signal rule inherited from the process this one was forked from names that process:
     // a call that asks for the protection gets a filter of this process's own.
@@ -519,9 +552,9 @@ fn restrict(whole_process: bool, wanted: u32) -> Option<u32> {
         && held.is_some_and(|rules| rules & seccomp::SIGNALS != 0)
         && !seccomp::names_this_process();
     if held == Some(rules) && !inherited {
-        return held;
+        return (held, granted);
     }
-    seccomp::install(rules).or(held)
+    (seccomp::install(rules).or(held), granted)
 }
 
 /// `prctl` options of linux/prctl.h for the processor's speculation, written out because libc
@@ -754,6 +787,7 @@ mod seccomp {
     pub(super) const SIGNALS: u32 = 4;
     pub(super) const LAYER: u32 = 8;
     pub(super) const SCOPE: u32 = 16;
+    pub(super) const FOLDERS: u32 = 32;
 
     pub(super) fn names_this_process() -> bool {
         false
@@ -773,31 +807,60 @@ mod seccomp {
 /// stays allowed. Rights the running kernel doesn't know are skipped.
 #[cfg(target_os = "linux")]
 mod landlock_layer {
+    use std::os::fd::BorrowedFd;
+
     use landlock::{
-        ABI, Access, AccessFs, AccessNet, LandlockStatus, Ruleset, RulesetAttr, RulesetStatus,
-        Scope,
+        ABI, Access, AccessFs, AccessNet, BitFlags, LandlockStatus, PathBeneath, Ruleset,
+        RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetError, RulesetStatus, Scope,
     };
 
     /// The newest Landlock ABI whose rights the layer asks for: that of Linux 7.1.
     const ASKED: ABI = ABI::V9;
 
-    /// Applies the layer to the calling thread and the threads it starts afterwards. Returns
-    /// [`super::seccomp::LAYER`] when the kernel took it, with [`super::seccomp::SCOPE`] when it
-    /// has the signal scope (ABI 6, Linux 6.12), and 0 when it refused or has no Landlock.
-    pub(super) fn restrict_self() -> u32 {
-        let status = Ruleset::default()
+    /// What the layer allows beneath a granted folder: making files and folders, writing,
+    /// removing, and, from ABI 2 (Linux 5.19), links and renames between folders, which Landlock
+    /// lets through only when the file gains no right by them. ABI 1 refuses those moves.
+    fn folder_rights() -> BitFlags<AccessFs> {
+        AccessFs::MakeDir
+            | AccessFs::MakeReg
+            | AccessFs::WriteFile
+            | AccessFs::RemoveFile
+            | AccessFs::RemoveDir
+            | AccessFs::Refer
+    }
+
+    /// The layer, with the rights of `folders` beneath each.
+    fn layer(folders: &[BorrowedFd<'_>]) -> Result<RulesetCreated, RulesetError> {
+        let mut created = Ruleset::default()
             .handle_access(AccessFs::from_write(ASKED))
             .and_then(|ruleset| ruleset.handle_access(AccessNet::from_all(ASKED)))
             .and_then(|ruleset| ruleset.scope(Scope::AbstractUnixSocket | Scope::Signal))
-            .and_then(Ruleset::create)
-            .and_then(|created| created.restrict_self());
-        match status {
+            .and_then(Ruleset::create)?;
+        for folder in folders {
+            created = created.add_rule(PathBeneath::new(folder, folder_rights()))?;
+        }
+        Ok(created)
+    }
+
+    /// Applies the layer to the calling thread and the threads it starts afterwards. Returns
+    /// [`super::seccomp::LAYER`] when the kernel took it, with [`super::seccomp::SCOPE`] when it
+    /// has the signal scope (ABI 6, Linux 6.12) and [`super::seccomp::FOLDERS`] when it took the
+    /// folders' rules, and 0 when it refused or has no Landlock. A folder rule the kernel refuses
+    /// leaves the layer without any, closed everywhere.
+    pub(super) fn restrict_self(folders: &[BorrowedFd<'_>]) -> u32 {
+        let (created, granted) = match layer(folders) {
+            Err(_) if !folders.is_empty() => (layer(&[]), false),
+            created => (created, !folders.is_empty()),
+        };
+        match created.and_then(RulesetCreated::restrict_self) {
             Ok(status) if status.ruleset != RulesetStatus::NotEnforced => {
                 let scoped = matches!(
                     status.landlock,
                     LandlockStatus::Available { effective_abi, .. } if effective_abi >= ABI::V6
                 );
-                super::seccomp::LAYER | (u32::from(scoped) * super::seccomp::SCOPE)
+                super::seccomp::LAYER
+                    | (u32::from(scoped) * super::seccomp::SCOPE)
+                    | (u32::from(granted) * super::seccomp::FOLDERS)
             }
             _ => 0,
         }
@@ -869,6 +932,14 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::SignalsWithinLayer, O::Confirmed) => "the Landlock layer went in with its signal scope",
         (P::SignalsWithinLayer, O::Refused) => {
             "no Landlock layer, or one without the signal scope (before Linux 6.12)"
+        }
+        (P::FolderWrites, O::Confirmed) => {
+            "the Landlock layer took a rule beneath each folder, and the filter lets writes through \
+             only in the granted forms"
+        }
+        (P::FolderWrites, O::Refused) => {
+            "a folder was no longer the new, empty one made, Landlock refused its rule or is \
+             missing, or an earlier filter or layer keeps every write closed"
         }
         (P::MemoryLocked, O::Confirmed) => "mlockall was accepted in this process",
         (P::MemoryLocked, O::Refused) => "mlockall was refused",

@@ -45,6 +45,30 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 fn main() {
     match std::env::var(ROLE).as_deref() {
         Ok("isolated") => isolated(),
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            target_os = "macos"
+        ))]
+        Ok("folders") => folders::folders_role(),
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            target_os = "macos"
+        ))]
+        Ok("stale-folder") => folders::stale_folder_role(),
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            target_os = "macos"
+        ))]
+        Ok("shared-memory") => folders::shared_memory_role(),
         Ok("idle") => idle(),
         #[cfg(windows)]
         Ok("impersonating-sibling") => windows::an_impersonating_sibling_keeps_its_own_integrity(),
@@ -235,6 +259,14 @@ fn checks() {
         any(target_arch = "x86_64", target_arch = "aarch64")
     ))]
     linux_role_checks();
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        target_os = "macos"
+    ))]
+    folders::checks();
     #[cfg(target_os = "linux")]
     run(
         "a tracer of another thread makes the whole process readable",
@@ -670,6 +702,14 @@ fn cannot_be_read_from_outside(pid: u32) {
     let _ = pid;
 }
 
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    target_os = "macos"
+))]
+mod folders;
 #[cfg(target_os = "linux")]
 mod linux;
 

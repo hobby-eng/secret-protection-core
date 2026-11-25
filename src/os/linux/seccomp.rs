@@ -1,5 +1,6 @@
 //! The seccomp filter, for x86-64 and little-endian AArch64. It refuses (EACCES) new sockets and
-//! io_uring, file system changes, ioctls other than the terminal's settings and size, new peers for
+//! io_uring, file system changes (but for the narrow forms of [`folder_rules`] once folders were
+//! granted), ioctls other than the terminal's settings and size, new peers for
 //! old sockets, System V IPC, POSIX queues, the keyring, `execve`, calls that read, compare, limit,
 //! schedule or move the pages of another process, kernel interfaces a secret command never needs,
 //! and the `prctl` options that undo the dump settings. Calls newer than its table get ENOSYS, so
@@ -35,6 +36,13 @@ mod calls {
     pub(super) const SETPRIORITY: u32 = 141;
     /// open, whose flags are its second argument, and openat, whose flags are its third.
     pub(super) const OPENS: &[(u32, u32)] = &[(2, 1), (257, 2)];
+    /// rename, renameat, unlink, unlinkat, rmdir and link: refused unless folders were granted,
+    /// when Landlock alone decides where they act.
+    pub(super) const FOLDER_FREE: &[u32] = &[82, 264, 87, 263, 84, 86];
+    /// mkdir, whose mode is its second argument, and mkdirat, whose mode is its third.
+    pub(super) const MAKE_DIRS: &[(u32, u32)] = &[(83, 1), (258, 2)];
+    pub(super) const RENAMEAT2: u32 = 316;
+    pub(super) const LINKAT: u32 = 265;
     /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
     /// `Secret`, and it changes only a file already open for writing, which `write` changes
     /// anyway.
@@ -44,10 +52,8 @@ mod calls {
         101, 311, 438, // ptrace, process_vm_writev, pidfd_getfd
         312, 440, 251, // kcmp, process_madvise, ioprio_set
         85, 304, // creat, open_by_handle_at
-        82, 264, 316, // rename, renameat, renameat2
-        87, 263, 84, // unlink, unlinkat, rmdir
-        83, 258, 133, 259, // mkdir, mkdirat, mknod, mknodat
-        86, 265, 88, 266, // link, linkat, symlink, symlinkat
+        133, 259, // mknod, mknodat
+        88, 266, // symlink, symlinkat
         76, 285, // truncate, fallocate
         90, 91, 268, 452, // chmod, fchmod, fchmodat, fchmodat2
         92, 93, 94, 260, // chown, fchown, lchown, fchownat
@@ -98,6 +104,13 @@ mod calls {
     pub(super) const SETPRIORITY: u32 = 140;
     /// openat, whose flags are its third argument.
     pub(super) const OPENS: &[(u32, u32)] = &[(56, 2)];
+    /// renameat and unlinkat: refused unless folders were granted, when Landlock alone decides
+    /// where they act.
+    pub(super) const FOLDER_FREE: &[u32] = &[38, 35];
+    /// mkdirat, whose mode is its third argument.
+    pub(super) const MAKE_DIRS: &[(u32, u32)] = &[(34, 2)];
+    pub(super) const RENAMEAT2: u32 = 276;
+    pub(super) const LINKAT: u32 = 37;
     /// Refused whatever their arguments. Not ftruncate: it sizes the secret memory of every
     /// `Secret`, and it changes only a file already open for writing, which `write` changes
     /// anyway.
@@ -107,10 +120,8 @@ mod calls {
         117, 271, 438, // ptrace, process_vm_writev, pidfd_getfd
         272, 440, 30,  // kcmp, process_madvise, ioprio_set
         265, // open_by_handle_at
-        38, 276, // renameat, renameat2
-        35,  // unlinkat
-        34, 33, // mkdirat, mknodat
-        37, 36, // linkat, symlinkat
+        33,  // mknodat
+        36,  // symlinkat
         45, 47, // truncate, fallocate
         52, 53, 452, // fchmod, fchmodat, fchmodat2
         55, 54, // fchown, fchownat
@@ -151,6 +162,15 @@ const TERMINAL_REQUESTS: [u32; 9] = [
 /// The flags of an open that can change a file.
 const WRITE_FLAGS: u32 =
     (libc::O_WRONLY | libc::O_RDWR | libc::O_CREAT | libc::O_TRUNC | libc::O_APPEND) as u32;
+/// With folders granted, the one write-open let through: a new file, for writing only.
+const NEW_FILE: u32 = (libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL) as u32;
+/// Flags that may come with it.
+const NEW_FILE_EXTRA: u32 = (libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_LARGEFILE) as u32;
+/// The most a new file or folder may allow: no one else, and no file run as a program.
+const FILE_MODE: u32 = 0o600;
+const FOLDER_MODE: u32 = 0o700;
+/// RENAME_NOREPLACE, the one flag of renameat2 let through; RENAME_EXCHANGE and the rest are not.
+const NO_REPLACE: u32 = 1;
 
 /// A `prctl` option that no kernel has: without this crate's filter the kernel answers EINVAL,
 /// and another filter answers as it does; this crate's filter answers [`MARK`] with its
@@ -169,6 +189,9 @@ pub(super) const SIGNALS: u32 = 4;
 /// limits signals. The threads that inherit the filter read them from its mark.
 pub(super) const LAYER: u32 = 8;
 pub(super) const SCOPE: u32 = 16;
+/// Folders were granted, and the layer that went in before this filter keeps writes beneath them:
+/// the filter lets the folder calls through in the forms [`folder_rules`] allows.
+pub(super) const FOLDERS: u32 = 32;
 
 /// A second option that no kernel has, asked with a process number: a filter with the signal
 /// rule answers whether the rule names that process. The four bytes read "SPC2".
@@ -231,6 +254,7 @@ const IF_ABOVE: u16 = 0x25; // BPF_JMP | BPF_JGT | BPF_K
 #[cfg(target_arch = "x86_64")]
 const IF_AT_LEAST: u16 = 0x35; // BPF_JMP | BPF_JGE | BPF_K
 const IF_ANY_BIT: u16 = 0x45; // BPF_JMP | BPF_JSET | BPF_K
+const AND: u16 = 0x54; // BPF_ALU | BPF_AND | BPF_K
 const RETURN: u16 = 0x06; // BPF_RET | BPF_K
 
 fn instruction(code: u16, if_true: u8, if_false: u8, k: u32) -> libc::sock_filter {
@@ -257,6 +281,44 @@ fn answer_if(test: u16, value: u32, action: u32) -> [libc::sock_filter; 2] {
     ]
 }
 
+/// The rules of the calls that make, move and remove files: all refused, or with folders granted
+/// let through in narrow forms, where the layer decides the place. A folder at most FOLDER_MODE,
+/// renameat2 at most with RENAME_NOREPLACE, linkat without flags (no AT_EMPTY_PATH, which links
+/// a descriptor, nor AT_SYMLINK_FOLLOW).
+fn folder_rules(granted: bool) -> Vec<libc::sock_filter> {
+    let mut rules = Vec::new();
+    if !granted {
+        let all = calls::FOLDER_FREE
+            .iter()
+            .copied()
+            .chain(calls::MAKE_DIRS.iter().map(|&(number, _)| number))
+            .chain([calls::RENAMEAT2, calls::LINKAT]);
+        for number in all {
+            rules.extend(answer_if(IF_EQUAL, number, REFUSE));
+        }
+        return rules;
+    }
+    // The argument, masked by `mask`, must be 0.
+    let none_but = |number: u32, index: u32, mask: u32| {
+        for_call(
+            number,
+            &[
+                instruction(LOAD_WORD, 0, 0, argument(index)),
+                instruction(AND, 0, 0, mask),
+                instruction(IF_EQUAL, 1, 0, 0),
+                instruction(RETURN, 0, 0, REFUSE),
+                instruction(RETURN, 0, 0, ALLOW),
+            ],
+        )
+    };
+    for &(number, mode) in calls::MAKE_DIRS {
+        rules.extend(none_but(number, mode, !FOLDER_MODE));
+    }
+    rules.extend(none_but(calls::RENAMEAT2, 4, !NO_REPLACE));
+    rules.extend(none_but(calls::LINKAT, 4, u32::MAX));
+    rules
+}
+
 /// The filter, in which every test is followed by the answer it leads to, or skips a block
 /// that ends in answers, so that no jump goes further than the block it belongs to.
 fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
@@ -274,6 +336,7 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
     for &number in calls::REFUSED {
         program.extend(answer_if(IF_EQUAL, number, REFUSE));
     }
+    program.extend(folder_rules(options & FOLDERS != 0));
     // One block for fcntl, as its last answer allows every command it does not name.
     let mut refused_commands = Vec::new();
     if options & FILE_LOCKS != 0 {
@@ -379,13 +442,32 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
         ],
     ));
     for &(number, flags) in calls::OPENS {
-        program.extend([
-            instruction(IF_EQUAL, 0, 4, number),
-            instruction(LOAD_WORD, 0, 0, argument(flags)),
-            instruction(IF_ANY_BIT, 0, 1, WRITE_FLAGS),
-            instruction(RETURN, 0, 0, REFUSE),
-            instruction(RETURN, 0, 0, ALLOW),
-        ]);
+        if options & FOLDERS == 0 {
+            program.extend([
+                instruction(IF_EQUAL, 0, 4, number),
+                instruction(LOAD_WORD, 0, 0, argument(flags)),
+                instruction(IF_ANY_BIT, 0, 1, WRITE_FLAGS),
+                instruction(RETURN, 0, 0, REFUSE),
+                instruction(RETURN, 0, 0, ALLOW),
+            ]);
+        } else {
+            // A read-only open, or a new file for writing only with at most FILE_MODE; the mode
+            // follows the flags.
+            program.extend(for_call(
+                number,
+                &[
+                    instruction(LOAD_WORD, 0, 0, argument(flags)),
+                    instruction(IF_ANY_BIT, 0, 6, WRITE_FLAGS),
+                    instruction(AND, 0, 0, !NEW_FILE_EXTRA),
+                    instruction(IF_EQUAL, 0, 3, NEW_FILE),
+                    instruction(LOAD_WORD, 0, 0, argument(flags + 1)),
+                    instruction(AND, 0, 0, !FILE_MODE),
+                    instruction(IF_EQUAL, 1, 0, 0),
+                    instruction(RETURN, 0, 0, REFUSE),
+                    instruction(RETURN, 0, 0, ALLOW),
+                ],
+            ));
+        }
     }
     // Last, as its final answer allows every other call: an ioctl is allowed only with a
     // terminal request, each test of which jumps to that answer.
