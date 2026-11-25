@@ -8,6 +8,8 @@ The public buffer and isolation APIs live in `src/protect.rs` and its submodules
 
 Secret owners use fixed-capacity storage, wipe it on normal destruction in its owning process, and keep the contents out of debug output. Best-effort APIs report the protections the OS granted. Strict calls return errors when required properties are missing. Check the [platform contracts](docs/TECHNICAL.md) when changing an allocation, worker or isolation guarantee. Update the [API description](docs/API.md) if the change affects a caller, and the [security policy](SECURITY.md) if it changes what an application can protect.
 
+An audit, a review of findings or a remediation follow-up of this library follows the workspace's audit procedure in `../.github/audits/`: `FULL_AUDIT_GUIDE_V2.md` (the checks and their order; section 17 for Rust crates and every target they are built for), `AUDIT_STANDARD.md`, `AUDIT_TEMPLATE.md` and `audit-report.schema.json`, with this repository's [targets and audit notes](docs/audits/TARGETS.md). Reports, their JSON twins and their harnesses stay in `docs/audits/`.
+
 ## Checks
 
 The main crate uses these fast gates (CORE-43).

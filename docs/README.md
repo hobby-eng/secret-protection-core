@@ -15,6 +15,7 @@ For a summary of the crate and its supported targets, see the [library overview]
 | Document                                         | What to use it for                                                                      |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | [Test coverage](COVERAGE.md)                     | Read the per-file Linux results or reproduce the measurement for a particular revision. |
+| [Targets and audit notes](audits/TARGETS.md)     | See which targets an audit builds and runs, on which runner, and its fuzzing budgets.   |
 | [Audit reports](audits/README.md)                | Trace a finding to the reviewed source, its fix and the evidence for that fix.          |
 | [Changelog](../CHANGELOG.md)                     | Check which protections and API behavior changed.                                       |
 | [Third-party notices](../THIRD_PARTY_NOTICES.md) | Look up dependency licenses.                                                            |
