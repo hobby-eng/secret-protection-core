@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::io;
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use secret_protection_core::{Isolation, Options, WritableFolder, open_channels};
@@ -31,6 +31,11 @@ pub(crate) fn checks() {
     run(
         "folders granted with one thread stay open, and all_threads then reaches every thread",
         || role_ends_well("folders-then-threads"),
+    );
+    #[cfg(target_os = "linux")]
+    run(
+        "folders granted beside another thread keep the filter off it, all_threads or not",
+        || role_ends_well("sibling-then-folders"),
     );
 }
 
@@ -75,6 +80,13 @@ pub(crate) fn folders_role() {
         WritableFolder::create(granted.path()).unwrap_err().kind(),
         io::ErrorKind::AlreadyExists
     );
+    // Made in a folder its group may write in: on macOS someone else could put another folder at
+    // its path, which the sandbox would grant; Landlock on Linux grants the folder itself.
+    let shared = place.join("shared");
+    fs::create_dir(&shared).unwrap();
+    fs::set_permissions(&shared, fs::Permissions::from_mode(0o775)).unwrap();
+    let inner = WritableFolder::create(shared.join("inner")).unwrap();
+    assert_eq!(inner.is_private(), !cfg!(target_os = "macos"), "{inner:?}");
     // Made before isolation, as a program makes all its folders: granted by a later call, none.
     let later = WritableFolder::create(place.join("later")).unwrap();
     let spare = WritableFolder::create(place.join("spare")).unwrap();
@@ -276,6 +288,10 @@ pub(crate) fn stale_folder_role() {
 /// The `shared-memory` role: a shared mapping made before isolation is named by the check, this
 /// crate's own secret memory is not, and once the mapping is gone the check passes.
 pub(crate) fn shared_memory_role() {
+    // What was open when the role started, as a parent may leave more than the streams open.
+    let inherited: Vec<i32> = (open_channels().unwrap().channels.iter())
+        .map(|channel| channel.descriptor)
+        .collect();
     let length = 4096;
     // SAFETY: a new anonymous shared mapping, which this role alone uses and unmaps below.
     let shared = unsafe {
@@ -329,11 +345,16 @@ pub(crate) fn shared_memory_role() {
     drop(writing);
     let _isolation = Isolation::enter();
     let secret = secret_protection_core::Secret::with_capacity(32);
-    let streams = [0, 1, 2];
-    let found = open_channels().unwrap().only(&streams).unwrap_err();
+    // A build measured for coverage maps its profile file shared, to write counters there: a
+    // way out the check rightly names, made by the build and not the program.
+    let measured = |mapping: &secret_protection_core::SharedMapping| {
+        cfg!(coverage) && mapping.name.ends_with(".profraw")
+    };
+    let found = open_channels().unwrap().only(&inherited).unwrap_err();
     assert!(found.complete, "{found:?}");
     assert!(found.channels.is_empty(), "{found:?}");
     let mut starts: Vec<usize> = (found.shared_mappings.iter())
+        .filter(|mapping| !measured(mapping))
         .map(|mapping| mapping.start)
         .collect();
     starts.sort_unstable();
@@ -344,9 +365,51 @@ pub(crate) fn shared_memory_role() {
     assert_eq!(unsafe { libc::munmap(shared, length) }, 0);
     // SAFETY: as above.
     assert_eq!(unsafe { libc::munmap(file_mapping, length) }, 0);
-    let after = open_channels().unwrap();
-    assert_eq!(after.only(&streams), Ok(()), "{after:?}");
+    if let Err(left) = open_channels().unwrap().only(&inherited) {
+        assert!(
+            left.complete && left.channels.is_empty() && left.shared_mappings.iter().all(measured),
+            "{left:?}"
+        );
+    }
     drop(secret);
+}
+
+/// The `sibling-then-folders` role: folders granted while another thread runs hold for the
+/// calling thread alone, layer and filter. A later call with `all_threads` puts no layer in, as a
+/// second one would close the folders, and so leaves the filter, whose folder rules count on the
+/// layer, off the other thread too: that thread still opens sockets, and the report says so.
+#[cfg(target_os = "linux")]
+pub(crate) fn sibling_then_folders_role() {
+    use secret_protection_core::{Protection, Reach};
+    use std::sync::mpsc;
+    let (ask, asked) = mpsc::channel::<()>();
+    let (answer, answers) = mpsc::channel::<bool>();
+    let sibling = std::thread::spawn(move || {
+        while asked.recv().is_ok() {
+            let socket = std::net::UdpSocket::bind("127.0.0.1:0").is_ok();
+            answer.send(socket).unwrap();
+        }
+    });
+    let granted = WritableFolder::create(place().join("granted")).unwrap();
+    let first = Isolation::enter_with_folders(Options::new(), &[&granted]);
+    if !landlock() {
+        support::skip_role("the kernel has no Landlock");
+    }
+    assert!(first.folder_writes && !first.whole_process, "{first:?}");
+    let later = Isolation::enter_with(Options::new().all_threads());
+    let reach = (later.measures().into_iter())
+        .find(|measure| measure.protection == Protection::NoNewSockets)
+        .map(|measure| measure.reach);
+    assert_eq!(reach, Some(Reach::Thread), "{later:?}");
+    assert!(!later.whole_process, "{later:?}");
+    ask.send(()).unwrap();
+    assert!(
+        answers.recv().unwrap(),
+        "the other thread lost its sockets: {later:?}"
+    );
+    new_file(&granted.path().join("after")).unwrap();
+    drop(ask);
+    sibling.join().unwrap();
 }
 
 /// The `folders-then-threads` role: folders granted while the process had one thread, then a

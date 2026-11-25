@@ -207,11 +207,13 @@ pub fn read_hidden_line(prompt: &str, line: &mut SecretLine) -> io::Result<LineE
         let edited = terminal
             .write(prompt)
             .and_then(|()| edit(line, || terminal.next_char()));
+        // Back first, so that output that cannot drain keeps no key hidden; a terminal left
+        // changed is the error that counts most.
+        let restored = terminal.restore();
         // The Enter typed was not shown: what comes next starts a line of its own. The line
         // counts whether or not this lands.
         let _ = terminal.write("\r\n");
-        let restored = terminal.restore();
-        edited.and_then(|end| restored.map(|()| end))
+        restored.and(edited)
     });
     if !matches!(ended, Ok(LineEnd::Entered)) {
         line.clear();
@@ -246,12 +248,23 @@ enum Sequence {
 #[cfg(any(unix, windows))]
 impl Sequence {
     /// The state after `key`, and the key to act on: `None` when it belongs to a sequence. A
-    /// control key ends any sequence and counts, so that Enter is never swallowed.
+    /// control key ends any sequence and counts, so that Enter is never swallowed; DEL and the C1
+    /// controls are part of a mouse report, whose bytes are all 0x20 and above.
     fn step(self, key: char) -> (Self, Option<char>) {
         use Sequence as S;
         let parameter = |low| (low..='\u{3f}').contains(&key);
         match self {
             S::Outside => (S::Outside, Some(key)),
+            // A mouse report's bytes are 0x20 and above, DEL (column or row 95) among them; a key
+            // below ends it and counts.
+            S::Mouse(left) if key >= ' ' => (
+                if left > 1 {
+                    S::Mouse(left - 1)
+                } else {
+                    S::Outside
+                },
+                None,
+            ),
             _ if key.is_control() => (S::Outside, Some(key)),
             S::Escape => match key {
                 '[' => (S::Control { parameters: false }, None),
@@ -267,8 +280,8 @@ impl Sequence {
             // Enter on the keypad, in the terminal's application mode.
             S::Shift if key == 'M' => (S::Outside, Some('\r')),
             S::Shift if parameter('\u{30}') => (S::Shift, None),
-            S::Console | S::Shift | S::Mouse(1) => (S::Outside, None),
-            S::Mouse(left) => (S::Mouse(left - 1), None),
+            S::Console | S::Shift => (S::Outside, None),
+            S::Mouse(_) => (S::Outside, Some(key)),
         }
     }
 }
@@ -426,6 +439,8 @@ mod tests {
         assert_eq!(typed("ab\x1b[1\r", 64), taken("ab"));
         assert_eq!(typed("\x1bO\r", 64), taken(""));
         assert_eq!(typed("a\x1b[M\rb", 64), taken("a"));
+        // A mouse report at column 95 holds DEL, which is no Backspace there.
+        assert_eq!(typed("a\x1b[M \x7f!b\r", 64), taken("ab"));
         // Tab, Ctrl+W, NUL and a C1 control.
         assert_eq!(typed("a\tb\u{17}c\u{0}d\u{85}e\r", 64), taken("abcde"));
         assert_eq!(typed("пароль é\r", 64), taken("пароль é"));

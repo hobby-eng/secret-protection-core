@@ -120,8 +120,9 @@ mod macos {
         std::ffi::CString::new(text).ok()
     }
 
-    /// The terminals among the standard streams, by path; only plain device names, which the
-    /// profile's text can hold as they are.
+    /// The terminals among the standard streams, by path; only plain device names, letters and
+    /// digits with dots, dashes and underscores after the first (`/dev/cu.usbserial-10`), which
+    /// the profile's text can hold as they are.
     fn own_terminals() -> Vec<String> {
         let mut found = Vec::new();
         for stream in [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO] {
@@ -134,7 +135,10 @@ mod macos {
             let path = unsafe { std::ffi::CStr::from_ptr(name.as_ptr()) };
             let path = path.to_string_lossy().into_owned();
             let plain = path.strip_prefix("/dev/").is_some_and(|rest| {
-                !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_alphanumeric())
+                rest.bytes()
+                    .next()
+                    .is_some_and(|b| b.is_ascii_alphanumeric())
+                    && (rest.bytes()).all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
             });
             if plain && !found.contains(&path) {
                 found.push(path);
@@ -201,8 +205,63 @@ mod macos {
         ENTERED.load(Ordering::Relaxed)
     }
 
-    /// PROC_PIDREGIONINFO and struct proc_regioninfo of sys/proc_info.h, which libc lacks.
-    const PROC_PIDREGIONINFO: libc::c_int = 7;
+    /// Whether the access list of the folder held by `descriptor` allows anything to anyone, or
+    /// cannot be read.
+    pub(crate) fn listed_access(descriptor: std::os::fd::RawFd) -> bool {
+        use std::ffi::c_void;
+        unsafe extern "C" {
+            fn acl_get_fd(descriptor: libc::c_int) -> *mut c_void;
+            fn acl_get_entry(
+                list: *mut c_void,
+                which: libc::c_int,
+                entry: *mut *mut c_void,
+            ) -> libc::c_int;
+            fn acl_get_tag_type(entry: *mut c_void, tag: *mut libc::c_int) -> libc::c_int;
+            fn acl_free(object: *mut c_void) -> libc::c_int;
+        }
+        /// ACL_FIRST_ENTRY, ACL_NEXT_ENTRY and ACL_EXTENDED_ALLOW of sys/acl.h.
+        const FIRST: libc::c_int = 0;
+        const NEXT: libc::c_int = -1;
+        const ALLOW: libc::c_int = 1;
+        let errno = || io::Error::last_os_error().raw_os_error();
+        // SAFETY: the calling thread's errno, which this thread alone writes.
+        let clear = || unsafe { *libc::__error() = 0 };
+        clear();
+        // SAFETY: reads the list of an open descriptor; a list returned is freed below.
+        let list = unsafe { acl_get_fd(descriptor) };
+        if list.is_null() {
+            // ENOENT: no list at all.
+            return errno() != Some(libc::ENOENT);
+        }
+        let mut which = FIRST;
+        let allows = loop {
+            let mut entry = ptr::null_mut();
+            clear();
+            // SAFETY: the list read above; the call points `entry` at one of its entries.
+            if unsafe { acl_get_entry(list, which, &mut entry) } != 0 {
+                // EINVAL past the last entry.
+                break errno() != Some(libc::EINVAL);
+            }
+            let mut tag = 0;
+            // SAFETY: an entry of the list, which lives until the list is freed.
+            if unsafe { acl_get_tag_type(entry, &mut tag) } != 0 || tag == ALLOW {
+                break true;
+            }
+            which = NEXT;
+        };
+        // SAFETY: frees the list read above, once.
+        unsafe { acl_free(list) };
+        allows
+    }
+
+    /// PROC_PIDREGIONPATHINFO and struct proc_regionwithpathinfo of sys/proc_info.h, which libc
+    /// lacks: a region, and the file it maps, left zero when it maps none.
+    const PROC_PIDREGIONPATHINFO: libc::c_int = 8;
+    #[repr(C)]
+    struct RegionWithPath {
+        region: RegionInfo,
+        file: libc::vnode_info_path,
+    }
     #[repr(C)]
     struct RegionInfo {
         protection: u32,
@@ -229,14 +288,17 @@ mod macos {
     }
     /// PROC_REGION_SUBMAP of sys/proc_info.h.
     const PROC_REGION_SUBMAP: u32 = 1;
+    /// SM_COW and SM_EMPTY of mach/vm_region.h: writes go to copies, or nothing is mapped yet.
+    const SM_COW: u32 = 1;
+    const SM_EMPTY: u32 = 3;
     /// SM_SHARED, SM_TRUESHARED and SM_SHARED_ALIASED of mach/vm_region.h.
     const SHARED_MODES: [u32; 3] = [4, 5, 7];
 
     pub(super) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
-        let size = libc::c_int::try_from(std::mem::size_of::<RegionInfo>()).ok()?;
+        let size = libc::c_int::try_from(std::mem::size_of::<RegionWithPath>()).ok()?;
         // SAFETY: getpid takes nothing and only answers.
         let pid = unsafe { libc::getpid() };
-        let heap = Box::new(0u8);
+        let heap = std::hint::black_box(Box::new(0u8));
         let landmarks = [
             shared_mappings as *const () as usize as u64,
             &raw const size as usize as u64,
@@ -246,40 +308,52 @@ mod macos {
         let mut found = Vec::new();
         let mut address = 0u64;
         loop {
-            let mut info = std::mem::MaybeUninit::<RegionInfo>::zeroed();
+            let mut info = std::mem::MaybeUninit::<RegionWithPath>::zeroed();
             // SAFETY: the call writes at most `size` bytes, the size of the struct given.
             let got = unsafe {
                 libc::proc_pidinfo(
                     pid,
-                    PROC_PIDREGIONINFO,
+                    PROC_PIDREGIONPATHINFO,
                     address,
                     info.as_mut_ptr().cast(),
                     size,
                 )
             };
             if got == 0 {
-                break;
+                // EINVAL: no region at or after the address, the end; any other error leaves
+                // the walk unread.
+                if io::Error::last_os_error().raw_os_error() == Some(libc::EINVAL) {
+                    break;
+                }
+                return None;
             }
             if got != size {
                 return None;
             }
             // SAFETY: zeroed, then filled whole by the call that returned its size.
-            let info = unsafe { info.assume_init() };
-            let end = info.address.checked_add(info.size)?;
+            let RegionWithPath { region, file } = unsafe { info.assume_init() };
+            let end = region.address.checked_add(region.size)?;
             for (landmark, seen) in landmarks.iter().zip(&mut seen) {
-                *seen |= (info.address..end).contains(landmark);
+                *seen |= (region.address..end).contains(landmark);
             }
-            // A MAP_SHARED region that this process alone maps reads as private, but keeps
-            // VM_INHERIT_SHARE, which mmap gives it. A submap, as the system's shared library
-            // cache is mapped, is no mapping of the program's (PROC_REGION_SUBMAP).
-            let shared = SHARED_MODES.contains(&info.share_mode)
-                || info.inheritance == libc::VM_INHERIT_SHARE as u32;
-            let shared = shared && info.flags & PROC_REGION_SUBMAP == 0;
-            if shared && info.max_protection & libc::VM_PROT_WRITE as u32 != 0 {
+            let path: Vec<u8> = (file.vip_path.as_flattened().iter())
+                .map(|&unit| u8::from_ne_bytes(unit.to_ne_bytes()))
+                .take_while(|&byte| byte != 0)
+                .collect();
+            let maps_file = file.vip_vi.vi_type != 0 || !path.is_empty();
+            // Writes reach a mapped file unless they go to copies: whatever the share mode,
+            // which reads as private while this process alone maps it. Memory of no file is
+            // shared when its mode says so, or when a child of fork would share it. A submap,
+            // as the system's shared library cache is mapped, is no mapping of the program's.
+            let shared = SHARED_MODES.contains(&region.share_mode)
+                || region.inheritance == libc::VM_INHERIT_SHARE as u32
+                || (maps_file && region.share_mode != SM_COW && region.share_mode != SM_EMPTY);
+            let shared = shared && region.flags & PROC_REGION_SUBMAP == 0;
+            if shared && region.max_protection & libc::VM_PROT_WRITE as u32 != 0 {
                 found.push(crate::SharedMapping {
-                    start: usize::try_from(info.address).ok()?,
-                    length: usize::try_from(info.size).ok()?,
-                    name: region_name(pid, info.address),
+                    start: usize::try_from(region.address).ok()?,
+                    length: usize::try_from(region.size).ok()?,
+                    name: String::from_utf8_lossy(&path).into_owned(),
                 });
             }
             if end <= address {
@@ -289,17 +363,6 @@ mod macos {
         }
         drop(heap);
         seen.iter().all(|&seen| seen).then_some(found)
-    }
-
-    /// The path of the file a region maps, or nothing.
-    fn region_name(pid: libc::c_int, address: u64) -> String {
-        let mut name = [0u8; libc::PATH_MAX as usize];
-        // SAFETY: the call writes at most the buffer's length into it.
-        let length = unsafe {
-            libc::proc_regionfilename(pid, address, name.as_mut_ptr().cast(), name.len() as u32)
-        };
-        let length = usize::try_from(length).unwrap_or(0).min(name.len());
-        String::from_utf8_lossy(&name[..length]).into_owned()
     }
 
     /// The real paths of `folders`, for the profile, or `None` when one is no longer the new,
@@ -359,18 +422,37 @@ mod macos {
             (false, true) => Outcome::Unknown,
             (_, false) => Outcome::Refused,
         };
-        (
-            outcome(network_refused()),
-            outcome(file_writes_refused()),
-            granted,
-        )
+        let files = file_writes_refused(folders).map_or(Outcome::Unknown, outcome);
+        (outcome(network_refused()), files, granted)
     }
 
-    /// Probes exclusive creation in the temporary directory. An existing file is never opened
-    /// or truncated. After successful creation, cleanup attempts to unlink the probe path.
-    fn file_writes_refused() -> bool {
-        let path =
-            std::env::temp_dir().join(format!("secret-protection-core-{}", std::process::id()));
+    /// Probes exclusive creation in the temporary directory, or in /private/tmp when that lies
+    /// beneath a granted folder; `None` when both do. An existing file is never opened or
+    /// truncated. After successful creation, cleanup attempts to unlink the probe path.
+    fn file_writes_refused(folders: &[String]) -> Option<bool> {
+        // As the sandbox may compare names: without regard to letter case.
+        let granted = |place: &std::path::Path| {
+            let place = std::fs::canonicalize(place)
+                .unwrap_or_else(|_| place.to_owned())
+                .to_string_lossy()
+                .to_lowercase();
+            (folders.iter())
+                .any(|folder| std::path::Path::new(&place).starts_with(folder.to_lowercase()))
+        };
+        let place = [std::env::temp_dir(), "/private/tmp".into()]
+            .into_iter()
+            .find(|place| !granted(place))?;
+        // A name no other user can take first, as /private/tmp is everyone's.
+        let mut random = [0u8; 8];
+        // SAFETY: getentropy fills the 8 bytes given, well within its 256.
+        if unsafe { libc::getentropy(random.as_mut_ptr().cast(), random.len()) } != 0 {
+            return None;
+        }
+        let path = place.join(format!(
+            "secret-protection-core-{}-{:016x}",
+            std::process::id(),
+            u64::from_ne_bytes(random)
+        ));
         let made = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -378,9 +460,10 @@ mod macos {
         match made {
             Ok(_) => {
                 let _ = std::fs::remove_file(&path);
-                false
+                Some(false)
             }
-            Err(error) => error.kind() == io::ErrorKind::PermissionDenied,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => None,
+            Err(error) => Some(error.kind() == io::ErrorKind::PermissionDenied),
         }
     }
 
@@ -396,9 +479,13 @@ mod macos {
     }
 }
 
-/// The shared mappings the process can write, region by region from the kernel: shared modes
-/// whose highest protection allows writing. `None` when the walk cannot be read whole, which it
-/// checks by finding the regions of this function's code, its stack and the heap. Not on iOS.
+#[cfg(target_os = "macos")]
+pub(crate) use macos::listed_access;
+
+/// The shared mappings the process can write, region by region from the kernel: files mapped
+/// other than copy-on-write, and memory shared by its mode or inheritance, whose highest
+/// protection allows writing. `None` when the walk cannot be read whole: an error other than its
+/// end, or no region of this function's code, its stack or the heap. Not on iOS.
 pub(crate) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
     #[cfg(target_os = "macos")]
     return macos::shared_mappings();
@@ -429,7 +516,8 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         }
         (P::NoFileChanges, O::Refused) => "a new file was not refused",
         (P::NoFileChanges, O::Unknown) => {
-            "a new file was refused, but this crate's sandbox profile is not in"
+            "a new file was refused, but this crate's sandbox profile is not in; or no place \
+             to try one lies outside the granted folders, or its name was taken"
         }
         (P::FolderWrites, O::Confirmed) => {
             "this call put the sandbox in with a write rule beneath each folder"

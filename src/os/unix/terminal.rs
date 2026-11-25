@@ -54,7 +54,7 @@ impl HiddenTerminal {
             .filter(|&descriptor| terminal_for(descriptor, libc::O_RDONLY));
         let output = writable
             .clone()
-            .find(|&descriptor| device(descriptor) == device(input))
+            .find(|&descriptor| device(descriptor).is_some_and(|own| Some(own) == device(input)))
             .or_else(|| writable.clone().next());
         Self::on(input, output)
     }
@@ -82,7 +82,11 @@ impl HiddenTerminal {
         terminal.draining = Some(hidden);
         // Keys waiting now, which the terminal may have shown or another program put in, are no
         // part of the line: read and dropped without waiting, those still on their way included.
-        terminal.drain();
+        if !terminal.drain() {
+            return Err(io::Error::other(
+                "the input waiting before the reading could not be dropped; nothing was read",
+            ));
+        }
         hidden.c_cc[libc::VMIN] = 1;
         set(input, &hidden)?;
         switched(input, 1)?;
@@ -135,33 +139,47 @@ impl HiddenTerminal {
     /// Puts back the settings it found, once. What is left after Enter, such as the rest of a
     /// pasted text, is read and dropped first, under the hidden settings whatever another program
     /// set meanwhile, so that the next reader, often the shell, does not take it.
+    /// The drain reads only under settings read back as not waiting, as a read in line-editing
+    /// mode would wait for a line; the settings put back are read back too. Either failing is an
+    /// error, after the settings were put back as far as the terminal took them.
     pub(crate) fn restore(&mut self) -> io::Result<()> {
         if std::mem::replace(&mut self.restored, true) {
             return Ok(());
         }
-        if let Some(draining) = self.draining
-            && set(self.input, &draining).is_ok()
-        {
-            self.drain();
+        let drained = self.draining.is_none_or(|draining| {
+            set(self.input, &draining).is_ok() && switched(self.input, 0).is_ok() && self.drain()
+        });
+        set(self.input, &self.original)?;
+        if !same(&settings(self.input)?, &self.original) {
+            return Err(io::Error::other(
+                "the terminal did not take back its settings",
+            ));
         }
-        set(self.input, &self.original)
+        if !drained {
+            return Err(io::Error::other(
+                "the input left after the reading could not be dropped",
+            ));
+        }
+        Ok(())
     }
 
-    /// Reads and drops up to [`DRAINED`] bytes, with reads that do not wait (VMIN 0). On Linux
-    /// such a read first takes in the input still on its way to the terminal.
-    fn drain(&mut self) {
+    /// Reads and drops up to [`DRAINED`] bytes, with reads that do not wait (VMIN 0), and says
+    /// whether it reached the end of what was waiting. On Linux such a read first takes in the
+    /// input still on its way to the terminal.
+    fn drain(&mut self) -> bool {
         let mut sink = Zeroizing::new([0u8; 256]);
         let mut left = DRAINED;
         while left > 0 {
             // SAFETY: read writes at most the buffer's length into it, which lives for the call.
             let read = unsafe { libc::read(self.input, sink.as_mut_ptr().cast(), sink.len()) };
             match usize::try_from(read) {
-                Ok(0) => break,
+                Ok(0) => return true,
                 Ok(read) => left = left.saturating_sub(read),
                 Err(_) if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
-                Err(_) => break,
+                Err(_) => return false,
             }
         }
+        false
     }
 }
 
@@ -190,10 +208,25 @@ fn switched(descriptor: RawFd, minimum: libc::cc_t) -> io::Result<()> {
 /// not `O_WRONLY`, writable when it is not `O_RDONLY`.
 fn terminal_for(descriptor: RawFd, refused: libc::c_int) -> bool {
     // SAFETY: isatty and fcntl with F_GETFL take integers and only ask.
-    unsafe {
-        libc::isatty(descriptor) == 1
-            && libc::fcntl(descriptor, libc::F_GETFL) & libc::O_ACCMODE != refused
-    }
+    let (terminal, flags) = unsafe {
+        (
+            libc::isatty(descriptor) == 1,
+            libc::fcntl(descriptor, libc::F_GETFL),
+        )
+    };
+    terminal && flags != -1 && flags & libc::O_ACCMODE != refused
+}
+
+/// Whether two settings agree in every field a terminal keeps: the modes and the control keys.
+fn same(now: &libc::termios, then: &libc::termios) -> bool {
+    (now.c_iflag, now.c_oflag, now.c_cflag, now.c_lflag, now.c_cc)
+        == (
+            then.c_iflag,
+            then.c_oflag,
+            then.c_cflag,
+            then.c_lflag,
+            then.c_cc,
+        )
 }
 
 /// The device behind `descriptor`, which tells one terminal from another.

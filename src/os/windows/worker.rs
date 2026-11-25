@@ -192,11 +192,14 @@ impl WorkerProcess {
         self.close();
         let process = self.process.as_raw_handle().cast();
         let grace = u32::try_from(crate::os::GRACE.as_millis()).unwrap_or(u32::MAX);
-        // SAFETY: waits on, and if need be ends, the process whose handle this value owns.
+        // SAFETY: waits on, and if need be ends, the process whose handle this value owns. A
+        // worker that ended between the wait and the termination refuses it: the second wait
+        // decides.
         unsafe {
-            WaitForSingleObject(process, grace) == WAIT_OBJECT_0
-                || (TerminateProcess(process, 1) != 0
-                    && WaitForSingleObject(process, grace) == WAIT_OBJECT_0)
+            WaitForSingleObject(process, grace) == WAIT_OBJECT_0 || {
+                TerminateProcess(process, 1);
+                WaitForSingleObject(process, grace) == WAIT_OBJECT_0
+            }
         }
     }
 }
@@ -364,6 +367,15 @@ fn accept(
     use windows_sys::Win32::System::Threading::WaitForSingleObject;
     let pipe: HANDLE = pipe.as_raw_handle().cast();
     loop {
+        // Checked on every turn, also after another process was put off: one that keeps taking
+        // the pipe holds the start no longer than the deadline or the worker's life.
+        // SAFETY: asks, without waiting, whether the worker has ended.
+        if unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0 {
+            return Err(io::Error::other("the worker did not open its pipe"));
+        }
+        if passed(deadline) {
+            return Err(late());
+        }
         // SAFETY: the pipe does not wait, so the call returns at once; the error is its own.
         // Such a pipe answers yes only to say that it listens again after a client was put off.
         let (listens, error) =
@@ -383,13 +395,8 @@ fn accept(
             }
             continue;
         }
-        // SAFETY: asks, without waiting, whether the worker has ended.
-        let ended = unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0;
-        if ended || !(listens || error == ERROR_PIPE_LISTENING) {
+        if !(listens || error == ERROR_PIPE_LISTENING) {
             return Err(io::Error::other("the worker did not open its pipe"));
-        }
-        if passed(deadline) {
-            return Err(late());
         }
         std::thread::sleep(crate::os::STEP);
     }

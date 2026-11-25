@@ -67,7 +67,8 @@ pub struct OpenChannels {
 impl OpenChannels {
     /// `Ok` when the look was whole and found no descriptor beyond `expected` and no shared
     /// mapping: the check to make after isolation, before a secret is read, as no new channel can
-    /// open then. Else what was unexpected, with `complete` as found.
+    /// open then. Else what was unexpected, with `complete` as found. Numbers only, of one moment
+    /// and, on Linux, of the calling thread's table: check an expected descriptor by its purpose.
     pub fn only(&self, expected: &[i32]) -> Result<(), Self> {
         let unexpected = Self {
             channels: (self.channels.iter())

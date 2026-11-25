@@ -40,6 +40,43 @@ pub(crate) fn generation() -> usize {
     GENERATION.load(Ordering::Relaxed)
 }
 
+/// What holds a [`mark`]: 64 bits where the target has them, else one word.
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    target_has_atomic = "64"
+))]
+pub(crate) type AtomicMark = std::sync::atomic::AtomicU64;
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    not(target_has_atomic = "64")
+))]
+pub(crate) type AtomicMark = AtomicUsize;
+
+/// This process told from the one it was forked from, never 0: its number and its fork count,
+/// so that a child differs where the fork handler ran, where it could not (a raw `clone`), and
+/// where a PID namespace of its own gives it its parent's number. Without 64-bit atomics the
+/// count alone.
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    target_has_atomic = "64"
+))]
+pub(crate) fn mark() -> u64 {
+    watched();
+    // SAFETY: getpid takes nothing and only answers.
+    let process = unsafe { libc::getpid() }.unsigned_abs();
+    let count = u64::try_from(generation()).unwrap_or(u64::MAX) & 0xffff_ffff;
+    u64::from(process) << 32 | count
+}
+
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    not(target_has_atomic = "64")
+))]
+pub(crate) fn mark() -> usize {
+    watched();
+    generation().wrapping_add(1).max(1)
+}
+
 /// Aborts before a continuing child can borrow its parent's mapping.
 pub(crate) fn foreign() -> ! {
     const TEXT: &[u8] =

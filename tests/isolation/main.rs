@@ -74,6 +74,11 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("folders-then-threads") => folders::folders_then_threads_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("sibling-then-folders") => folders::sibling_then_folders_role(),
         Ok("idle") => idle(),
         #[cfg(windows)]
         Ok("impersonating-sibling") => windows::an_impersonating_sibling_keeps_its_own_integrity(),
@@ -381,7 +386,14 @@ fn the_channels_a_process_holds_are_listed_by_kind() {
     let (socket, _other) = std::os::unix::net::UnixStream::pair().unwrap();
     let (reader, _writer) = std::io::pipe().unwrap();
     let open = protect::open_channels().unwrap();
-    assert!(open.complete, "{open:?}");
+    // Shared memory is counted on Linux, Android and macOS; elsewhere the inventory says it is
+    // incomplete.
+    let counted = cfg!(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos"
+    ));
+    assert_eq!(open.complete, counted, "{open:?}");
     let kind = |descriptor: i32| {
         let found = open
             .channels

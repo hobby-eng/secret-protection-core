@@ -353,12 +353,22 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     // No worker keeps a controlling terminal: through one, input it typed would reach the shell
     // as the user's own (TIOCSTI). A worker on the terminal has it as standard error.
     clean &= crate::os::leave_terminal();
+    // A worker isolates itself alone, at its start: no TSYNC, and on Linux one thread as the
+    // kernel counts them, since another thread could hold a descriptor table the census misses.
+    let options = Options {
+        all_threads: false,
+        ..Options::from_bits(options)
+    };
+    #[cfg(target_os = "linux")]
+    {
+        clean &= crate::os::one_thread();
+    }
     #[cfg(windows)]
-    let Ok(isolation) = streams.enter(Options::from_bits(options)) else {
+    let Ok(isolation) = streams.enter(options) else {
         return true;
     };
     #[cfg(not(windows))]
-    let isolation = Isolation::enter_with(Options::from_bits(options));
+    let isolation = Isolation::enter_with(options);
     let mut report = [0; REPORT_BYTES];
     report[..Protection::COUNT].copy_from_slice(&isolation.to_bytes());
     report[Protection::COUNT] = u8::from(clean);

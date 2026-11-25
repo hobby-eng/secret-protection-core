@@ -1,3 +1,4 @@
+// long: pages, access lists, mitigations and integrity of one Windows process, read whole.
 //! Windows allocations use `VirtualAlloc`. Each region records whether `VirtualLock` and
 //! registration with Windows Error Reporting succeeded. This module also implements process
 //! isolation and console output.
@@ -29,7 +30,7 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     ACE_HEADER, ACL, DACL_SECURITY_INFORMATION, GetAce, GetLengthSid, GetSecurityDescriptorDacl,
-    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation,
+    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, IsValidSid,
     PROTECTED_DACL_SECURITY_INFORMATION, SECURITY_ATTRIBUTES, SID_AND_ATTRIBUTES,
     SetTokenInformation, TOKEN_ADJUST_DEFAULT, TOKEN_DEFAULT_DACL, TOKEN_MANDATORY_LABEL,
     TOKEN_QUERY, TokenCapabilities, TokenDefaultDacl, TokenIntegrityLevel, TokenIsAppContainer,
@@ -108,7 +109,7 @@ impl Pages {
     /// separately through Windows Error Reporting registrations.
     pub(crate) fn work_area(bytes: usize) -> Option<Self> {
         let start = commit(bytes)?;
-        let raised = if move_working_set(bytes.cast_signed()) {
+        let raised = if isize::try_from(bytes).is_ok_and(move_working_set) {
             bytes
         } else {
             0
@@ -151,8 +152,10 @@ impl Drop for Pages {
         // SAFETY: the reservation, guard pages included, belongs to this value alone and nothing
         // borrows it any more.
         unsafe { VirtualFree(start.wrapping_sub(page_size()).cast(), 0, MEM_RELEASE) };
-        if self.raised > 0 {
-            move_working_set(-self.raised.cast_signed());
+        if let Ok(raised) = isize::try_from(self.raised)
+            && raised > 0
+        {
+            move_working_set(-raised);
         }
     }
 }
@@ -941,10 +944,13 @@ fn integrity_of(token: HANDLE) -> Option<u32> {
     if !read {
         return None;
     }
-    // SAFETY: the call filled the buffer with a label whose SID lies inside it; the SID's count
-    // of sub-authorities names the last one.
+    // SAFETY: the call filled the buffer with a label whose SID lies inside it, checked to be a
+    // well-formed SID; its count of sub-authorities names the last one.
     unsafe {
         let sid = (*buffer.as_ptr().cast::<TOKEN_MANDATORY_LABEL>()).Label.Sid;
+        if sid.is_null() || IsValidSid(sid) == 0 {
+            return None;
+        }
         let last = u32::from(*GetSidSubAuthorityCount(sid)).checked_sub(1)?;
         Some(*GetSidSubAuthority(sid, last))
     }

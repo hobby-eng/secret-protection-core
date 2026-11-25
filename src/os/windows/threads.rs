@@ -115,14 +115,13 @@ pub(super) fn pinned_integrity(
         pinned.remove(&id);
         return Some(super::thread_integrity(current));
     }
-    let handle = pinned.get(&id)?.as_raw_handle().cast();
-    // SAFETY: the map owns the handle, and a zero timeout never blocks.
+    let pinned_thread = pinned.remove(&id)?;
+    let handle = pinned_thread.as_raw_handle().cast();
+    // SAFETY: the handle is owned here, and a zero timeout never blocks.
     if unsafe { WaitForSingleObject(handle, 0) } != WAIT_TIMEOUT {
         return None;
     }
-    let level = super::thread_integrity(handle);
-    pinned.remove(&id);
-    Some(level)
+    Some(super::thread_integrity(handle))
 }
 
 fn field<const N: usize>(record: &[u8], offset: usize) -> Option<[u8; N]> {

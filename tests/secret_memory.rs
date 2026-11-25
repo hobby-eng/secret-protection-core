@@ -1,11 +1,9 @@
 //! Where the pages of a secret and of a work area lie, as the system reports them. The program has a
-//! `main` of its own (`harness = false`), so that the counting allocator sees no allocation of
-//! another thread; a process under a low lock limit, which may end by a signal, is a child process
-//! that it starts again in a role.
+//! `main` of its own (`harness = false`): a process under a low lock limit, which may end by a
+//! signal, is a child process that it starts again in a role.
 #![allow(
     unsafe_code,
-    reason = "a global allocator, and the system calls that tell where pages lie and set the lock \
-              limit"
+    reason = "the system calls that tell where pages lie and set the lock limit"
 )]
 #![allow(
     clippy::print_stdout,
@@ -22,35 +20,9 @@
 mod support;
 use support::run;
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use secret_protection_core::Secret;
 #[cfg(not(target_arch = "wasm32"))]
 use secret_protection_core::WorkArea;
-
-/// The system's allocator, counting the allocations it makes.
-struct Counting;
-
-static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
-
-// SAFETY: every call goes to the system's allocator unchanged; reallocation and zeroed allocation
-// go through `alloc`, so they are counted too.
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        // SAFETY: the caller keeps the contract of `GlobalAlloc::alloc`, which `System` needs.
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // SAFETY: as for `alloc`.
-        unsafe { System.dealloc(ptr, layout) }
-    }
-}
-
-#[global_allocator]
-static ALLOCATOR: Counting = Counting;
 
 /// AddressSanitizer asks the program for its options. Its leak check needs ptrace, which an
 /// isolated process refuses, and a worker gets no environment to turn it off in.

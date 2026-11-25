@@ -323,15 +323,15 @@ fn main() {
         return;
     }
     #[cfg(target_os = "linux")]
-    run("a thread-scoped worker is refused before a request", || {
-        let options = Options::new().refuse_dynamic_code().microsoft_signed_only();
-        let refused = Worker::start(options, &[]).unwrap_err();
-        let WorkerError::Missing(missing) = refused else {
-            panic!("unexpected refusal: {refused}");
-        };
-        assert_eq!(missing.missing, [Protection::WholeProcess]);
-        assert!(!missing.isolation.whole_process);
-    });
+    run(
+        "a worker with another thread at its start is refused before a request",
+        || {
+            // That thread could hold a descriptor table of its own, which no census reads.
+            let options = Options::new().refuse_dynamic_code().microsoft_signed_only();
+            let refused = Worker::start(options, &[]).unwrap_err();
+            assert!(matches!(refused, WorkerError::Unclean), "{refused}");
+        },
+    );
     run(
         "a worker answers what it is asked, isolated",
         a_worker_answers_isolated,

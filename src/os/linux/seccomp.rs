@@ -225,6 +225,9 @@ const LOCK_COMMANDS: [u32; 6] = [6, 7, 37, 38, 1024, 1040];
 /// F_SETOWN, F_SETSIG and F_SETOWN_EX: with O_ASYNC the kernel signals the owner they name, which
 /// can be any process of the user, without a signal call.
 const OWNER_COMMANDS: [u32; 3] = [8, 10, 15];
+/// F_SET_RW_HINT and F_SET_FILE_RW_HINT (F_LINUX_SPECIFIC_BASE + 12 and + 14), which set the
+/// write-life hint of an inode, refused always: a change of a file that `NoFileChanges` excludes.
+const RW_HINT_COMMANDS: [u32; 2] = [1036, 1038];
 /// F_SETFL, which sets O_ASYNC: on a terminal the kernel then makes the terminal's foreground
 /// group the owner by itself, another process group.
 const SET_FLAGS: u32 = 4;
@@ -337,8 +340,9 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
         program.extend(answer_if(IF_EQUAL, number, REFUSE));
     }
     program.extend(folder_rules(options & FOLDERS != 0));
-    // One block for fcntl, as its last answer allows every command it does not name.
-    let mut refused_commands = Vec::new();
+    // One block for fcntl, as its last answer allows every command it does not name. The write
+    // hints change the inode through any descriptor, one open for reading too.
+    let mut refused_commands = RW_HINT_COMMANDS.to_vec();
     if options & FILE_LOCKS != 0 {
         program.extend(answer_if(IF_EQUAL, calls::FLOCK, REFUSE));
         refused_commands.extend(LOCK_COMMANDS);
@@ -510,6 +514,33 @@ pub(super) fn held() -> Option<u32> {
 /// thread of the process at once (TSYNC), and whether that went through: a thread whose filter
 /// the caller's does not descend from refuses it, and the filter then goes onto the calling
 /// thread alone, when it is `needed` there.
+/// Puts a filter that allows every call onto every thread at once (TSYNC), after which every
+/// thread's filters descend from the calling thread's. False, with nothing put in anywhere, when
+/// a thread holds a filter the caller's does not descend from.
+#[cfg(target_os = "linux")]
+pub(super) fn share_filters() -> bool {
+    let mut allow = [libc::sock_filter {
+        code: 0x06, // BPF_RET | BPF_K
+        jt: 0,
+        jf: 0,
+        k: libc::SECCOMP_RET_ALLOW,
+    }];
+    let filter = libc::sock_fprog {
+        len: 1,
+        filter: allow.as_mut_ptr(),
+    };
+    // SAFETY: the filter points to one instruction that lives for the call; the kernel copies
+    // it, or on a refusal takes nothing.
+    unsafe {
+        libc::syscall(
+            libc::SYS_seccomp,
+            libc::SECCOMP_SET_MODE_FILTER,
+            libc::SECCOMP_FILTER_FLAG_TSYNC,
+            &raw const filter,
+        ) == 0
+    }
+}
+
 pub(super) fn install(options: u32, sync: bool, needed: bool) -> (Option<u32>, bool) {
     // SAFETY: getpid takes nothing and touches no memory.
     let own = unsafe { libc::getpid() };

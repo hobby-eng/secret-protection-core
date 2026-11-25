@@ -44,7 +44,7 @@ A buffer wipe cannot reach copies held by a text field, clipboard or caller-owne
 
 On Linux, for example, a desktop application can keep its file picker and network connections in the main process while a worker checks a password. The parent can require the worker to block new sockets and refuse to open files for writing. If the library cannot confirm those restrictions for the whole worker process, startup fails before the parent sends the password.
 
-To guard the current process, call `Isolation::enter_requiring` before reading a secret. The report records which restrictions the OS confirmed and whether each applies to the calling thread or the whole process. A socket opened before isolation can still be usable. A program that saves files after it has read a secret can make a new folder with `WritableFolder::create` and enter with `Isolation::enter_with_folders`, which lets it write there and nowhere else; `OpenChannels::only` then checks that nothing else made before isolation, such as a socket or shared memory, is still open.
+To guard the current process, call `Isolation::enter_requiring` before reading a secret. The report records which restrictions the OS confirmed and whether each applies to the calling thread or the whole process. A socket opened before isolation can still be usable. A program that saves files after it has read a secret can make a new folder with `WritableFolder::create` and enter with `Isolation::enter_with_folders`, which lets it write there and nowhere else; `OpenChannels::only` then checks that, as the calling thread sees it, no descriptor beyond the ones it names and no writable shared memory is still open.
 
 A GUI can send individual keystrokes to a worker that holds the password in a `SecretLine`. The GUI sees each key event and needs only the character count back to draw the password field. On Linux and macOS, a worker on the terminal reads the terminal on its standard error, so the password bypasses the parent. The worker has no controlling terminal and so cannot type into the shell. There `read_hidden_line` reads the password with the echo off and restores the terminal after.
 
@@ -59,7 +59,7 @@ A GUI can send individual keystrokes to a worker that holds the password in a `S
 | Windows     | Native buffers with working-set locking, exclusions from Windows Error Reporting, and an AppContainer worker without network capabilities.    |
 | WebAssembly | Fixed-capacity heap buffers that wipe their own storage on drop. The browser controls paging and process isolation.                           |
 
-Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows, and a release waits for all of them. CI checks that the Android, iOS and WebAssembly targets compile. The last coverage measurement, of `e7b0d38` on 2026-11-15, ran 84 checks on Linux x86-64 and covered **95.18%** of the measured source lines (2,471 of 2,596). [Coverage report](docs/COVERAGE.md)
+Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows, and a release waits for all of them. CI checks that the Android, iOS and WebAssembly targets compile. The last coverage measurement, of the 0.2.0 source on 2026-11-25, ran 112 checks on Linux x86-64 and covered **93.78%** of the measured source lines (3,601 of 3,840). [Coverage report](docs/COVERAGE.md)
 
 ## Security reviews
 

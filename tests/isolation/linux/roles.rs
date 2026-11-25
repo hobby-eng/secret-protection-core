@@ -306,10 +306,10 @@ pub(crate) fn unlayered_role() {
     assert_eq!(Isolation::enter(), isolation);
 }
 
-/// The `unlisted` role: the kernel refuses to list directories, so the threads can be
-/// neither counted nor looked at for a tracer. Nothing about them then counts as proven:
-/// the reading of memory is unknown, the process is not taken for one thread, and a program
-/// that requires the protection stops.
+/// The `unlisted` role: the kernel refuses to list directories, so no thread can be looked at
+/// for a tracer: the reading of memory is unknown, and a program that requires the protection
+/// stops. The count of threads comes from `/proc/self/status`, which needs no listing, so the
+/// process is still taken for the one thread it is.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub(crate) fn unlisted_role() {
     use secret_protection_core::{Options, Outcome, Protection};
@@ -320,7 +320,7 @@ pub(crate) fn unlisted_role() {
         Outcome::Unknown,
         "{isolation:?}"
     );
-    assert!(!isolation.whole_process, "{isolation:?}");
+    assert!(isolation.whole_process, "{isolation:?}");
     let required = [Protection::NoCoreDumps, Protection::NoMemoryReading];
     let missing = Isolation::enter_requiring(Options::new(), &required).unwrap_err();
     assert_eq!(missing.missing, [Protection::NoMemoryReading]);
@@ -341,6 +341,12 @@ pub(crate) fn speculation_role(readable: bool) {
         let isolation = Isolation::enter();
         speculation_is_limited_as_reported(isolation);
         if isolation.speculation_limited {
+            // Limited without a call, so a refused one changes nothing.
+            eprintln!(
+                "{}the processor needs no speculation limit, or it is on for good; a refused \
+                 limit was not exercised",
+                crate::support::NOT_CHECKED
+            );
             Outcome::Confirmed
         } else {
             Outcome::Refused

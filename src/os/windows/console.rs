@@ -29,6 +29,8 @@ pub(crate) struct HiddenTerminal {
     output: Option<HANDLE>,
     original: CONSOLE_MODE,
     restored: bool,
+    /// Whether the switch read back, after which input is dropped on the way out too.
+    switched: bool,
 }
 
 impl HiddenTerminal {
@@ -42,7 +44,7 @@ impl HiddenTerminal {
         if unsafe { SetConsoleMode(input, original & !SWITCHED_OFF) } == 0 {
             return Err(io::Error::last_os_error());
         }
-        let console = Self {
+        let mut console = Self {
             input,
             output: [STD_ERROR_HANDLE, STD_OUTPUT_HANDLE]
                 .into_iter()
@@ -50,16 +52,20 @@ impl HiddenTerminal {
                 .find(|&handle| mode(handle).is_some()),
             original,
             restored: false,
+            switched: false,
         };
         if mode(input).is_none_or(|now| now & SWITCHED_OFF != 0) {
             return Err(io::Error::other(
                 "the console did not turn its echo off; nothing was read",
             ));
         }
+        console.switched = true;
         // The keys waiting now, which the console may have shown, or that another program put
-        // in, are no part of the line.
+        // in, are no part of the line: a console that cannot drop them is refused.
         // SAFETY: the console input handle of this process.
-        unsafe { FlushConsoleInputBuffer(input) };
+        if unsafe { FlushConsoleInputBuffer(input) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
         Ok(console)
     }
 
@@ -135,11 +141,19 @@ impl HiddenTerminal {
         if std::mem::replace(&mut self.restored, true) {
             return Ok(());
         }
-        // SAFETY: the console input handle of this process, and the mode read before the switch.
-        unsafe { FlushConsoleInputBuffer(self.input) };
-        // SAFETY: as above.
+        // SAFETY: the console input handle of this process.
+        let flushed = !self.switched || unsafe { FlushConsoleInputBuffer(self.input) } != 0;
+        // SAFETY: as above, and the mode read before the switch.
         if unsafe { SetConsoleMode(self.input, self.original) } == 0 {
             return Err(io::Error::last_os_error());
+        }
+        if mode(self.input) != Some(self.original) {
+            return Err(io::Error::other("the console did not take back its mode"));
+        }
+        if !flushed {
+            return Err(io::Error::other(
+                "the input left after the reading could not be dropped",
+            ));
         }
         Ok(())
     }

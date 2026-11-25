@@ -10,6 +10,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// names it, which fails closed.
 static OWN: [AtomicUsize; 256] = [const { AtomicUsize::new(0) }; 256];
 
+/// The process the slots belong to, by its mark: a child of `fork` inherits them without the
+/// secrets, which it does not map, and so has none of its own until it makes one.
+static OWNER: crate::os::unix::forks::AtomicMark = crate::os::unix::forks::AtomicMark::new(0);
+
 /// The name the kernel gives memory of `memfd_secret`: a mapping is this crate's only with it
 /// and at a remembered start, as a child of `fork` may map other memory where a secret was.
 const SECRET_NAME: &str = "/secretmem (deleted)";
@@ -17,6 +21,12 @@ const SECRET_NAME: &str = "/secretmem (deleted)";
 #[cfg(target_os = "linux")]
 pub(in crate::os) fn remember(start: NonNull<u8>) {
     let start = start.as_ptr() as usize;
+    let own = crate::os::unix::forks::mark();
+    if OWNER.swap(own, Ordering::AcqRel) != own {
+        for slot in &OWN {
+            slot.store(0, Ordering::Release);
+        }
+    }
     for slot in &OWN {
         if slot
             .compare_exchange(0, start, Ordering::AcqRel, Ordering::Relaxed)
@@ -65,6 +75,7 @@ pub(crate) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
 
 fn own(mapping: &crate::SharedMapping) -> bool {
     mapping.name == SECRET_NAME
+        && OWNER.load(Ordering::Acquire) == crate::os::unix::forks::mark()
         && OWN
             .iter()
             .any(|slot| slot.load(Ordering::Acquire) == mapping.start)

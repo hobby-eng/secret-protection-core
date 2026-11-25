@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-15 covered **95.18%** (2,471 of 2,596 measured source lines). All 84 checks passed (33 unit tests, 20 isolation checks, 9 secret-memory checks and 22 worker checks).
+The Linux x86-64 run on 2026-11-25 covered **93.78%** (3,601 of 3,840 measured source lines). All 112 checks passed (47 unit tests, 32 isolation checks, 9 secret-memory checks and 24 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the working tree based on `e7b0d38fba46e45994cd8e7ecbdda185de9cee70`. The SHA-256 of its measured input manifest is `9503292b73ab2a39ede6083f838ff2715f464c539263a058e7d852b8ba46efc9`. An independent clean run of that commit before the local documentation and diagnostic wording changes also covered 2,471 of 2,596 lines. The current run reported no profile mismatches.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `62ec9e049235c06f28ec69330eb924683e61eeed55187f5af1b4fe21eda5b0c3`. The run reported no profile mismatches.
 
 ## Scope and exclusions
 
@@ -24,7 +24,7 @@ CI also runs tests on Linux ARM64, macOS and Windows. Android, iOS and WebAssemb
 
 ## Reproduce on Linux
 
-From the repository root, in bash, with the pinned toolchain. The workspace laptop runs each Cargo command through `run-capped --`.
+From the repository root, in bash, with the pinned toolchain.
 
 ```sh
 mkdir -p target
@@ -37,24 +37,29 @@ cargo test --locked --offline
 cargo llvm-cov report --summary-only
 ```
 
-`%p` gives each process its own profile. `%c` enables continuous profiling, so child processes can record counters after isolation removes their permission to open files. An exit-only profile can miss those executions.
+`%p` gives each process its own profile. `%c` enables continuous profiling, so child processes can record counters after isolation removes their permission to open files. An exit-only profile can miss those executions. With `%c` each process maps its profile file shared and writable, which the channel check rightly names: the `shared-memory` check leaves that mapping out in a measured build.
 
 For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus `Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`. Sort by repository-relative path in byte order. Hash the resulting manifest of lowercase SHA-256 digests, two spaces, the path, and a newline per entry.
 
 ## Coverage by source file
 
-| File                      | Covered lines | Measured lines | Coverage |
-| ------------------------- | ------------: | -------------: | -------: |
-| `src/channels.rs`         |            40 |             40 |  100.00% |
-| `src/input.rs`            |           137 |            137 |  100.00% |
-| `src/os.rs`               |            66 |             66 |  100.00% |
-| `src/os/linux.rs`         |           479 |            492 |   97.36% |
-| `src/os/linux/seccomp.rs` |           156 |            156 |  100.00% |
-| `src/os/unix.rs`          |           491 |            557 |   88.15% |
-| `src/os/unix/child.rs`    |            63 |             97 |   64.95% |
-| `src/os/unix/forks.rs`    |            17 |             17 |  100.00% |
-| `src/protect.rs`          |           414 |            415 |   99.76% |
-| `src/protect/closed.rs`   |           131 |            132 |   99.24% |
-| `src/protect/options.rs`  |           139 |            139 |  100.00% |
-| `src/stack.rs`            |            98 |             98 |  100.00% |
-| `src/worker.rs`           |           240 |            250 |   96.00% |
+| File                             | Covered lines | Measured lines | Coverage |
+| -------------------------------- | ------------: | -------------: | -------: |
+| `src/channels.rs`                |            54 |             54 |  100.00% |
+| `src/input.rs`                   |           275 |            278 |   98.92% |
+| `src/os.rs`                      |            69 |             69 |  100.00% |
+| `src/os/linux.rs`                |           561 |            580 |   96.72% |
+| `src/os/linux/landlock_layer.rs` |            49 |             49 |  100.00% |
+| `src/os/linux/mappings.rs`       |            69 |             70 |   98.57% |
+| `src/os/linux/seccomp.rs`        |           269 |            272 |   98.90% |
+| `src/os/unix.rs`                 |           317 |            350 |   90.57% |
+| `src/os/unix/child.rs`           |            76 |             97 |   78.35% |
+| `src/os/unix/forks.rs`           |            23 |             23 |  100.00% |
+| `src/os/unix/terminal.rs`        |           232 |            269 |   86.25% |
+| `src/os/unix/worker.rs`          |           314 |            368 |   85.33% |
+| `src/protect.rs`                 |           449 |            450 |   99.78% |
+| `src/protect/closed.rs`          |           131 |            132 |   99.24% |
+| `src/protect/folder.rs`          |           116 |            169 |   68.64% |
+| `src/protect/options.rs`         |           148 |            148 |  100.00% |
+| `src/stack.rs`                   |           168 |            171 |   98.25% |
+| `src/worker.rs`                  |           281 |            291 |   96.56% |

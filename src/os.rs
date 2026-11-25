@@ -10,10 +10,14 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 
+#[cfg(target_os = "macos")]
+pub(crate) use apple::listed_access;
 #[cfg(target_vendor = "apple")]
 pub(crate) use apple::{enter_granting, evidence, shared_mappings};
 #[cfg(not(any(unix, windows)))]
 pub(crate) use heap::Pages;
+#[cfg(target_os = "linux")]
+pub(crate) use linux::one_thread;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) use linux::{enter_granting, evidence, shared_mappings};
 #[cfg(unix)]

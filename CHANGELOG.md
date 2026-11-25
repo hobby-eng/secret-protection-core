@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (unreleased)
+
+### Breaking changes
+
+- `OpenChannels` has a new public field, `shared_mappings`, and is `#[non_exhaustive]`: code that builds it with a struct literal or matches it without `..` no longer compiles. Read its fields, or call `OpenChannels::only`.
+- On Linux a worker with another thread at its start is refused as unclean (`WorkerError::Unclean`), as that thread may hold a descriptor table of its own; before, it was refused for `WholeProcess`, or admitted after an earlier call had put the filter on every thread.
+
+### Changes
 
 - On Windows the worker process and its first thread are created with their restricted access lists. Before, they had the default lists until the worker isolated itself, and another process of the same user could open the worker in that interval.
 - `Worker::start_within` and `Worker::call_within` take a deadline. When it passes, the start or call fails with `TimedOut` and the worker is given up, terminated where a stable handle exists (Windows, Linux with a pidfd), so a worker that stops answering no longer blocks its parent for longer than the deadline and the shutdown wait. `start` and `call` keep waiting without a deadline.
@@ -23,7 +30,15 @@
 - `read_hidden_line` reads a line typed on a terminal (Unix) or console (Windows) into a `SecretLine`, shows none of it and says how the line ended (`LineEnd`). Echo, the terminal's own line editing and its signal keys are off while it reads, as the terminal reports back, and restored after, a failed restore being an error. Input waiting when the reading starts or left when it ends, up to 64 KiB, is dropped, and the 16 KiB of stack below it are wiped. It uses only the standard streams the process holds, so an isolated worker on the terminal reads the line itself.
 - `WritableFolder::create` makes a new private folder before isolation, and `Isolation::enter_with_folders` lets the program write beneath it and nowhere else (`Protection::FolderWrites`): on Linux a Landlock rule beneath each folder, and a filter that then lets new files of mode 0600, folders of mode 0700, links, renames and removals through and still refuses every other change; on macOS a sandbox rule beneath the folder. A folder is granted only while it is still the one made and empty, and only by the first isolation.
 - `OpenChannels` lists the shared memory the process can write (`shared_mappings`), a way out with no descriptor, and `OpenChannels::only` refuses unless the inventory is complete and holds only the named descriptors and no such memory. `OpenChannels` has a new public field.
-- `Options::all_threads` puts the seccomp filter, and from Linux 7.0 the Landlock layer, on every thread of a process that already has other threads when it isolates itself (TSYNC), so that each protection they enforce reaches the whole process; each measure's reach and `whole_process` say how far they went.
+- `Options::all_threads` puts the Landlock layer from Linux 7.0, and with it the seccomp filter, on every thread of a process that already has other threads when it isolates itself (TSYNC), so that each protection they enforce reaches the whole process; each measure's reach and `whole_process` say how far they went. Below Landlock ABI 8 both stay on the calling thread, as the filter's rules count on the layer; a kernel without Landlock puts the filter alone on every thread. A thread that holds a seccomp filter of its own keeps the whole call on the calling thread, as a filter allowing everything, put onto every thread first, finds out. Linux isolation calls run one at a time.
+- Linux counts a process's threads by the kernel's own count in `/proc/self/status`, and a tracer check that listed fewer threads than that is unknown.
+- `with_cleared_stack` also clears the stack when the work panics and unwinds, writes the zeros once, and keeps the work below a cushion of unwritten stack, so that the clearing reaches the top of its frames. WebAssembly clears nothing, as a stack that runs over there has no guard page.
+- `read_hidden_line` reads the terminal's settings back after restoring them and fails when they differ, or when the input waiting before or after the reading could not be dropped; the restore comes before the closing line break, and its error wins over the reading's. On Windows a console that cannot drop its waiting input is refused, and the mode is read back after the restore. A mouse report at column or row 95 no longer counts as Backspace.
+- `WritableFolder::create` checks the folder made before it changes its mode, and on a failure removes it only while it is still that folder. On macOS `is_private` is false when an access list on the folder or above it allows anything to anyone, or when someone else could move the folder or a folder above it, as the sandbox grants a folder by its path.
+- The macOS channel check counts every file mapped writable other than copy-on-write, whatever its share mode or inheritance, and an error of the region walk other than its end leaves the inventory incomplete. The macOS file probe runs outside the granted folders, under a name no other user can guess, and the process's own terminal may have dots, dashes and underscores in its name.
+- A Unix worker start checks its deadline again just before the launch. On Windows the wait for the worker's pipe checks the deadline and the worker on every turn, also after another process was put off.
+- With file changes refused, the Linux filter also refuses `F_SET_RW_HINT` and `F_SET_FILE_RW_HINT`. A child of `fork` no longer leaves out of the channel check memory its parent recorded as its own secret memory.
+- CI runs the stack-clearing tests in the release profile on Linux x86-64 and ARM64.
 
 ## 0.1.1 (2026-11-24)
 

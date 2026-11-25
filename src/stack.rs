@@ -3,10 +3,7 @@
 //! stack, overwritten after it.
 
 use std::fmt;
-use std::hint::black_box;
 use std::io;
-
-use zeroize::Zeroize;
 
 /// What protects the pages of a stack.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -86,13 +83,14 @@ pub const CLEARED_STACK_BYTES: usize = 128 * 1024;
 /// Runs `work` in a frame of its own, then overwrites [`CLEARED_STACK_BYTES`] of the calling
 /// thread's stack below the caller's frame, where `work` and what it called kept their locals:
 /// copies that moves leave behind, and the state of dependencies that never wipe it, such as hash
-/// and block buffers. Best effort: how deep `work` wrote is not measured, and the thread needs that
-/// much free stack. Registers, heap copies and other threads' stacks are left as they are.
+/// and block buffers; also when `work` panics and unwinds. Best effort: how deep `work` wrote is
+/// not measured, and the thread needs that much free stack. What `work` captures and returns
+/// passes through frames above, which stay as they are, and so do registers, heap copies and
+/// other threads' stacks. WebAssembly overwrites nothing (docs/API.md).
 #[inline(never)]
 pub fn with_cleared_stack<T>(work: impl FnOnce() -> T) -> T {
-    let result = run(work);
-    clear_stack();
-    result
+    let _cleared = Cleared::<CLEARED_STACK_BYTES>;
+    below_cushion(work)
 }
 
 /// As [`with_cleared_stack`], with `BYTES` overwritten: for shallow work on a thread that may
@@ -100,9 +98,31 @@ pub fn with_cleared_stack<T>(work: impl FnOnce() -> T) -> T {
 #[cfg(any(unix, windows))]
 #[inline(never)]
 pub(crate) fn with_cleared<const BYTES: usize, T>(work: impl FnOnce() -> T) -> T {
-    let result = run(work);
-    clear::<BYTES>();
-    result
+    let _cleared = Cleared::<BYTES>;
+    below_cushion(work)
+}
+
+/// Overwrites `BYTES` of the stack when it is dropped: after the work returned, and while a
+/// panic unwinds through the frame that holds it, below which the work's frames were.
+struct Cleared<const BYTES: usize>;
+
+impl<const BYTES: usize> Drop for Cleared<BYTES> {
+    fn drop(&mut self) {
+        clear::<BYTES>();
+    }
+}
+
+/// Stack the work's frames keep free below the frame that holds [`Cleared`]: more than the
+/// frames of dropping it take before the cleared bytes start, in an instrumented build too, so
+/// that the clearing reaches the top of the work's frames.
+const CUSHION_BYTES: usize = 2 << 10;
+
+/// Runs `work` below [`CUSHION_BYTES`] of this frame, never written.
+#[inline(never)]
+fn below_cushion<T>(work: impl FnOnce() -> T) -> T {
+    let cushion = [const { std::mem::MaybeUninit::<u8>::uninit() }; CUSHION_BYTES];
+    std::hint::black_box(&cushion);
+    run(work)
 }
 
 #[inline(never)]
@@ -117,50 +137,97 @@ pub fn clear_stack() {
     clear::<CLEARED_STACK_BYTES>();
 }
 
+/// In WebAssembly a stack that runs over writes into the program's other memory with no guard
+/// page to stop it, so nothing is overwritten there.
 #[inline(never)]
 fn clear<const BYTES: usize>() {
-    let mut stack = [0u8; BYTES];
-    // Volatile writes; `black_box` keeps the array, and so the writes, where the frames were.
-    stack.zeroize();
-    black_box(&stack);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use zeroize::Zeroize;
+        // Zeros written once in place into bytes never set before (a slice, as zeroize writes a
+        // whole `MaybeUninit` value through a zeroed copy); `black_box` keeps the array, and so
+        // the writes, where the frames were.
+        let mut stack = [const { std::mem::MaybeUninit::<u8>::uninit() }; BYTES];
+        stack.as_mut_slice().zeroize();
+        std::hint::black_box(&stack);
+    }
 }
 
 #[cfg(test)]
 #[cfg(target_os = "linux")]
 mod tests {
     use super::*;
+    use std::hint::black_box;
 
-    /// After the clearing the stack below the caller holds none of the work; before it, it does,
-    /// which shows that the reading finds what is there.
+    /// After the clearing the stack below the caller holds none of the work. Work left uncleared
+    /// shows that the reading finds what is there; it has a mark of its own, as the clearing
+    /// starts below the frames of `with_cleared_stack` and not where that work was.
     #[test]
     fn a_cleared_stack_holds_none_of_the_work() {
-        /// "SPC_STK!", which nothing else on the stack holds.
+        /// "SPC_STK!" and "SPC_SEE!", which nothing else on the stack holds.
         const MARK: u64 = 0x5350_435f_5354_4b21;
-        #[inline(never)]
-        fn work() -> u64 {
-            let mut words = [MARK; 1024];
-            black_box(&mut words);
-            words[17]
-        }
-        assert_eq!(work(), MARK);
-        assert!(stack_holds(MARK));
-        assert_eq!(with_cleared_stack(work), MARK);
-        assert!(!stack_holds(MARK));
+        const SEEN: u64 = 0x5350_435f_5345_4521;
+        assert_eq!(work(SEEN), !SEEN);
+        assert!(stack_holds(!SEEN));
+        assert_eq!(with_cleared_stack(|| work(MARK)), !MARK);
+        assert!(!stack_holds(!MARK));
     }
 
-    /// Whether the stack below this frame holds `word`, down to twice what is cleared. It is read
-    /// through the kernel, since Rust may not read memory that no value was written to.
+    /// Fills a frame with `mark` and returns its complement, so that only that frame holds it.
     #[inline(never)]
-    fn stack_holds(word: u64) -> bool {
+    fn work(mark: u64) -> u64 {
+        let mut words = [black_box(mark); 1024];
+        black_box(&mut words);
+        !words[17]
+    }
+
+    /// Locals of the closure itself, which an optimized build keeps in the frame that runs it,
+    /// are cleared too.
+    #[test]
+    fn locals_of_the_closure_itself_are_cleared_too() {
+        const MARK: u64 = 0x5350_435f_434c_4f21; // "SPC_CLO!"
+        let result = with_cleared_stack(|| {
+            let mut words = [black_box(MARK); 1024];
+            black_box(&mut words);
+            !words[5]
+        });
+        assert_eq!(result, !MARK);
+        assert!(!stack_holds(!MARK));
+    }
+
+    /// Work that panics leaves the stack cleared all the same, once the panic is caught.
+    #[test]
+    fn a_panic_unwinding_out_of_the_work_clears_the_stack_too() {
+        const MARK: u64 = 0x5350_435f_504e_4321; // "SPC_PNC!"
+        #[inline(never)]
+        fn failing() -> u64 {
+            let mut words = [black_box(MARK); 1024];
+            black_box(&mut words);
+            std::panic::panic_any(!words[3]);
+        }
+        let caught = std::panic::catch_unwind(|| with_cleared_stack(failing));
+        assert_eq!(caught.unwrap_err().downcast_ref::<u64>(), Some(&!MARK));
+        assert!(!stack_holds(!MARK));
+    }
+
+    /// Whether the cleared window below this frame holds the word whose complement is given:
+    /// what is cleared, less a margin for the frames of the clearing itself, as an instrumented
+    /// build makes every frame larger. The word itself is made only after the reading, so that
+    /// neither an argument saved on the stack nor a register saved by a callee puts it in the
+    /// window. It is read through the kernel, since Rust may not read memory no value was
+    /// written to.
+    #[inline(never)]
+    fn stack_holds(complement: u64) -> bool {
         use std::os::unix::fs::FileExt;
         let frame = 0u64;
         let end = black_box(&raw const frame) as u64;
-        let mut below = vec![0u8; 2 * CLEARED_STACK_BYTES];
+        let mut below = vec![0u8; CLEARED_STACK_BYTES - (16 << 10)];
         let start = end - below.len() as u64;
         std::fs::File::open("/proc/self/mem")
             .unwrap()
             .read_exact_at(&mut below, start)
             .unwrap();
+        let word = !black_box(complement);
         let (words, _) = below.as_chunks::<8>();
         words.iter().any(|chunk| u64::from_ne_bytes(*chunk) == word)
     }

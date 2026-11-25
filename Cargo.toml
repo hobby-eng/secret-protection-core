@@ -1,6 +1,6 @@
 [package]
 name = "secret-protection-core"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.99"
 description = "Wipe-on-drop buffers, platform-specific memory protection and isolated worker processes for handling secrets"
@@ -53,8 +53,8 @@ windows-sys = { version = "0.61.2", features = [
   "Wdk_Foundation",
 ] }
 
-# A `main` of their own: the isolation needs a child process of one thread, and the counting
-# allocator a process without other threads.
+# A `main` of their own: the isolation needs a child process of one thread, and the memory checks
+# start themselves again as child processes in a role.
 [[test]]
 name = "isolation"
 harness = false

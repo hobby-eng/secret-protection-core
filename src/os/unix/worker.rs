@@ -32,9 +32,10 @@ impl WorkerProcess {
     /// Spawns this program with piped input and output on Linux and macOS. It receives the
     /// worker setting and, in an instrumented build, the profile output path. A dedicated
     /// launcher thread uses an ordinary stack for spawn implementations that fork.
-    /// With a deadline, nothing is launched once it has passed, and the wait for the launcher
-    /// thread ends there too: a launch that has not returned by then fails with `TimedOut`, and the
-    /// launcher ends its worker (see [`deliver`]).
+    /// With a deadline, nothing is launched once it has passed, checked on entry and again in the
+    /// launcher thread just before the launch, and the wait for the launcher thread ends there
+    /// too: a launch that has not returned by then fails with `TimedOut`, and the launcher ends
+    /// its worker (see [`deliver`]).
     pub(crate) fn start(
         setting: &str,
         terminal: bool,
@@ -80,7 +81,14 @@ impl WorkerProcess {
             .name("worker-wait".into())
             .spawn(move || {
                 let tty = terminal.as_ref().map(AsRawFd::as_raw_fd);
-                let child = spawn(&program, &variables, &streams, tty, false);
+                // Checked again just before the launch, as this thread may start late; the
+                // launch itself still takes its own time.
+                let child =
+                    if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+                        Err(late())
+                    } else {
+                        spawn(&program, &variables, &streams, tty, false)
+                    };
                 drop((streams, terminal));
                 deliver(child, &ready, &done);
             })?;
