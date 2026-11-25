@@ -1,0 +1,1250 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-021",
+  "auditNumber": 21,
+  "date": "2026-11-25",
+  "title": "Pre-release audit of secret-protection-core 0.2.0",
+  "verdict": "FAIL",
+  "completedUtc": "2026-11-25T20:57:49.800840+00:00",
+  "reviewer": {
+    "name": "Codex coordinator and three read-only reviewers",
+    "model": null,
+    "reasoningEffort": null,
+    "specialistScopes": [
+      "Portable API",
+      "Unix and Apple",
+      "Workers and Windows"
+    ]
+  },
+  "snapshot": {
+    "commit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+    "commitComplete": true,
+    "tree": "716715801ae0671e8e8b6619494804b1d0bc8295",
+    "branch": "main",
+    "originMain": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+    "workingTree": "No tracked changes to the baseline; pre-existing untracked AUD-019 harness workspace excluded.",
+    "startedUtc": "2026-11-25T20:49:57.978418+00:00",
+    "trackedFileCount": 127,
+    "sourceFingerprint": "c1b41236c834e48ad8b7fc4d72488adabbc45b819a5b7cc34e4d5a6ad36c1bcb",
+    "coverageFingerprint": "45453f61dbd8261b4f5f375e5433c749f92dff011a51aaab2705aa068e81ffb1"
+  },
+  "scope": [
+    {
+      "area": "Portable API",
+      "files": "src/lib.rs, src/os.rs, src/protect.rs, src/protect/{closed,folder,options}.rs, src/{channels,input,stack,fuzzing}.rs",
+      "operations": "Secret and WorkArea construction, byte access and wipe/drop; ClosedSecret closure/reopening and lock state; isolation entry, all seven options, 19 protection outcomes and reach, required/process-wide checks; WritableFolder identity and privacy; channel census; character/frame encoding, line edit and native input/output; protected stack and current-thread wipe."
+    },
+    {
+      "area": "Unix and Apple",
+      "files": "src/os/{unix,linux,apple}.rs, src/os/linux/{landlock_layer,mappings,seccomp}.rs, src/os/unix/{forks,terminal}.rs",
+      "operations": "Mappings, advice, locks, fork ownership, namespaces, tracer/dump evidence, Landlock, seccomp, signals, macOS sandbox/permissions/census, iOS and Android fallbacks, terminal lifecycle."
+    },
+    {
+      "area": "Workers and Windows",
+      "files": "src/worker.rs, src/os/unix/{child,worker}.rs, src/os/windows.rs, src/os/windows/{console,threads,worker}.rs",
+      "operations": "All seven Worker methods and serve; clean startup, reports, frames, deadlines, errors and late child collection; stable handles; Windows memory and console, process/pipe ACLs, peer checks, mitigations, AppContainer, job limits and effective tokens."
+    },
+    {
+      "area": "Verification code",
+      "files": "tests/isolation/{main,linux,folders,windows}.rs, tests/isolation/linux/{roles,threads}.rs, tests/{secret_memory,worker}.rs, tests/worker/{linux,unix,windows}.rs, tests/support/run.rs, fuzz/",
+      "operations": "All 12 test source files, the three fuzz entry points, unit tests colocated with source, helper roles, partial skips, manifests and lockfiles."
+    },
+    {
+      "area": "Release and user documentation",
+      "files": "Repository root (13 files), docs/{README,API,COVERAGE,TECHNICAL}.md, .github/workflows/{ci,audit,release}.yml",
+      "operations": "Build and package inputs, toolchain and lint configuration, CI pins and workflow gates, licensing, versioning, security promises and support matrix."
+    },
+    {
+      "area": "Prior audits",
+      "files": "docs/audits/ (64 tracked files)",
+      "operations": "Eighteen Markdown/JSON pairs, catalogue and fix register validated as historical records. The 26 historical harness files were inventoried; their old implementations and executions remain historical evidence and were not rerun."
+    }
+  ],
+  "procedureHashes": {
+    "FULL_AUDIT_GUIDE.md": "a50d485b6dd0363689edc00c7b06a55929f32bb27c2cda6524c6a7ba3fec9378",
+    "audits/AUDIT_STANDARD.md": "3cfd02140a9b2a0cb9a330fc734728ba03f42fa0b556e632a9546ea605771b52",
+    "audits/AUDIT_TEMPLATE.md": "a3330c86441a07f6f0dea7c5a6b81a2e7c1ffe6add24f7dc2bf63747bc40a379",
+    "audit-report.schema.json": "989bf3de974d581579c1d1c1e143d5ab9fa232dc70cc8c6f84ad00531ae698fb"
+  },
+  "coverageLedger": [
+    {
+      "checkId": "CHECK-SEC-001",
+      "category": "SEC",
+      "logicalGroup": "Secret ownership",
+      "scope": "Native and WASM buffers, input, callbacks, OS policies, worker boundaries",
+      "method": "Source and suite",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Linux FD transport is outside worker hardening, and the native size invariant is missing."
+    },
+    {
+      "checkId": "CHECK-SEC-002",
+      "category": "SEC",
+      "logicalGroup": "Sandbox and transport",
+      "scope": "Linux/Android, macOS/iOS, Windows, WASM fallback",
+      "method": "Source, native CI and retained V8",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Worker IPC independence and WASM unsupported fallback findings. No browser vault."
+    },
+    {
+      "checkId": "CHECK-SEC-003",
+      "category": "SEC",
+      "logicalGroup": "Egress",
+      "scope": "Seccomp, Landlock, namespace, macOS sandbox, Windows AppContainer",
+      "method": "Source and native CI",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Worker channel remains a host egress/ingress path on Linux. Known remaining descriptors and mappings have separate policies. No provider client."
+    },
+    {
+      "checkId": "CHECK-SEC-004",
+      "category": "SEC",
+      "logicalGroup": "Randomness/authentication",
+      "scope": "Windows local launch nonce and macOS probe name",
+      "method": "Source and native CI",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "BCryptGenRandom with peer checks on the named pipe and macOS getentropy for an exclusive probe name. Both check RNG failure. No encryption, wallet RNG or KDF in SPC."
+    },
+    {
+      "checkId": "CHECK-SEC-005",
+      "category": "SEC",
+      "logicalGroup": "Secret lifecycle",
+      "scope": "Secret, ClosedSecret, WorkArea, stacks, line editing, worker",
+      "method": "Source, local and native CI",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Native slice-size invariant and terminal drain bounds. Host and Windows lock/close outcomes are exercised."
+    },
+    {
+      "checkId": "CHECK-SEC-006",
+      "category": "SEC",
+      "logicalGroup": "Browser injection and persistence",
+      "scope": "No DOM, browser host, browser storage, generated bundle or JavaScript binding",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Only the raw Rust WASM fallback is in this crate."
+    },
+    {
+      "checkId": "CHECK-SEC-007",
+      "category": "SEC",
+      "logicalGroup": "Availability bounds",
+      "scope": "Lengths, deadlines, shutdown and child collection",
+      "method": "Source and runtime",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Bounded protocol, deadline and terminal findings remain. No spending or connected API."
+    },
+    {
+      "checkId": "CHECK-SEC-008",
+      "category": "SEC",
+      "logicalGroup": "Grants and mechanisms",
+      "scope": "Platform and CI capabilities",
+      "method": "Independent source review",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "See ordered grants and Linux transport boundary."
+    },
+    {
+      "checkId": "CHECK-FUN-001",
+      "category": "FUN",
+      "logicalGroup": "Mnemonic and entropy",
+      "scope": "No mnemonic or entropy format",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "SPC owns and transports opaque bytes."
+    },
+    {
+      "checkId": "CHECK-FUN-002",
+      "category": "FUN",
+      "logicalGroup": "HD derivation",
+      "scope": "No derivation, addresses, coin profiles or versions",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "No wallet protocol."
+    },
+    {
+      "checkId": "CHECK-FUN-003",
+      "category": "FUN",
+      "logicalGroup": "Signing and special derivation",
+      "scope": "No BIP85, BIP38, message signing or Silent Payments",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "No signing or derivation API."
+    },
+    {
+      "checkId": "CHECK-FUN-004",
+      "category": "FUN",
+      "logicalGroup": "Scripts and descriptors",
+      "scope": "No Bitcoin scripts, descriptor or multisig parser",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "No script dialect."
+    },
+    {
+      "checkId": "CHECK-FUN-005",
+      "category": "FUN",
+      "logicalGroup": "Transactions and PSBT",
+      "scope": "No transaction, PSBT or commitment code",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "No transaction API."
+    },
+    {
+      "checkId": "CHECK-FUN-006",
+      "category": "FUN",
+      "logicalGroup": "Recovery and backup",
+      "scope": "No persistent secret or recovery format",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Worker framing and keystrokes are transient and covered under API-004."
+    },
+    {
+      "checkId": "CHECK-FUN-007",
+      "category": "FUN",
+      "logicalGroup": "Discovery and proof",
+      "scope": "No provider, ledger accounting or discovery component",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "This is an isolation library."
+    },
+    {
+      "checkId": "CHECK-API-001",
+      "category": "API",
+      "logicalGroup": "Dependency contracts",
+      "scope": "Rust slices and time, libc/OS primitives, Landlock, windows-sys and zeroize",
+      "method": "Source, ABI references, tests and cross-Clippy",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Native slice precondition and WASM clock dispatch findings."
+    },
+    {
+      "checkId": "CHECK-API-002",
+      "category": "API",
+      "logicalGroup": "State and cancellation",
+      "scope": "Worker start/call/deadlines/drop, stack unwind, terminal restore",
+      "method": "Source and runtime",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Unix late transport error precedence."
+    },
+    {
+      "checkId": "CHECK-API-003",
+      "category": "API",
+      "logicalGroup": "Public monetary exports",
+      "scope": "No monetary values or report files",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Isolation measures and transport have no financial schema."
+    },
+    {
+      "checkId": "CHECK-API-004",
+      "category": "API",
+      "logicalGroup": "Encoding and interoperability",
+      "scope": "Worker setting, report, LE frame/length, keystrokes",
+      "method": "Source, shipped tests and retained fuzz",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Packet parsing and public synthetic model exercised; no persistent import/export."
+    },
+    {
+      "checkId": "CHECK-BLD-001",
+      "category": "BLD",
+      "logicalGroup": "Build composition",
+      "scope": "Root crate, working target matrix and nested fuzz workspace",
+      "method": "Manifest, Clippy and verified cargo package",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Native target selection and six declared cross-targets, fuzz cfg and declared release profile."
+    },
+    {
+      "checkId": "CHECK-BLD-002",
+      "category": "BLD",
+      "logicalGroup": "Runtime depth",
+      "scope": "Linux x86-64 and ARM64, macOS and Windows; compile-only targets",
+      "method": "Local tests, retained CI and V8",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Native suites green as specified below. WASM runtime contract fails. Mobile and ARMv5 runtime remain unverified."
+    },
+    {
+      "checkId": "CHECK-BLD-003",
+      "category": "BLD",
+      "logicalGroup": "Dependencies, licensing and source",
+      "scope": "Root and fuzz lockfiles, dependency notices and signed HEAD",
+      "method": "Source, commands and local RustSec",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Both locked scans and notices comparison passed; cached advisory DB identity recorded."
+    },
+    {
+      "checkId": "CHECK-BLD-004",
+      "category": "BLD",
+      "logicalGroup": "Canonical WASM/Docker",
+      "scope": "No project Docker recipe or distributed WASM binary",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Build output here is a Rust source package. WASM target checks belong to BLD-002."
+    },
+    {
+      "checkId": "CHECK-BLD-005",
+      "category": "BLD",
+      "logicalGroup": "Artifact, CI and release",
+      "scope": "Workflow gates, version check, source package, hashes and exact-tag provenance",
+      "method": "Source, remote read-back and binary comparison",
+      "outcome": "blocked",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Local package matches across two builds. The audited revision has no final v0.2.0 tag artifact in the evidence."
+    },
+    {
+      "checkId": "CHECK-UI-001",
+      "category": "UI",
+      "logicalGroup": "Browser viewports and files",
+      "scope": "No UI application or page",
+      "method": "Applicability inspection",
+      "outcome": "not-applicable",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Native terminal interface covered through UI-002/003."
+    },
+    {
+      "checkId": "CHECK-UI-002",
+      "category": "UI",
+      "logicalGroup": "Inputs and state preservation",
+      "scope": "Hidden line, terminal restoration and character count",
+      "method": "Source and runtime",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Unix drain bound. Real Windows console run remains unverified."
+    },
+    {
+      "checkId": "CHECK-UI-003",
+      "category": "UI",
+      "logicalGroup": "Secret visibility",
+      "scope": "Redacted formats, hidden input and explicit output",
+      "method": "Source and runtime",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Host and Unix terminal integration tests within documented boundaries. No GUI/QR/accessibility surface."
+    },
+    {
+      "checkId": "CHECK-ARC-001",
+      "category": "ARC",
+      "logicalGroup": "Ownership and composition",
+      "scope": "Public reexports, portable and platform OS layers, workers",
+      "method": "Source",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Reviewed portable dispatch, private wrappers, handles and allocation ownership."
+    },
+    {
+      "checkId": "CHECK-ARC-002",
+      "category": "ARC",
+      "logicalGroup": "Dead code and duplication",
+      "scope": "All production modules and fuzz/test entry points",
+      "method": "Source and Clippy",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Reviewed dispatch and platform-specific duplication."
+    },
+    {
+      "checkId": "CHECK-ARC-003",
+      "category": "ARC",
+      "logicalGroup": "Tests and fidelity",
+      "scope": "Custom test mains, worker child paths, existing probes and latest changes",
+      "method": "Source, native tests and coverage",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "No current test covers the launcher pipe security claim or enforces the 32-bit allocator invariant; compile-only WASM missed the trap."
+    },
+    {
+      "checkId": "CHECK-DOC-001",
+      "category": "DOC",
+      "logicalGroup": "Capabilities and safety",
+      "scope": "README, SECURITY, API and TECHNICAL",
+      "method": "Source and versions",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Worker transport and three public contract/documentation findings."
+    },
+    {
+      "checkId": "CHECK-DOC-002",
+      "category": "DOC",
+      "logicalGroup": "Commands, links and legal",
+      "scope": "Release commands, archive documents, package notices",
+      "method": "Source, archive and commands",
+      "outcome": "failed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "Broken fuzz lock link inside archive and mixed-version API examples."
+    },
+    {
+      "checkId": "CHECK-DOC-003",
+      "category": "DOC",
+      "logicalGroup": "Audit records",
+      "scope": "AUD-001 to AUD-018 pairs, register, local AUD-019/020 evidence",
+      "method": "Schema, ID and link validation",
+      "outcome": "passed",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "evidence": "All 18 pairs match. Two historical source links are already explained in the fix register. Retained lab results were bound or qualified."
+    }
+  ],
+  "nativeSuiteCounts": [
+    [
+      "Linux x86-64, local",
+      "54 / 33 / 9 / 24",
+      "120 pass; no partial or skipped case shown."
+    ],
+    [
+      "Linux x86-64, GitHub",
+      "54 / 33 / 9 / 24",
+      "119 complete, 1 partial. Nested lock ownership could not run."
+    ],
+    [
+      "Linux ARM64, GitHub",
+      "54 / 33 / 9 / 24",
+      "119 complete, 1 partial. Nested lock ownership could not run."
+    ],
+    [
+      "macOS, GitHub",
+      "37 / 8 / 4 / 14",
+      "63 pass."
+    ],
+    [
+      "Windows, GitHub",
+      "35 / 3 / 3 / 9",
+      "50 pass. No real console fixture."
+    ]
+  ],
+  "checks": [
+    {
+      "name": "format-and-lints",
+      "command": "Rustfmt root and fuzz, dprint 0.63.0, host and six cross-target Clippy runs, fuzz Clippy",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "bash",
+        "-c",
+        "set -euo pipefail; cargo fmt --check; cargo fmt --manifest-path fuzz/Cargo.toml --check; dprint check; cargo clippy --locked --offline --all-targets -- -D warnings; for target in $(sed -n 's/^  \"\\(.*\\)\",$/\\1/p' rust-toolchain.toml); do cargo clippy --locked --offline --all-targets --target \"$target\" -- -D warnings; done; RUSTFLAGS=\"--cfg fuzzing\" cargo clippy --locked --offline --manifest-path fuzz/Cargo.toml --bins -- -D warnings"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:50:36.625548+00:00",
+      "utcEnd": "2026-11-25T20:51:16.851458+00:00",
+      "logSha256": "753c86c084e988b6d25084f5b0e866540e747c5a7704901300c90b729d6d494e",
+      "evidence": "Local AUD-021-evidence/format-and-lints.log",
+      "result": "WASM, Windows GNU, Apple ARM64 macOS/iOS, Android ARM64, Linux ARMv5."
+    },
+    {
+      "name": "native-linux",
+      "command": "cargo test --locked --offline --no-fail-fast",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--no-fail-fast"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:51:16.851866+00:00",
+      "utcEnd": "2026-11-25T20:51:50.875042+00:00",
+      "logSha256": "2b47ec5d5b8ef01543ffe46dba33c3af50525a87652f215bcdd6ac49f40e910d",
+      "evidence": "Local AUD-021-evidence/native-linux.log",
+      "result": "120 completed; zero doctests."
+    },
+    {
+      "name": "release-stack",
+      "command": "cargo test --locked --offline --release --lib stack::",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--release",
+        "--lib",
+        "stack::"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:51:50.875695+00:00",
+      "utcEnd": "2026-11-25T20:52:10.152695+00:00",
+      "logSha256": "7ac2728ad5ebcfb34f9b4408fec29cbb421db9758c25aec60d1e65cc3fdad523",
+      "evidence": "Local AUD-021-evidence/release-stack.log",
+      "result": "7 completed. GitHub independently ran the same profile on Linux x86-64 and ARM64."
+    },
+    {
+      "name": "coverage",
+      "command": "Documented continuous profiling with cargo-llvm-cov 0.9.1, including integration workers",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "bash",
+        "-c",
+        "set -eo pipefail; mkdir -p \"$CARGO_TARGET_DIR\"; export CARGO_LLVM_COV_TARGET_DIR=\"$CARGO_TARGET_DIR\"; cargo llvm-cov show-env --sh > \"$CARGO_TARGET_DIR/show-env.sh\"; source \"$CARGO_TARGET_DIR/show-env.sh\"; export RUSTFLAGS=\"-C llvm-args=-runtime-counter-relocation\"; export LLVM_PROFILE_FILE=\"$CARGO_TARGET_DIR/spc-%p%c.profraw\"; cargo test --locked --offline; cargo llvm-cov report --summary-only"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:52:47.032164+00:00",
+      "utcEnd": "2026-11-25T20:53:22.451880+00:00",
+      "logSha256": "5b7951c61a228324f03acb2f067f2425999bc3f2dfb5c3f5769fd276977b178d",
+      "evidence": "Local AUD-021-evidence/coverage.log",
+      "result": "3,743 of 3,961 Linux x86-64 library source lines (94.50%). Consecutive runs may differ on one OS branch."
+    },
+    {
+      "name": "rustsec-root",
+      "command": "cargo audit --no-fetch --offline -f Cargo.lock",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "--offline",
+        "-f",
+        "Cargo.lock"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "failed",
+      "exitCode": 2,
+      "utcStart": "2026-11-25T20:52:10.153228+00:00",
+      "utcEnd": "2026-11-25T20:52:10.434813+00:00",
+      "logSha256": "d660d4c0b6f8dfc775a5a68a7224c8b6c4d3a0eeb0d3048f99b06c288997e1a8",
+      "evidence": "Local AUD-021-evidence/rustsec-root.log",
+      "result": "Audit wrapper error. cargo-audit 0.23.0 rejects --offline. Original exit 2 retained."
+    },
+    {
+      "name": "rustsec-fuzz",
+      "command": "cargo audit --no-fetch --offline -f fuzz/Cargo.lock",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "--offline",
+        "-f",
+        "fuzz/Cargo.lock"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "failed",
+      "exitCode": 2,
+      "utcStart": "2026-11-25T20:52:10.435353+00:00",
+      "utcEnd": "2026-11-25T20:52:10.705336+00:00",
+      "logSha256": "d660d4c0b6f8dfc775a5a68a7224c8b6c4d3a0eeb0d3048f99b06c288997e1a8",
+      "evidence": "Local AUD-021-evidence/rustsec-fuzz.log",
+      "result": "Same wrapper error, original exit 2."
+    },
+    {
+      "name": "rustsec-root-rerun",
+      "command": "cargo audit --no-fetch -f Cargo.lock",
+      "actualArgv": [
+        "run-capped",
+        "--light",
+        "--",
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "-f",
+        "Cargo.lock"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:53:25.929157+00:00",
+      "utcEnd": "2026-11-25T20:53:26.358729+00:00",
+      "logSha256": "db7989cf3afa0dffd750514212d23b1ab172619ab92da3baa55374763962eb18",
+      "evidence": "Local AUD-021-evidence/rustsec-root-rerun.log",
+      "result": "15 crate dependencies, no notices or vulnerabilities reported."
+    },
+    {
+      "name": "rustsec-fuzz-rerun",
+      "command": "cargo audit --no-fetch -f fuzz/Cargo.lock",
+      "actualArgv": [
+        "run-capped",
+        "--light",
+        "--",
+        "cargo",
+        "audit",
+        "--no-fetch",
+        "-f",
+        "fuzz/Cargo.lock"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:53:26.359266+00:00",
+      "utcEnd": "2026-11-25T20:53:26.588000+00:00",
+      "logSha256": "a5835a5f6feeddccbe7df4f097a23f08ecf632255b57354cdd2f02eeae723cd3",
+      "evidence": "Local AUD-021-evidence/rustsec-fuzz-rerun.log",
+      "result": "25 crate dependencies, no notices or vulnerabilities reported."
+    },
+    {
+      "name": "third-party-notices",
+      "command": "Run CI notice comparator as inline shell text through run-capped",
+      "actualArgv": [
+        "run-capped",
+        "--light",
+        "--",
+        "bash",
+        "-c",
+        "set -euo pipefail\ntree=$(cargo tree --locked --target all --edges normal,build --prefix none --format '{p}' | sed 's/ (.*//' | grep -v '^secret-protection-core ' | sort -u)\nnotices=$(grep -oE '\\*\\*[a-z0-9_-]+ [0-9][^*]*\\*\\*' THIRD_PARTY_NOTICES.md | while read -r span; do\n  span=${span#\\*\\*}\n  span=${span%\\*\\*}\n  for token in ${span#* }; do\n    if [[ $token =~ ^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then\n      echo \"${span%% *} v$token\"\n    fi\n  done\ndone | sort -u)\ndiff <(echo \"$tree\") <(echo \"$notices\") ||\n  { echo \"THIRD_PARTY_NOTICES.md and the dependency tree differ: < only in the tree, > only in the notices\"; exit 1; }\n"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "failed",
+      "exitCode": 1,
+      "utcStart": "2026-11-25T20:53:26.588470+00:00",
+      "utcEnd": "2026-11-25T20:53:26.767978+00:00",
+      "logSha256": "9f65f735eb3b6c4025da6e55276be3fc87c52198f6b4aa5f84abaa0a75ede53d",
+      "evidence": "Local AUD-021-evidence/third-party-notices.log",
+      "result": "Local systemd argument expansion mangled Bash parameter expansion, exit 1."
+    },
+    {
+      "name": "third-party-notices-rerun",
+      "command": "Run the unchanged CI notice comparator from a separate local script",
+      "actualArgv": [
+        "run-capped",
+        "--light",
+        "--",
+        "bash",
+        "docs/audits/AUD-021-evidence/third-party-notices.sh"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:53:56.350992+00:00",
+      "utcEnd": "2026-11-25T20:53:56.529253+00:00",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "evidence": "Local AUD-021-evidence/third-party-notices-rerun.log",
+      "result": "All 14 required normal/build name-and-version pairs match."
+    },
+    {
+      "name": "commit-signature",
+      "command": "git verify-commit HEAD with the retained public allowed-signers file",
+      "actualArgv": [
+        "run-capped",
+        "--light",
+        "--",
+        "git",
+        "-c",
+        "gpg.ssh.allowedSignersFile=/home/user/Documents/bip_tools/tmp/secret-protection-core-aud-019-signers.pub",
+        "verify-commit",
+        "HEAD"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:53:26.768465+00:00",
+      "utcEnd": "2026-11-25T20:53:26.877655+00:00",
+      "logSha256": "f727ee0c5c9f5545dedff00c4d1a5de8e4abd439164f7b498cecaa484d971a7c",
+      "evidence": "Local AUD-021-evidence/commit-signature.log",
+      "result": "Good ED25519 Git signature. Scope is the recorded public-key trust input."
+    },
+    {
+      "name": "package-list",
+      "command": "cargo package --locked --offline --list",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "cargo",
+        "package",
+        "--locked",
+        "--offline",
+        "--list"
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:52:10.706054+00:00",
+      "utcEnd": "2026-11-25T20:52:11.042406+00:00",
+      "logSha256": "df8122b612131664e01852f2e69225905d3a217cd24bf12e56e85a0bb5694cff",
+      "evidence": "Local AUD-021-evidence/package-list.log",
+      "result": "104 files, including Cargo metadata. AUD-019 untracked harness workspace is outside the package, as is fuzz."
+    },
+    {
+      "name": "package-build",
+      "command": "cargo package --locked --offline",
+      "actualArgv": [
+        "run-capped",
+        "--mem",
+        "2G",
+        "--time",
+        "10m",
+        "--",
+        "bash",
+        "-c",
+        "set -euo pipefail; cargo package --locked --offline; sha256sum \"$CARGO_TARGET_DIR/package/secret-protection-core-0.2.0.crate\""
+      ],
+      "evidenceOrigin": "new-local",
+      "outcome": "passed",
+      "exitCode": 0,
+      "utcStart": "2026-11-25T20:52:43.519900+00:00",
+      "utcEnd": "2026-11-25T20:52:47.031228+00:00",
+      "logSha256": "d05576ebe2b82fe76f75e379c861ae6dac0d8c45ceb142a56aec2a3112c3a5e6",
+      "evidence": "Local AUD-021-evidence/package-build.log",
+      "result": "Verifying build succeeded. Byte comparison with a retained independent local build matches."
+    },
+    {
+      "name": "native-ci",
+      "evidenceOrigin": "current remote status and retained CI logs",
+      "outcome": "passed",
+      "result": "Run 45695498564 has four successful jobs for the exact reviewed main SHA; nested PID case partial on both Linux runners.",
+      "evidence": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45695498564",
+      "logDigests": {
+        "docs/audits/AUD-019-evidence/ci-45695498564.json": "5e6dbdcdead3b82664de165156d61b7586ff9f2d3946491eaa2940ede0599ed8",
+        "docs/audits/AUD-019-evidence/ci-139491723904.log": "e224be166f0180ef796515430e0a3044b70ebd5a71ccb7d64db59112df776733",
+        "docs/audits/AUD-019-evidence/ci-139491724198.log": "a141f4fa274fa0873be5913ff67c2e0b2a1dec17d078ee0fe3472cadeb87230c",
+        "docs/audits/AUD-019-evidence/ci-139491724226.log": "a2fca53bc708a7ff6513444c0c1cedbcbe0139d036cc37875d147490a6bf00b1",
+        "docs/audits/AUD-019-evidence/ci-139491724416.log": "18e536c5d70b4d2c8f870074588735aa10606db71baf6b3344f985113de56fdd"
+      }
+    },
+    {
+      "name": "fuzz-linux-retained",
+      "evidenceOrigin": "retained",
+      "outcome": "passed",
+      "command": "cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu <target> -- -max_total_time=90",
+      "result": "setting 18,984,547; report 22,255,357; keystrokes 1,444,662; completed separately in 91 seconds each, no reported crash. Local nightly; release-pinned nightly tag job still pending.",
+      "logSha256": "7c3624ddc72d101c807a71b524b82b1fb5258c500f419c5b12e80ba3fdc137b9",
+      "evidence": "Local AUD-019-evidence/fuzz.log"
+    },
+    {
+      "name": "wasm-worker-contract",
+      "evidenceOrigin": "retained and static confirmation",
+      "outcome": "failed",
+      "result": "V8 on Node 26.12.1 recorded an unreachable trap in Instant::now from Worker::start_within.",
+      "logSha256": "42e4d30eed6e55db61ba4fa0c889a94455e496d607c25d2ea05ff311ab8ff365",
+      "evidence": "Local AUD-019-evidence/wasm-contract-5cea35f.log"
+    },
+    {
+      "name": "signed-v0.2.0-provenance",
+      "evidenceOrigin": "release gate",
+      "outcome": "not-run",
+      "result": "No final signed version tag or attested bytes were supplied for this pre-tag snapshot."
+    }
+  ],
+  "grants": [
+    {
+      "grant": "Linux native pages and fork gate",
+      "location": "src/os/linux.rs:43–94,212–239 / src/os/unix/forks.rs",
+      "purpose": "Protect owned bytes and coordinate native fork",
+      "admits": "Fork before a registered gate, raw fork, kernel migration and copies outside the owner remain",
+      "narrowestForm": "Use owned buffers and check readbacks. Require a controlled fork discipline for the existing API",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Before first allocation or isolation; drop in the owning process",
+      "findingId": "AUD-021-SEC002"
+    },
+    {
+      "grant": "Native page state and stack",
+      "location": "src/os.rs:135–246 / src/protect/closed.rs / src/stack.rs",
+      "purpose": "Lock, exclude from dumps, reopen a page only during a borrow, wipe protected stack",
+      "admits": "Caller copies, abrupt abort and unobserved stack beyond the wipe range remain; Windows lock and closure are alternatives",
+      "narrowestForm": "Preserve owner-only ranges, check required per-allocation properties, enforce the slice size bound before use",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Check bounds and properties before handing out access",
+      "findingId": "AUD-021-SEC002"
+    },
+    {
+      "grant": "Linux dumpability, tracer survey and speculation",
+      "location": "src/os/linux.rs:257–364,824–879",
+      "purpose": "Read back process dump controls and thread-level speculation",
+      "admits": "An existing external handle or tracer, a hidden PID namespace, and a sibling outside thread scope are separate conditions",
+      "narrowestForm": "Fail closed on unknown required measures and explicitly request process-wide scope",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Clear dumpability before namespace setup, then check the tracer view and other outcomes",
+      "findingId": null
+    },
+    {
+      "grant": "Linux network and IPC namespaces",
+      "location": "src/os/linux.rs:881–984",
+      "purpose": "Give a supported process an empty network/IPC namespace",
+      "admits": "Existing sockets and file handles survive; namespace probes do not prove no egress",
+      "narrowestForm": "Close or separately police existing channels. Keep network/IPC isolation distinct from transport ownership",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Only after non-dumpability is verified",
+      "findingId": null
+    },
+    {
+      "grant": "Linux seccomp",
+      "location": "src/os/linux/seccomp.rs / src/os/linux.rs:620–730",
+      "purpose": "Restrict sockets, file operations, program execution and optional signal, locks and sendmsg behaviors",
+      "admits": "Default-allow rules leave a residual syscall surface; terminal ioctl values do not establish destination identity; existing I/O can remain usable",
+      "narrowestForm": "Keep options scoped, kernel outcome probes independent, and review retained descriptors; a narrower policy depends on caller operations",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Scope gate and Landlock evidence precede the filter that relies on them",
+      "findingId": null
+    },
+    {
+      "grant": "Linux Landlock and folder descriptor",
+      "location": "src/os/linux/landlock_layer.rs / src/protect/folder.rs",
+      "purpose": "Limit writes to checked, retained directory hierarchies",
+      "admits": "Peers of the same user can still read outputs; pre-existing descriptors have independent authority; TSYNC relies on sibling scopes being compatible",
+      "narrowestForm": "Grant only selected descriptors and verify the actual outcome and reach; avoid attaching a broader replacement layer to threads with their own rules",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Validate grants, then install the layer, then install or synchronize the dependent filter",
+      "findingId": "AUD-021-DOC003"
+    },
+    {
+      "grant": "macOS sandbox and path grants",
+      "location": "src/os/apple.rs / src/protect/folder.rs",
+      "purpose": "Limit new sockets and writes; allow selected paths and terminal facilities",
+      "admits": "Path-based identity depends on current traversal, ACLs, ownership and volume semantics; existing pipes or Mach ports remain relevant",
+      "narrowestForm": "Grant the private path only; use exclusive probe files outside grants; treat incomplete channel survey as such",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Dump/debugger controls first, sandbox entry serialized, then file/socket probes",
+      "findingId": "AUD-021-DOC003"
+    },
+    {
+      "grant": "iOS and Android fallback",
+      "location": "src/os.rs / src/os/apple.rs / src/os/linux.rs",
+      "purpose": "Apply platform-supported protection without claiming unavailable restrictions",
+      "admits": "No Android worker or Linux Landlock/namespace step there; iOS is limited to native page facilities and the core-size check",
+      "narrowestForm": "Keep unsupported restrictions unconfirmed and verify required outcomes at the caller",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Target-specific dispatch before capability claims",
+      "findingId": null
+    },
+    {
+      "grant": "Unix worker and private endpoint assumption",
+      "location": "src/os/unix/worker.rs / src/os/unix/child.rs / src/worker.rs",
+      "purpose": "Restrict child authority and exchange startup/requests",
+      "admits": "Launcher-side pipe ownership under same-user Linux policy; worker startup interval; macOS trusts executable path; fallback reaping does not kill by numeric PID",
+      "narrowestForm": "Use exclusive transport; keep spawn descriptor cleanup, further independent of endpoint authority",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Pipe creation and exec before child isolation/readback, then request admission",
+      "findingId": "AUD-021-SEC001"
+    },
+    {
+      "grant": "Unix terminal and Windows console",
+      "location": "src/os/unix/terminal.rs / src/os/windows/console.rs",
+      "purpose": "Read hidden text and restore settings on return",
+      "admits": "A granted terminal can carry arbitrary text or controls; concurrent or late input and external signals remain; Windows Ctrl+Break remains visible",
+      "narrowestForm": "Use terminal mode only when required; constrain the interaction to the foreground program and restore settings with an explicit queue boundary",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Terminal opens before worker isolation; hidden mode and initial drain precede prompt, final drain precedes restore",
+      "findingId": "AUD-021-FUN001"
+    },
+    {
+      "grant": "Windows AppContainer and launch input",
+      "location": "src/os/windows/worker.rs",
+      "purpose": "Launch the same application under a restricted profile",
+      "admits": "Filesystem and loader path, current directory, selected environment, persisted profile and host ACL/loopback exceptions remain part of the boundary",
+      "narrowestForm": "Zero network capabilities, no inherited handles, only environment needed for startup",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Select profile then create pipe and process, then verify effective isolation",
+      "findingId": null
+    },
+    {
+      "grant": "Windows pipe and process handles",
+      "location": "src/os/windows/worker.rs",
+      "purpose": "Authenticate the local peer and bound shutdown authority",
+      "admits": "Same-user access can contend for the pipe before screening; same-owner query/wait/termination does not imply memory access",
+      "narrowestForm": "ACL with individual rights, local-only first instance, endpoint identity checks, independent nonce, retained process handle limited to wait and termination",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "ACLs at creation before protocol, check peer before transfer, keep limited process handle",
+      "findingId": null
+    },
+    {
+      "grant": "Windows ACL, token and job policies",
+      "location": "src/os/windows.rs / src/os/windows/threads.rs",
+      "purpose": "Block memory access and restrict process, threads, children and desktop operations",
+      "admits": "Preexisting handles and images remain; explicit DLL paths and application directory still matter; desktop clipboard read is intentional; low-integrity writes depend on ACL",
+      "narrowestForm": "Apply least permissions and verify process and effective thread tokens before accepting; keep actual cases explicit",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Creation ACLs first; DLL/mitigation/job setup; process ACL and first roster; lower token and check debugger; second roster and effective tokens; report",
+      "findingId": "AUD-021-DOC001"
+    },
+    {
+      "grant": "Direct output and channel inventory",
+      "location": "src/protect.rs:571–574 / src/channels.rs",
+      "purpose": "Write to the caller-selected output and observe channels",
+      "admits": "Existing writable destination can persist data; a calling-thread snapshot cannot prevent a later descriptor or mapping",
+      "narrowestForm": "Use the explicitly intended output and treat inventories as evidence with observed scope, independently of isolation",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "Inspect before use; output grants the destination access",
+      "findingId": null
+    },
+    {
+      "grant": "Release CI and tool dependencies",
+      "location": ".github/workflows/ci.yml / .github/workflows/audit.yml / .github/workflows/release.yml",
+      "purpose": "Test and build a locked crate and attest its archive",
+      "admits": "CI runner base image and registry/advisory data remain inputs; tag workflow relies on maintainer/tag controls and CI artifact service",
+      "narrowestForm": "Read-only checkout without persisted credentials; full action pins and formatter plugin digests; only the attestation job can mint OIDC or write attestations",
+      "whyNoNarrower": "See scope and mechanism in narrowestForm.",
+      "order": "CI, audit and fuzz before package; tag/version equality; upload; isolated attestation job",
+      "findingId": null
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-021-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Linux worker pipes are exposed through the launcher",
+      "severity": "high",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/unix/worker.rs:70–76,105–109",
+        "src/worker.rs:125–157,231–279",
+        "docs/TECHNICAL.md:108–115",
+        "SECURITY.md:19"
+      ],
+      "evidence": "Independent source traces and the Linux procfs and ptrace ABI. Yama attach restrictions alone leave the descriptor read-mode check outside their scope. A parent-side dumpability check alone also leaves a worker initialization interval because ordinary exec restores its dumpable flag. No live interception test was performed.",
+      "reproduction": null,
+      "expected": "Only the launcher and its worker should have access to the private request/reply channel and startup report.",
+      "observed": "The Unix launcher retains two ordinary pipes. On Linux their inodes can be reopened by a separate process with matching credentials when the launcher is dumpable and procfs and the LSM allow it. The worker's own restrictions leave the launcher ends unchanged. The receiving side validates report bytes and framing but assumes exclusive endpoints.",
+      "impact": "Local confidentiality and message integrity can be lost for data sent through the pipes, including the startup admission report and forwarded secret data. A peer can also invalidate the assumption of exclusive I/O during a timed exchange. This requires ordinary same-user access as permitted by host policy; privileged debugging and application code execution are unnecessary. Secrets held entirely within the worker do not cross these pipes.",
+      "recommendedFix": "Use a transport that preserves endpoint ownership over both launcher and child lifetimes. Document the parent-process trust boundary and make startup and timed I/O rely on enforceable transport properties.",
+      "requiredVerification": "Verify endpoint exclusivity from process creation through teardown under the supported Linux policies. Retest the ordinary synthetic worker protocol and timed I/O."
+    },
+    {
+      "id": "AUD-021-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Native allocation accepts sizes outside Rust slice limits",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": true,
+      "affectedFiles": [
+        "src/os/unix.rs:165–190,452–459,499–501",
+        "src/os.rs:151–158,190–203",
+        "src/protect.rs:182–213"
+      ],
+      "evidence": "Two independent static reviews, the Rust slice safety contract and the mmap contract. Existing oversized WorkArea test passes on x86-64 and cross-Clippy succeeds on ARMv5; neither establishes that the crate itself rejects the size before a native reservation on a 32-bit host.",
+      "reproduction": null,
+      "expected": "The native mapping boundary guarantees that every Rust slice built from its mapping is at most isize::MAX bytes, and fallible API paths reject unsupported sizes before mapping.",
+      "observed": "Unix reservation bounds page rounding and guard-page arithmetic in usize but omits the isize::MAX contract. Allocation owners and stack wiping form raw slices from the stored native length. Linux mmap can accept an object larger than PTRDIFF_MAX, the corresponding C limit.",
+      "impact": "Unsound safe API if a 32-bit process can reserve enough contiguous virtual address space. Documented Linux 32-bit support is affected conditionally. The Windows native boundary likewise relies on OS refusal, although the tested 64-bit configuration has a much smaller usable address range than isize::MAX. No runtime undefined behavior was observed.",
+      "recommendedFix": "Enforce the slice-layout size bound in the common native allocation contract, including the protected stack's wipe length after rounding and each raw-slice call site.",
+      "requiredVerification": "Exercise the size validation independently of allocator success and run the bounded regression on 32-bit native Linux."
+    },
+    {
+      "id": "AUD-021-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "Timed worker start traps on WebAssembly",
+      "severity": "medium",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/worker.rs:86–96",
+        "src/os.rs:275–302",
+        "docs/API.md:306–325"
+      ],
+      "evidence": "Static dispatch review and retained exact-commit V8 contract output from AUD-019, local wasm-contract-5cea35f.log.",
+      "reproduction": "Retained synthetic V8 contract check.",
+      "expected": "Worker start methods report Unsupported on wasm32-unknown-unknown.",
+      "observed": "The timed variant calls Instant::now before reaching the unsupported-platform implementation, resulting in a WebAssembly trap. The ordinary start and terminal variant reach the unsupported path.",
+      "impact": "A portable caller using the timed entry point loses error handling in its WebAssembly runtime. The supported WebAssembly buffer operations are unaffected.",
+      "recommendedFix": "Dispatch unsupported platforms before reading the clock.",
+      "requiredVerification": "Check all start variants in a WebAssembly runtime, including zero-duration timeout input. Keep existing native timed-start behavior."
+    },
+    {
+      "id": "AUD-021-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "Unix exchange can return a transport error after its deadline",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/unix/worker.rs:119–131",
+        "src/worker.rs:75–84,173–181",
+        "docs/API.md:314–318,349"
+      ],
+      "evidence": "Source-order check of the common Unix startup report and application exchange path. No timing-sensitive runtime case was added.",
+      "reproduction": null,
+      "expected": "A completed or failed exchange observed beyond the promised deadline produces TimedOut.",
+      "observed": "Unix returns the exchange error before the final clock check. A transport failure observed after the deadline can therefore retain its transport kind, while a late success becomes TimedOut.",
+      "impact": "Code distinguishing timeouts from broken transport can take the wrong error branch; failed calls still close the connection.",
+      "recommendedFix": "Define one clock/error precedence rule and apply it consistently to all final exchange results.",
+      "requiredVerification": "Use a deterministic completion seam to check that early errors retain their kind and late errors and successes use TimedOut."
+    },
+    {
+      "id": "AUD-021-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "Unix terminal drain can exceed its documented byte budget",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "src/os/unix/terminal.rs:168–205",
+        "docs/API.md:422–426"
+      ],
+      "evidence": "Source-order and byte accounting of the Unix terminal drain. The separate late-arrival interval between drain and restoration remains a coverage gap.",
+      "reproduction": null,
+      "expected": "Each Unix drain discards at most 64 KiB.",
+      "observed": "The drain issues a full 256-byte read before checking the cumulative total. A read past the budget can consume up to an extra 256 bytes before reporting failure.",
+      "impact": "More input can be discarded than the caller has been told, and an error follows after the extra read.",
+      "recommendedFix": "Apply the budget before reading; specify separately how the implementation detects pending input once the budget is exhausted.",
+      "requiredVerification": "Cover below-limit, exact-limit and over-limit input with bounded synthetic data and verify documented restore behavior."
+    },
+    {
+      "id": "AUD-021-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Windows thread identity documentation names an unused API",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/TECHNICAL.md:92",
+        "src/os/windows/threads.rs:105–132",
+        "src/os/windows.rs:814–842"
+      ],
+      "evidence": "Trace of thread handle selection, pinned liveness and process owner verification, with a production search for CompareObjectHandles.",
+      "reproduction": null,
+      "expected": "The Windows security explanation identifies the production liveness and ownership checks.",
+      "observed": "The technical guide claims CompareObjectHandles. The code uses a retained handle and a liveness check, and validates process ownership where it opens by numeric thread ID.",
+      "impact": "Readers relying on the description can infer a stronger or different check than the one actually run.",
+      "recommendedFix": "Describe the actual handle lifetime and identity checks, including the two roster phases.",
+      "requiredVerification": "Compare the updated explanation to both retained-handle and ID-based paths."
+    },
+    {
+      "id": "AUD-021-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The development API guide mixes release versions",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "docs/API.md:17–36,148–151,180–186,306–318,380–426",
+        "CHANGELOG.md:3"
+      ],
+      "evidence": "Compared the guide with the public exports and source at v0.1.1 and at the reviewed commit.",
+      "reproduction": null,
+      "expected": "A reader installing the documented version can use that guide's examples or is directed to the version-specific guide.",
+      "observed": "The installation and provenance example correctly describes published v0.1.1, but the same guide documents and uses methods introduced in 0.2.0 without distinguishing them at the entry point.",
+      "impact": "A reader following the installation snippet can try APIs absent from the installed crate. The old tag and its digest remain valid for their release.",
+      "recommendedFix": "Label the development guide and link the matching published version, then bind the final 0.2.0 commands to the eventual artifact and source tag.",
+      "requiredVerification": "Check the installation examples against their stated versions and verify the final package's attestation."
+    },
+    {
+      "id": "AUD-021-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Folder-write summaries omit conditions required by the implementation",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "README.md:47",
+        "docs/API.md:180–201",
+        "src/protect.rs:345–359",
+        "src/protect/folder.rs:121–141"
+      ],
+      "evidence": "Cross-checked the README and API summary with the outcome model, platform caveats and SECURITY.md.",
+      "reproduction": null,
+      "expected": "The summary makes the confirmed FolderWrites outcome and existing-channel exceptions visible at the point of use.",
+      "observed": "The overview states that entering with folders lets an application write there and nowhere else. A grant can be refused or have limited reach, and existing channels stay usable as explained further down the guide.",
+      "impact": "A caller can rely on omitted conditions when choosing its isolation check and write path.",
+      "recommendedFix": "Qualify the summary with the required outcome and scope and link the existing-channel and platform limitations where the operation is introduced.",
+      "requiredVerification": "Compare the supported, refused and pre-existing channel cases against the summary."
+    },
+    {
+      "id": "AUD-021-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The packaged notices link to an omitted workspace lockfile",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "affectedFiles": [
+        "THIRD_PARTY_NOTICES.md:3",
+        "fuzz/Cargo.toml",
+        "Cargo.toml"
+      ],
+      "evidence": "Inspected both byte-identical local crate archives and compared archive entries with the Git tree.",
+      "reproduction": null,
+      "expected": "The published crate's notices resolve the separate development lockfile reference or identify it as repository-only.",
+      "observed": "The .crate contains THIRD_PARTY_NOTICES.md but omits fuzz/Cargo.lock along with the nested fuzz package. The notices link is relative.",
+      "impact": "Unpacked crate readers cannot follow that link. The root dependency notice comparison and root lockfile are intact.",
+      "recommendedFix": "Link to the repository location or label the development lockfile as present only in the checkout.",
+      "requiredVerification": "Check links from the next unpacked package as well as in the checkout."
+    }
+  ],
+  "observations": [],
+  "informationalObservations": [
+    "The preliminary coverage retained from AUD-019 for the same source was 3,744 of 3,961 lines. The current run hit 3,743 lines. Use the current measurement independently and retain both raw outputs. The README and coverage guide currently label the prior measurement; refresh their headline with the new release candidate after remediation.",
+    "The existing fix register explains the two relative AUD-001 links to an old test path and points to the original published source. Existing pending platform-specific dispositions are kept as recorded unless a finding-specific test demonstrated the case.",
+    "AUD-019 and AUD-020 were already occupied by independent local evidence. This report uses AUD-021 and references retained results with identity and scope."
+  ],
+  "remediation": [
+    {
+      "id": "AUD-021-SEC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-SEC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-API001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-API002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-FUN001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-DOC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-DOC003",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    },
+    {
+      "id": "AUD-021-DOC004",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Baseline evidence in the finding."
+    }
+  ],
+  "limitations": [
+    "The high Linux IPC finding and 32-bit layout finding are established by source and OS contracts; there was no runtime demonstration of IPC access or undefined behavior.",
+    "Android, iOS, 32-bit Linux and Windows GNU received cross-target Clippy rather than native runtime here. WASM had a focused retained V8 run. CI exercises Windows on its native runner.",
+    "Windows real-console input, macOS ACL and ignore-ownership volumes, the collided-name and repeated-grant macOS cases, and the optional Linux branches requiring unavailable host policy remain outside the demonstrated acceptance matrix.",
+    "Historical harness implementations, external dependencies in full, and published package signatures and attestations for the eventual release are outside the newly executed checks.",
+    "Adjacent AUD-019 ASan, Miri and optimized disassembly logs remain local supplementary evidence. This report does not credit them as completed acceptance checks because it did not rebind each tool input and result to the exact audited artifact.",
+    "The SGR/UTF-8 terminal suites do not establish behavior for bytes arriving in the interval between the final drain and restore. The documented effective intersection of Linux signal filters after fork was checked and is not an open defect."
+  ],
+  "artifact": {
+    "archive": "secret-protection-core-0.2.0.crate",
+    "bytes": 609510,
+    "sha256": "93110859c4a182029a8c6d40c2cf7f9483426d7ebd5c5a9ecad2bfad40fc0419",
+    "entries": 104,
+    "gitComparisons": 102,
+    "mismatches": [],
+    "notPackaged": [
+      "docs/audits/AUD-002-harnesses/.gitignore",
+      "docs/audits/AUD-002-harnesses/Cargo.lock",
+      "docs/audits/AUD-002-harnesses/Cargo.toml",
+      "docs/audits/AUD-002-harnesses/README.md",
+      "docs/audits/AUD-002-harnesses/src/linux.rs",
+      "docs/audits/AUD-002-harnesses/src/main.rs",
+      "docs/audits/AUD-005-harnesses/.gitignore",
+      "docs/audits/AUD-005-harnesses/Cargo.lock",
+      "docs/audits/AUD-005-harnesses/Cargo.toml",
+      "docs/audits/AUD-005-harnesses/README.md",
+      "docs/audits/AUD-005-harnesses/src/main.rs",
+      "docs/audits/AUD-012-harnesses/.gitignore",
+      "docs/audits/AUD-012-harnesses/Cargo.lock",
+      "docs/audits/AUD-012-harnesses/Cargo.toml",
+      "docs/audits/AUD-012-harnesses/README.md",
+      "docs/audits/AUD-012-harnesses/library/Cargo.toml",
+      "docs/audits/AUD-012-harnesses/library/src/lib.rs",
+      "docs/audits/AUD-012-harnesses/program/Cargo.toml",
+      "docs/audits/AUD-012-harnesses/program/src/main.rs",
+      "fuzz/.gitignore",
+      "fuzz/Cargo.lock",
+      "fuzz/Cargo.toml",
+      "fuzz/fuzz_targets/keystrokes.rs",
+      "fuzz/fuzz_targets/report.rs",
+      "fuzz/fuzz_targets/setting.rs"
+    ],
+    "metadata": {
+      "git": {
+        "sha1": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  "rustsecDatabase": {
+    "commit": "b9b8a3c2cb1f2a3c76ab17a551193568c9f8b7a4",
+    "commitUtc": "2026-11-25T11:10:30Z"
+  },
+  "retainedLogHashes": {
+    "docs/audits/AUD-019-evidence/ci-45695498564.json": "5e6dbdcdead3b82664de165156d61b7586ff9f2d3946491eaa2940ede0599ed8",
+    "docs/audits/AUD-019-evidence/ci-139491723904.log": "e224be166f0180ef796515430e0a3044b70ebd5a71ccb7d64db59112df776733",
+    "docs/audits/AUD-019-evidence/ci-139491724198.log": "a141f4fa274fa0873be5913ff67c2e0b2a1dec17d078ee0fe3472cadeb87230c",
+    "docs/audits/AUD-019-evidence/ci-139491724226.log": "a2fca53bc708a7ff6513444c0c1cedbcbe0139d036cc37875d147490a6bf00b1",
+    "docs/audits/AUD-019-evidence/ci-139491724416.log": "18e536c5d70b4d2c8f870074588735aa10606db71baf6b3344f985113de56fdd",
+    "docs/audits/AUD-019-evidence/baseline-tests.log": "fbda21f50a3e95531c921dc16f299fd7cbf241ab21fa2bd5a4a62a58001a181e",
+    "docs/audits/AUD-019-evidence/coverage.log": "56e2fe85057b480fb142f27f396d2d2f3d8eda6a8524e79996de274175e19261",
+    "docs/audits/AUD-019-evidence/fuzz.log": "7c3624ddc72d101c807a71b524b82b1fb5258c500f419c5b12e80ba3fdc137b9",
+    "docs/audits/AUD-019-evidence/advisories-package-5cea35f.log": "80a3cb9a0bcb7d2ade9dde7dbe7e0f8877972aa893a9e9527d240fd385eff263",
+    "docs/audits/AUD-019-evidence/wasm-contract-5cea35f.log": "42e4d30eed6e55db61ba4fa0c889a94455e496d607c25d2ea05ff311ab8ff365",
+    "docs/audits/AUD-020-evidence/native-linux.log": "30ebe2a32b74829660f92d61cdf778c09329965c23b888cac33ae571e8b7f99e"
+  }
+}
