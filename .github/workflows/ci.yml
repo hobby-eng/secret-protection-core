@@ -81,15 +81,29 @@ jobs:
       # release profile too, as the library ships.
       - name: Run the stack-clearing tests in the release profile
         run: "cargo test --locked --release --lib stack::"
+      # Last, as it changes the runner: a worker that starts while Yama lets any process of the
+      # user attach must report its memory open.
+      - name: Run the worker tests with Yama's ptrace_scope at 0
+        run: |
+          sudo sysctl -w kernel.yama.ptrace_scope=0
+          cargo test --locked --no-fail-fast --test worker
 
   # The tests on each other system the crate runs on natively. Code for one system alone is
-  # compiled only there, so warnings fail the job. macos-15-intel is GitHub's last Intel Mac
-  # runner, announced to go in 2027; Intel macOS then needs another runner.
+  # compiled only there, so warnings fail the job. macos-15-intel is the Intel macOS runner this
+  # workflow uses; GitHub lists the Intel runners it still offers at
+  # https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+  # On Windows both toolchains run the tests: MSVC, and GNU, which links with MinGW.
   native:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
+        include:
+          - os: ubuntu-24.04-arm
+          - os: macos-latest
+          - os: macos-15-intel
+          - os: windows-latest
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -108,10 +122,35 @@ jobs:
           New-Item -ItemType Directory -Force target | Out-Null
           icacls target /grant "*S-1-15-2-1:(OI)(CI)RX"
       - name: Run the tests
-        run: cargo test --locked --no-fail-fast
+        run: cargo test --locked --no-fail-fast ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
       - name: Run the stack-clearing tests in the release profile
         if: runner.os == 'Linux'
         run: "cargo test --locked --release --lib stack::"
+
+  # The WebAssembly build has no test runner: wasm/ builds a module of checks, which Node runs.
+  # Heap buffers, input encoding, and Unsupported from everything that needs processes, stacks or
+  # channels.
+  wasm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: rustup show
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.0"
+      - name: Format-check, lint and build the WebAssembly checks
+        run: |
+          cargo fmt --manifest-path wasm/Cargo.toml --check
+          cargo clippy --locked --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+          cargo build --locked --release --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown
+      - name: Run the WebAssembly checks in Node
+        run: node wasm/run.mjs wasm/target/wasm32-unknown-unknown/release/secret_protection_core_wasm_checks.wasm
 
   # The tests on 32-bit Linux, whose pointers and sizes are half as wide, on the x86-64 runner with
   # the 32-bit C library. This crate has no seccomp filter there.

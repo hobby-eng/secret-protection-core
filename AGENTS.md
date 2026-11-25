@@ -19,14 +19,14 @@ The main crate uses these fast gates (CORE-43).
 - `cargo test --locked`. The integration binaries `isolation`, `secret_memory` and `worker` each use a custom main and run parts of the suite in child processes.
 - `dprint check` for the Markdown, JSON, TOML and YAML, with the plugins `dprint.json` pins.
 
-The CI workflow runs these checks on Linux x86-64, the stack-clearing tests in the release profile too, and runs the tests on Linux ARM64, macOS on Apple silicon and Intel, Windows and 32-bit x86 Linux. The RustSec workflow checks the root and fuzz lockfiles. The separate fuzz workspace has its own manifest and lockfile. To check it locally, use `cargo fmt --manifest-path fuzz/Cargo.toml --check`, `RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings`, and `cargo audit -f fuzz/Cargo.lock`.
+The CI workflow runs these checks on Linux x86-64, the stack-clearing tests in the release profile too, and runs the tests on Linux ARM64, macOS on Apple silicon and Intel, Windows with MSVC and GNU, and 32-bit x86 Linux, and the WebAssembly checks of `wasm/` in Node. The RustSec workflow checks the root, fuzz and `wasm/` lockfiles. The separate fuzz workspace has its own manifest and lockfile. To check it locally, use `cargo fmt --manifest-path fuzz/Cargo.toml --check`, `RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings`, and `cargo audit -f fuzz/Cargo.lock`.
 
-Before a release or after changing data exchanged between processes, run the three sanitizer-backed fuzz targets, `setting`, `report` and `keystrokes`. Run all three in turn.
+Before a release or after changing data exchanged between processes or read from a terminal, run the sanitizer-backed fuzz targets that `fuzz/Cargo.toml` names: `setting`, `report`, `keystrokes`, `frames`, `roster` and `editor`. Run them in turn.
 
 ```sh
 (
   set -e
-  for target in setting report keystrokes; do
+  for target in setting report keystrokes frames roster editor; do
     cargo +nightly fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu "$target" -- -max_total_time=90
   done
 )

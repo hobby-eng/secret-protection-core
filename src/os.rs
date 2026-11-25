@@ -17,7 +17,7 @@ pub(crate) use apple::{listed_access, owners_ignored};
 #[cfg(not(any(unix, windows)))]
 pub(crate) use heap::Pages;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::one_thread;
+pub(crate) use linux::{attaching_restricted, one_thread};
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) use linux::{enter_granting, evidence, shared_mappings};
 #[cfg(unix)]

@@ -828,6 +828,15 @@ pub(crate) fn one_thread() -> bool {
     false
 }
 
+/// Whether Yama lets no process of the user attach to one it did not start: `ptrace_scope` 1 or
+/// more. A worker is dumpable from `exec` until its isolation; without this, another process of
+/// the user could take its channel then. Its ancestors may still attach, but they launched it.
+#[cfg(target_os = "linux")]
+pub(crate) fn attaching_restricted() -> bool {
+    std::fs::read("/proc/sys/kernel/yama/ptrace_scope")
+        .is_ok_and(|scope| matches!(scope.first(), Some(b'1'..=b'3')))
+}
+
 /// How many threads the process has, as the kernel counts them ("Threads:" of
 /// /proc/self/status): a listing of /proc/self/task can miss one that another ends meanwhile.
 fn thread_count() -> Option<usize> {
@@ -1020,7 +1029,10 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         }
         (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE or the dumpable flag did not read back",
         (P::NoMemoryReading, O::Confirmed) => "not dumpable, and no thread has a tracer",
-        (P::NoMemoryReading, O::Refused) => "the process is dumpable, or a thread has a tracer",
+        (P::NoMemoryReading, O::Refused) => {
+            "the process is dumpable or a thread has a tracer, or a worker started while Yama let \
+             any process of the user attach"
+        }
         (P::NoMemoryReading, O::Unknown) => {
             "the threads could not be read, or a PID namespace of its own hides outside tracers"
         }

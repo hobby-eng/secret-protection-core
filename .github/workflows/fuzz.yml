@@ -1,0 +1,62 @@
+name: Fuzz
+
+# The long campaign: every fuzz target for 30 minutes on GitHub's runners, started by a release
+# tag or by hand. A release does not wait for it: release.yml runs each target for 90 seconds
+# before it packages. A crash fails this run and keeps its input as an artifact; the fix comes in
+# the next version, with that input as a regression test.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The fuzz targets, as the fuzz workspace's manifest names its binaries.
+  targets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: list
+        run: |
+          set -euo pipefail
+          names=$(sed -n '/^\[\[bin\]\]$/,/^path/ s/^name = "\(.*\)"$/\1/p' fuzz/Cargo.toml | jq -R . | jq -cs .)
+          test "$names" != "[]"
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    needs: targets
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.names) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned nightly toolchain and cargo-fuzz
+        run: |
+          rustup toolchain install nightly-2026-11-13 --profile minimal
+          cargo +nightly-2026-11-13 install cargo-fuzz --locked --version 0.13.2
+      - name: Fuzz for 30 minutes
+        run: |
+          set -euo pipefail
+          # The fuzz workspace's own lockfile, unchanged: cargo-fuzz has no --locked of its own.
+          cargo +nightly-2026-11-13 fetch --locked --manifest-path fuzz/Cargo.toml
+          cargo +nightly-2026-11-13 fuzz run --fuzz-dir fuzz --target x86_64-unknown-linux-gnu "${{ matrix.target }}" -- -max_total_time=1800
+          git diff --exit-code -- fuzz/Cargo.lock
+      - name: Keep the input that failed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore

@@ -13,7 +13,6 @@ use crate::protect::{Isolation, Missing, Options, Protection, Secret};
 /// whether it works on the terminal.
 pub(crate) const WORKER: &str = "SECRET_PROTECTION_CORE_WORKER";
 
-#[cfg(windows)]
 pub(crate) const PIPE_PREFIX: &str = r"\\.\pipe\secret-protection-core.";
 
 /// The first size of the worker's request buffer, at most the limit: one page, which the smallest
@@ -22,7 +21,7 @@ const REQUEST_BUFFER: usize = 4096;
 
 /// The startup report sent after the platform checks and before application requests.
 /// It contains one byte per protection followed by the clean-start flag.
-const REPORT_BYTES: usize = Protection::COUNT + 1;
+pub(crate) const REPORT_BYTES: usize = Protection::COUNT + 1;
 
 /// A separate process running the same executable on Linux, macOS or Windows.
 /// Call [`serve`] first in the worker. The parent checks the startup report and the protections
@@ -117,10 +116,22 @@ impl Worker {
             )));
         }
         let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
+        // On Linux the worker is dumpable from `exec` until its isolation: unless Yama keeps the
+        // user's other processes from attaching meanwhile, its channel may be theirs too, and a
+        // worker they took could report anything. So the parent decides, before the launch.
+        #[cfg(target_os = "linux")]
+        let attaching_restricted = crate::os::attaching_restricted();
         let mut process = crate::os::WorkerProcess::start(&setting, terminal, deadline)
             .map_err(WorkerError::Start)?;
-        let started = Self::report(&mut process, deadline)
-            .and_then(|(isolation, clean)| admit(isolation, clean, required));
+        let started = Self::report(&mut process, deadline).and_then(|(isolation, clean)| {
+            #[cfg(target_os = "linux")]
+            let isolation = if attaching_restricted {
+                isolation
+            } else {
+                isolation.refusing(Protection::NoMemoryReading)
+            };
+            admit(isolation, clean, required)
+        });
         match started {
             Ok(isolation) => Ok(Self {
                 process,
@@ -233,20 +244,61 @@ impl Worker {
         self.process.exchanging(deadline, |process, deadline| {
             process.write_all_until(&length.to_le_bytes(), deadline)?;
             process.write_all_until(request, deadline)?;
-            let mut length = [0; 4];
-            process.read_exact_until(&mut length, deadline)?;
-            let length = u32::from_le_bytes(length) as usize;
-            if length > most {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "the answer is longer than allowed",
-                ));
-            }
-            let mut answer = Secret::zeroed(length);
-            process.read_exact_until(answer.as_mut_bytes(), deadline)?;
-            Ok(answer)
+            read_answer(|buffer| process.read_exact_until(buffer, deadline), most)
         })
     }
+}
+
+/// Reads an answer: four bytes of length, little-endian, then that many bytes. A length above
+/// `most` is refused before anything of it is read.
+pub(crate) fn read_answer(
+    mut read_exact: impl FnMut(&mut [u8]) -> io::Result<()>,
+    most: usize,
+) -> io::Result<Secret> {
+    let mut length = [0; 4];
+    read_exact(&mut length)?;
+    let length = u32::from_le_bytes(length) as usize;
+    if length > most {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "the answer is longer than allowed",
+        ));
+    }
+    let mut answer = Secret::zeroed(length);
+    read_exact(answer.as_mut_bytes())?;
+    Ok(answer)
+}
+
+/// Reads the list of thread IDs a Windows worker's census asks its parent for: a count, then as
+/// many IDs, all four bytes little-endian. Zero stands for no observation; any other list must be
+/// at most `most` long, of distinct, nonzero, ascending IDs. Portable, so that it is fuzzed.
+#[cfg_attr(
+    not(any(windows, fuzzing, test)),
+    expect(dead_code, reason = "only Windows workers take a census")
+)]
+pub(crate) fn read_roster(reader: &mut impl Read, most: usize) -> io::Result<Option<Vec<u32>>> {
+    let mut word = [0; 4];
+    reader.read_exact(&mut word)?;
+    let count = u32::from_le_bytes(word) as usize;
+    if count == 0 {
+        return Ok(None);
+    }
+    if count > most {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    let mut bytes = vec![0; 4 * count];
+    reader.read_exact(&mut bytes)?;
+    let mut ids = Vec::with_capacity(count);
+    let mut previous = 0;
+    for &word in bytes.as_chunks::<4>().0 {
+        let id = u32::from_le_bytes(word);
+        if id <= previous {
+            return Err(io::ErrorKind::InvalidData.into());
+        }
+        ids.push(id);
+        previous = id;
+    }
+    Ok(Some(ids))
 }
 
 /// The instant `deadline` from now. A target that starts no worker answers `Unsupported` without
@@ -274,7 +326,7 @@ fn admit(
 
 /// What a worker's report says: its isolation, and whether its start left it clean. `None` for
 /// bytes that no worker of this crate sends.
-fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
+pub(crate) fn understood(report: &[u8; REPORT_BYTES]) -> Option<(Isolation, bool)> {
     let (outcomes, clean) = report.split_at(Protection::COUNT);
     let clean = match clean {
         [0] => false,
@@ -315,23 +367,31 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
     };
     let rest = parts.next();
     // Only Windows has more: the name of the worker's pipe. On Unix one text, one setting.
-    #[cfg(not(windows))]
-    let fits = rest.is_none();
-    #[cfg(windows)]
-    let fits = !terminal
+    let fits = if cfg!(windows) {
+        windows_channel(terminal, rest)
+    } else {
+        rest.is_none()
+    };
+    let known = Options::from_bits(options).to_bits() == options;
+    (known && fits).then_some((options, terminal, rest.unwrap_or_default()))
+}
+
+/// Whether `rest` of a Windows setting names a worker's pipe and its nonce, as the parent writes
+/// them: never for a worker on the terminal, which Windows does not start. Portable, so that it
+/// is fuzzed on any system.
+pub(crate) fn windows_channel(terminal: bool, rest: Option<&str>) -> bool {
+    let hex128 = |text: &str| {
+        text.len() == 32
+            && text
+                .bytes()
+                .all(|d| d.is_ascii_digit() || (b'a'..=b'f').contains(&d))
+    };
+    !terminal
         && rest
             .and_then(|channel| channel.split_once(','))
             .is_some_and(|(name, nonce)| {
-                let hex128 = |text: &str| {
-                    text.len() == 32
-                        && text
-                            .bytes()
-                            .all(|d| d.is_ascii_digit() || (b'a'..=b'f').contains(&d))
-                };
                 name.strip_prefix(PIPE_PREFIX).is_some_and(hex128) && hex128(nonce)
-            });
-    let known = Options::from_bits(options).to_bits() == options;
-    (known && fits).then_some((options, terminal, rest.unwrap_or_default()))
+            })
 }
 
 /// Handles worker requests of at most `most` bytes with `answer`. Call this at the beginning
@@ -340,7 +400,7 @@ pub(crate) fn setting(text: &str) -> Option<(u32, bool, &str)> {
 /// Windows does not enumerate handles the worker has opened. Returns true after handling a
 /// worker setting, including a failed worker startup, and false outside worker mode or on a
 /// later invocation after the worker role was claimed.
-pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
+pub fn serve(most: usize, answer: impl FnMut(&[u8]) -> Secret) -> bool {
     static SERVED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let text = std::env::var(WORKER).unwrap_or_default();
     let Some((options, _terminal, channel)) = setting(&text) else {
@@ -381,6 +441,18 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     if streams.write_all(&report).is_err() || !clean || !isolation.whole_process {
         return true;
     }
+    requests(&mut streams, most, answer);
+    true
+}
+
+/// Takes the requests on `streams`, each four bytes of length, little-endian, then that many bytes,
+/// and writes back, in the same frame, what `answer` makes of each. Ends when the parent ends the
+/// channel, a request is longer than `most` or a write fails.
+pub(crate) fn requests(
+    streams: &mut (impl Read + Write),
+    most: usize,
+    mut answer: impl FnMut(&[u8]) -> Secret,
+) {
     // One request buffer for the whole service, wiped after each request and grown only for a
     // larger one: a new secret per request would repeat the setup of secret memory and the TLB
     // flush of giving it back, for every keystroke.
@@ -388,11 +460,11 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     loop {
         let mut length = [0; 4];
         if streams.read_exact(&mut length).is_err() {
-            return true;
+            return;
         }
         let length = u32::from_le_bytes(length) as usize;
         if length > most {
-            return true;
+            return;
         }
         if length > request.capacity() {
             // The old buffer goes first: both at once would hold twice the locked memory.
@@ -403,19 +475,19 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
             .read_exact(&mut request.as_mut_bytes()[..length])
             .is_err()
         {
-            return true;
+            return;
         }
         let reply = answer(&request.as_bytes()[..length]);
         request.as_mut_bytes()[..length].zeroize();
         let Ok(length) = u32::try_from(reply.as_bytes().len()) else {
-            return true;
+            return;
         };
         let sent = streams
             .write_all(&length.to_le_bytes())
             .and_then(|()| streams.write_all(reply.as_bytes()))
             .and_then(|()| streams.flush());
         if sent.is_err() {
-            return true;
+            return;
         }
     }
 }
@@ -423,6 +495,20 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A roster is a count and as many distinct, nonzero, ascending IDs, or zero for none.
+    #[test]
+    fn only_complete_ordered_rosters_are_accepted() {
+        fn parse(words: &[u32]) -> io::Result<Option<Vec<u32>>> {
+            let bytes: Vec<_> = words.iter().flat_map(|n| n.to_le_bytes()).collect();
+            read_roster(&mut bytes.as_slice(), 1 << 16)
+        }
+        assert_eq!(parse(&[0]).unwrap(), None);
+        assert_eq!(parse(&[2, 1, u32::MAX]).unwrap(), Some(vec![1, u32::MAX]));
+        for bad in [&[2, 1][..], &[1, 0], &[2, 1, 1], &[2, 9, 8], &[65_537]] {
+            assert!(parse(bad).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn whole_process_is_mandatory_even_without_caller_requirements() {

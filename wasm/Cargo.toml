@@ -1,0 +1,23 @@
+[package]
+name = "secret-protection-core-wasm-checks"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+secret-protection-core = { path = ".." }
+
+# A module that Node loads with no imports; run.mjs calls its exports and counts the checks.
+[lib]
+crate-type = ["cdylib"]
+
+[lints.rust]
+missing_docs = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[workspace]

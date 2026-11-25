@@ -102,7 +102,7 @@ impl HiddenTerminal {
         hidden.c_iflag &= !INPUT_OFF;
         hidden.c_cc[libc::VMIN] = 0;
         hidden.c_cc[libc::VTIME] = 0;
-        set(input, &hidden)?;
+        set(input, &hidden, libc::TCSANOW)?;
         // tcsetattr succeeds when any one of the changes was made: what reads back decides.
         switched(input, 0)?;
         // Keys waiting now, which the terminal may have shown or another program put in, are no
@@ -115,7 +115,7 @@ impl HiddenTerminal {
         }
         terminal.draining = Some(hidden);
         hidden.c_cc[libc::VMIN] = 1;
-        set(input, &hidden)?;
+        set(input, &hidden, libc::TCSANOW)?;
         switched(input, 1)?;
         Ok(terminal)
     }
@@ -142,25 +142,19 @@ impl HiddenTerminal {
     /// The next character typed, or `None` at the end of the input. Its bytes come one at a time
     /// into a buffer that is wiped when the character is whole.
     pub(crate) fn next_char(&mut self) -> io::Result<Option<char>> {
-        let mut bytes = Zeroizing::new([0u8; 4]);
-        let mut length = 0;
-        loop {
-            // SAFETY: read writes at most one byte, at `bytes[length]`, which lives for the call;
-            // `length` stays below 4, as a fourth byte ends the loop whatever it makes.
-            let read = unsafe { libc::read(self.input, bytes[length..].as_mut_ptr().cast(), 1) };
-            match read {
-                1 => length += 1,
-                0 if length == 0 => return Ok(None),
-                0 => return Err(not_text()),
-                _ if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => continue,
-                _ => return Err(io::Error::last_os_error()),
+        let input = self.input;
+        crate::input::utf8_char(|byte| {
+            loop {
+                // SAFETY: read writes at most one byte, into `byte`, which lives for the call.
+                let read = unsafe { libc::read(input, std::ptr::from_mut(byte).cast(), 1) };
+                match read {
+                    1 => return Ok(true),
+                    0 => return Ok(false),
+                    _ if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
+                    _ => return Err(io::Error::last_os_error()),
+                }
             }
-            match std::str::from_utf8(&bytes[..length]) {
-                Ok(text) => return Ok(text.chars().next()),
-                Err(error) if error.error_len().is_none() && length < bytes.len() => {}
-                Err(_) => return Err(not_text()),
-            }
-        }
+        })
     }
 
     /// Puts back the settings it found, once. What is left after Enter, such as the rest of a
@@ -174,15 +168,29 @@ impl HiddenTerminal {
             return Ok(());
         }
         let drained = self.draining.is_none_or(|draining| {
-            set(self.input, &draining).is_ok() && switched(self.input, 0).is_ok() && self.drain()
+            set(self.input, &draining, libc::TCSANOW).is_ok()
+                && switched(self.input, 0).is_ok()
+                && self.drain()
         });
-        set(self.input, &self.original)?;
+        // After a reading that ended as it should, what arrived since the drain goes too, so that
+        // the cut between this reading and the next reader is the restore: on Linux with the
+        // change itself (TCSAFLUSH); macOS would first wait there for all output to be read, so
+        // it flushes just before the change.
+        let flush = self.draining.is_some() && drained;
+        let linux = cfg!(any(target_os = "linux", target_os = "android"));
+        let flushed = linux || !flush || flush_input(self.input).is_ok();
+        let when = if flush && linux {
+            libc::TCSAFLUSH
+        } else {
+            libc::TCSANOW
+        };
+        set(self.input, &self.original, when)?;
         if !same(&settings(self.input)?, &self.original) {
             return Err(io::Error::other(
                 "the terminal did not take back its settings",
             ));
         }
-        if !drained {
+        if !drained || !flushed {
             return Err(io::Error::other(
                 "the input left after the reading could not be dropped",
             ));
@@ -316,11 +324,11 @@ fn settings(descriptor: RawFd) -> io::Result<libc::termios> {
     Ok(unsafe { settings.assume_init() })
 }
 
-/// Sets `settings` at once, again when a signal cut the call short.
-fn set(descriptor: RawFd, settings: &libc::termios) -> io::Result<()> {
+/// Drops the input the terminal on `descriptor` holds unread.
+fn flush_input(descriptor: RawFd) -> io::Result<()> {
     loop {
-        // SAFETY: a termios that lives for the call, for the terminal on `descriptor`.
-        if unsafe { libc::tcsetattr(descriptor, libc::TCSANOW, settings) } == 0 {
+        // SAFETY: tcflush takes a descriptor and a constant, and touches no memory of this process.
+        if unsafe { libc::tcflush(descriptor, libc::TCIFLUSH) } == 0 {
             return Ok(());
         }
         let error = io::Error::last_os_error();
@@ -330,11 +338,18 @@ fn set(descriptor: RawFd, settings: &libc::termios) -> io::Result<()> {
     }
 }
 
-fn not_text() -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidData,
-        "the terminal sent bytes that are not UTF-8",
-    )
+/// Sets `settings` as `when` says, again when a signal cut the call short.
+fn set(descriptor: RawFd, settings: &libc::termios, when: libc::c_int) -> io::Result<()> {
+    loop {
+        // SAFETY: a termios that lives for the call, for the terminal on `descriptor`.
+        if unsafe { libc::tcsetattr(descriptor, when, settings) } == 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
@@ -414,7 +429,7 @@ mod tests {
         let mut before = settings(terminal.as_raw_fd())?;
         before.c_iflag |= libc::BRKINT;
         before.c_lflag |= libc::FLUSHO;
-        set(terminal.as_raw_fd(), &before)?;
+        set(terminal.as_raw_fd(), &before, libc::TCSANOW)?;
         let mut hidden = hidden(&terminal)?;
         assert_eq!(settings(terminal.as_raw_fd())?.c_iflag & libc::BRKINT, 0);
         hidden.write("Password: ")?;
@@ -441,7 +456,7 @@ mod tests {
         let (controller, terminal) = pseudo_terminal();
         let mut before = settings(terminal.as_raw_fd())?;
         before.c_iflag |= libc::IXON | libc::IGNCR | libc::ISTRIP;
-        set(terminal.as_raw_fd(), &before)?;
+        set(terminal.as_raw_fd(), &before, libc::TCSANOW)?;
         let mut hidden = hidden(&terminal)?;
         assert_eq!(settings(terminal.as_raw_fd())?.c_iflag & INPUT_OFF, 0);
         // Ctrl+S is a key, which the line drops; é keeps its eighth bit; Enter ends the line.

@@ -35,6 +35,30 @@ test = false
 doc = false
 bench = false
 
+# The frames of the worker's channel, as the worker reads requests and the parent answers.
+[[bin]]
+name = "frames"
+path = "fuzz_targets/frames.rs"
+test = false
+doc = false
+bench = false
+
+# The list of thread IDs a Windows worker reads from its parent during its census.
+[[bin]]
+name = "roster"
+path = "fuzz_targets/roster.rs"
+test = false
+doc = false
+bench = false
+
+# What is typed on a terminal or console, as the line editor of read_hidden_line takes it.
+[[bin]]
+name = "editor"
+path = "fuzz_targets/editor.rs"
+test = false
+doc = false
+bench = false
+
 [lints.rust]
 unsafe_code = "forbid"
 

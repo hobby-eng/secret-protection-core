@@ -306,12 +306,7 @@ pub(crate) fn edit(
         match key {
             None => {}
             Some('\r' | '\n') if over == 0 => return Ok(LineEnd::Entered),
-            Some('\r' | '\n') => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "the line is longer than allowed",
-                ));
-            }
+            Some('\r' | '\n') => return Err(too_long()),
             Some('\u{7f}' | '\u{8}') if over > 0 => over -= 1,
             Some('\u{7f}' | '\u{8}') => line.remove_last(),
             Some('\u{15}') => {
@@ -324,12 +319,90 @@ pub(crate) fn edit(
             }
             Some('\u{1b}') => sequence = Sequence::Escape,
             Some(key) if key.is_control() => {}
-            Some(_) if over > 0 => over += 1,
+            Some(_) if over > 0 => over = one_more(over)?,
             // A key that does not fit stays out, and so does every key after it.
             Some(key) => over += usize::from(line.push(key).is_err()),
         }
     }
     Ok(LineEnd::EndOfInput)
+}
+
+/// One more key past a full line. A count that would leave the range of `usize`, which takes
+/// four billion keys on a 32-bit system, refuses the line rather than wrap or panic.
+#[cfg(any(unix, windows))]
+fn one_more(over: usize) -> io::Result<usize> {
+    over.checked_add(1).ok_or_else(too_long)
+}
+
+#[cfg(any(unix, windows))]
+fn too_long() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "the line is longer than allowed",
+    )
+}
+
+/// The next character of UTF-8 input, whose bytes `read_byte` puts one at a time into a buffer
+/// that is wiped when the character is whole; `false` from it is the end of the input. `None` at
+/// the end, an error for bytes that are no UTF-8 or end inside a character.
+#[cfg(unix)]
+pub(crate) fn utf8_char(
+    mut read_byte: impl FnMut(&mut u8) -> io::Result<bool>,
+) -> io::Result<Option<char>> {
+    let mut bytes = zeroize::Zeroizing::new([0u8; 4]);
+    let mut length = 0;
+    loop {
+        match read_byte(&mut bytes[length])? {
+            true => length += 1,
+            false if length == 0 => return Ok(None),
+            false => return Err(not_utf8()),
+        }
+        match std::str::from_utf8(&bytes[..length]) {
+            Ok(text) => return Ok(text.chars().next()),
+            Err(error) if error.error_len().is_none() && length < bytes.len() => {}
+            Err(_) => return Err(not_utf8()),
+        }
+    }
+}
+
+/// The next character of UTF-16 input, as the Windows console gives it, one unit at a time into
+/// a buffer that is wiped; a character beyond the first 65,536 takes two. `None` at the end.
+#[cfg(any(windows, fuzzing, all(test, unix)))]
+pub(crate) fn utf16_char(
+    mut read_unit: impl FnMut(&mut u16) -> io::Result<bool>,
+) -> io::Result<Option<char>> {
+    let mut units = zeroize::Zeroizing::new([0_u16; 2]);
+    if !read_unit(&mut units[0])? {
+        return Ok(None);
+    }
+    let length = if (0xD800..0xDC00).contains(&units[0]) {
+        if !read_unit(&mut units[1])? {
+            return Err(not_utf16());
+        }
+        2
+    } else {
+        1
+    };
+    match char::decode_utf16(units[..length].iter().copied()).next() {
+        Some(Ok(character)) => Ok(Some(character)),
+        _ => Err(not_utf16()),
+    }
+}
+
+#[cfg(unix)]
+fn not_utf8() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "the terminal sent bytes that are not UTF-8",
+    )
+}
+
+#[cfg(any(windows, fuzzing, all(test, unix)))]
+fn not_utf16() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "the console sent UTF-16 that is no text",
+    )
 }
 
 #[cfg(test)]
@@ -498,6 +571,76 @@ mod tests {
         assert_eq!(
             failed.map_err(|error| error.to_string()),
             Err("gone".to_owned())
+        );
+    }
+
+    /// Bytes become characters one whole character at a time; bytes that are no UTF-8, or end
+    /// inside a character, are an error.
+    #[cfg(unix)]
+    #[test]
+    fn utf8_input_becomes_characters() {
+        fn chars(input: &[u8]) -> io::Result<String> {
+            let mut rest = input;
+            let mut text = String::new();
+            while let Some(character) = utf8_char(|byte| {
+                let Some((&first, after)) = rest.split_first() else {
+                    return Ok(false);
+                };
+                *byte = first;
+                rest = after;
+                Ok(true)
+            })? {
+                text.push(character);
+            }
+            Ok(text)
+        }
+        assert_eq!(chars("aé🔍".as_bytes()).unwrap(), "aé🔍");
+        for bad in [&[0xff][..], &[0xe2, 0x82], &[0xc3, 0x28]] {
+            assert_eq!(
+                chars(bad).unwrap_err().kind(),
+                io::ErrorKind::InvalidData,
+                "{bad:?}"
+            );
+        }
+    }
+
+    /// Units become characters, a pair of surrogates one; a lone surrogate is an error.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn utf16_input_becomes_characters() {
+        fn chars(input: &[u16]) -> io::Result<String> {
+            let mut rest = input;
+            let mut text = String::new();
+            while let Some(character) = utf16_char(|unit| {
+                let Some((&first, after)) = rest.split_first() else {
+                    return Ok(false);
+                };
+                *unit = first;
+                rest = after;
+                Ok(true)
+            })? {
+                text.push(character);
+            }
+            Ok(text)
+        }
+        assert_eq!(chars(&[0x61, 0xD83D, 0xDD0D]).unwrap(), "a🔍");
+        for bad in [&[0xD83D][..], &[0xDC00], &[0xD83D, 0x61]] {
+            assert_eq!(
+                chars(bad).unwrap_err().kind(),
+                io::ErrorKind::InvalidData,
+                "{bad:?}"
+            );
+        }
+    }
+
+    /// The count of keys past a full line refuses the line where it would leave its range.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn the_count_past_a_full_line_stays_bounded() {
+        assert_eq!(one_more(1).unwrap(), 2);
+        assert_eq!(
+            one_more(usize::MAX).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
         );
     }
 }

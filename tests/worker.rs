@@ -337,9 +337,42 @@ fn main() {
         _ => {}
     }
     if !cfg!(any(target_os = "linux", target_os = "macos", windows)) {
-        println!("test no worker starts here ... ok");
+        run(
+            "every start answers Unsupported where no worker starts",
+            || {
+                let unsupported = |started: Result<Worker, WorkerError>| {
+                    assert!(matches!(
+                        started,
+                        Err(WorkerError::Start(error)) if error.kind() == std::io::ErrorKind::Unsupported
+                    ));
+                };
+                unsupported(Worker::start(Options::new(), &[]));
+                unsupported(Worker::start_within(Options::new(), &[], Duration::ZERO));
+                unsupported(Worker::start_on_terminal(Options::new(), &[]));
+            },
+        );
+        support::finish();
         return;
     }
+    #[cfg(target_os = "linux")]
+    run(
+        "a worker started while Yama lets any process of the user attach reports its memory open",
+        || {
+            use secret_protection_core::Outcome;
+            let worker = Worker::start(Options::new(), &[Protection::WholeProcess]).unwrap();
+            let expected = if !support::attaching_restricted() {
+                Outcome::Refused
+            } else if support::initial_pid_namespace() {
+                Outcome::Confirmed
+            } else {
+                Outcome::Unknown
+            };
+            assert_eq!(
+                worker.isolation().outcome(Protection::NoMemoryReading),
+                expected
+            );
+        },
+    );
     #[cfg(target_os = "linux")]
     run(
         "a worker with another thread at its start is refused before a request",
@@ -473,7 +506,7 @@ fn main() {
 fn required() -> Vec<Protection> {
     let mut required = vec![Protection::WholeProcess];
     #[cfg(target_os = "linux")]
-    if support::initial_pid_namespace() {
+    if support::initial_pid_namespace() && support::attaching_restricted() {
         required.push(Protection::NoMemoryReading);
     }
     #[cfg(not(target_os = "linux"))]

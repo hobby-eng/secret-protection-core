@@ -16,7 +16,6 @@ use windows_sys::Win32::System::Console::{
     FlushConsoleInputBuffer, GetConsoleMode, GetStdHandle, ReadConsoleW, STD_ERROR_HANDLE,
     STD_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleMode, WriteConsoleW,
 };
-use zeroize::Zeroizing;
 
 /// What a hidden line switches off: echo, the console's own line editing, and Ctrl+C as a
 /// signal, so that every way out of the reading restores the mode.
@@ -105,22 +104,7 @@ impl HiddenTerminal {
     /// The next character typed, or `None` when the console gives no more. A character beyond
     /// the first 65,536 comes as two UTF-16 units, read into a buffer that is wiped.
     pub(crate) fn next_char(&mut self) -> io::Result<Option<char>> {
-        let mut units = Zeroizing::new([0_u16; 2]);
-        if !self.read_unit(&mut units[0])? {
-            return Ok(None);
-        }
-        let length = if (0xD800..0xDC00).contains(&units[0]) {
-            if !self.read_unit(&mut units[1])? {
-                return Err(not_text());
-            }
-            2
-        } else {
-            1
-        };
-        match char::decode_utf16(units[..length].iter().copied()).next() {
-            Some(Ok(character)) => Ok(Some(character)),
-            _ => Err(not_text()),
-        }
+        crate::input::utf16_char(|unit| self.read_unit(unit))
     }
 
     /// Reads one UTF-16 unit into `unit`; `false` when the console gave none.
@@ -185,13 +169,6 @@ fn mode(handle: HANDLE) -> Option<CONSOLE_MODE> {
     let mut mode = 0;
     // SAFETY: writes the mode into `mode`, and fails when the handle is no console.
     (unsafe { GetConsoleMode(handle, &mut mode) } != 0).then_some(mode)
-}
-
-fn not_text() -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidData,
-        "the console sent UTF-16 that is no text",
-    )
 }
 
 /// Whether `handle` is a character device, as a console is; a file or pipe is not.

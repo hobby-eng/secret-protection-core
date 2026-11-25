@@ -33,8 +33,9 @@ impl WorkerProcess {
     /// Spawns this program with piped input and output on Linux and macOS. It receives the
     /// worker setting and, in an instrumented build, the profile output path. A dedicated
     /// launcher thread uses an ordinary stack for spawn implementations that fork.
-    /// With a deadline, nothing is launched once it has passed, checked on entry and again in the
-    /// launcher thread just before the launch, and the wait for the launcher thread ends there
+    /// With a deadline, nothing is launched once it has passed, checked on entry and again just
+    /// before the launch, in the launcher thread or Linux's private one, and the wait for the
+    /// launcher thread ends there
     /// too: a launch that has not returned by then fails with `TimedOut`, and the launcher ends
     /// its worker (see [`deliver`]).
     pub(crate) fn start(
@@ -82,14 +83,9 @@ impl WorkerProcess {
             .name("worker-wait".into())
             .spawn(move || {
                 let tty = terminal.as_ref().map(AsRawFd::as_raw_fd);
-                // Checked again just before the launch, as this thread may start late; the
-                // launch itself still takes its own time.
-                let child =
-                    if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
-                        Err(late())
-                    } else {
-                        spawn(&program, &variables, &streams, tty, false)
-                    };
+                // The deadline is checked again just before the launch, as this thread, or the
+                // private launcher of Linux, may start late; the launch itself takes its own time.
+                let child = spawn(&program, &variables, &streams, tty, false, deadline);
                 drop((streams, terminal));
                 deliver(child, &ready, &done);
             })?;
@@ -339,6 +335,7 @@ fn spawn(
     streams: &[OwnedFd; 2],
     terminal: Option<RawFd>,
     _private_table: bool,
+    deadline: Option<std::time::Instant>,
 ) -> io::Result<Child> {
     let mut actions = MaybeUninit::uninit();
     // SAFETY: init sets up the actions in the space given, or fails and leaves it.
@@ -360,7 +357,7 @@ fn spawn(
                 std::thread::Builder::new()
                     .spawn_scoped(scope, || {
                         private_close_on_exec()?;
-                        spawn(program, variables, streams, terminal, true)
+                        spawn(program, variables, streams, terminal, true, deadline)
                     })?
                     .join()
                     .map_err(|_| io::Error::other("private worker launcher stopped"))?
@@ -379,6 +376,9 @@ fn spawn(
         .map(|variable| variable.as_ptr())
         .chain([ptr::null()])
         .collect();
+    if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+        return Err(late());
+    }
     child::launch(
         program,
         actions.0,
@@ -426,6 +426,7 @@ fn spawn(
     _: &[OwnedFd; 2],
     _: Option<RawFd>,
     _: bool,
+    _: Option<std::time::Instant>,
 ) -> io::Result<Child> {
     Err(io::ErrorKind::Unsupported.into())
 }
@@ -575,7 +576,7 @@ mod launch_tests {
                     // SAFETY: inspect the test-owned descriptor in this thread's private table.
                     let flags = unsafe { libc::fcntl(original.as_raw_fd(), libc::F_GETFD) };
                     assert!(flags >= 0 && flags & libc::FD_CLOEXEC != 0);
-                    spawn(c"/bin/true", &[], &streams, None, true)
+                    spawn(c"/bin/true", &[], &streams, None, true, None)
                 })
                 .join()
                 .map_err(|_| io::Error::other("private launcher failed"))
@@ -597,7 +598,7 @@ mod launch_tests {
         let (reader, output) = io::pipe()?;
         let streams = [above_streams(input.into())?, above_streams(output.into())?];
         // cat waits on its input, which `writer` keeps open.
-        let child = spawn(c"/bin/cat", &[], &streams, None, false);
+        let child = spawn(c"/bin/cat", &[], &streams, None, false, None);
         drop(streams);
         let stable = matches!(child, Ok(Child::Descriptor(_)));
         let mut writer = Some(writer);

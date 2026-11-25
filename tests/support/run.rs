@@ -118,6 +118,13 @@ pub(crate) fn initial_pid_namespace() -> bool {
     std::fs::read_link("/proc/self/ns/pid").is_ok_and(|link| link.as_os_str() == "pid:[4026531836]")
 }
 
+/// Whether Yama keeps the user's processes from attaching to processes they did not start.
+#[cfg(target_os = "linux")]
+pub(crate) fn attaching_restricted() -> bool {
+    std::fs::read("/proc/sys/kernel/yama/ptrace_scope")
+        .is_ok_and(|scope| matches!(scope.first(), Some(b'1'..=b'3')))
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn check_memory_reading(isolation: secret_protection_core::Isolation) {
     use secret_protection_core::{Outcome, Protection};

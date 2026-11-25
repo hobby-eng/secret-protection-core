@@ -35,7 +35,7 @@ jobs:
   audit:
     strategy:
       matrix:
-        lockfile: [Cargo.lock, fuzz/Cargo.lock]
+        lockfile: [Cargo.lock, fuzz/Cargo.lock, wasm/Cargo.lock]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

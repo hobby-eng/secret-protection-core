@@ -707,36 +707,9 @@ impl WorkerStreams {
     pub(crate) fn enter(&mut self, options: crate::Options) -> io::Result<crate::Isolation> {
         super::enter_with_census(options, |phase| {
             self.write_all(&phase.tag())?;
-            read_roster(self)
+            crate::worker::read_roster(self, super::threads::MAX_THREADS)
         })
     }
-}
-
-/// Zero represents an unavailable observation. Every other reply must be a complete,
-/// bounded sequence of distinct, nonzero, ascending thread IDs.
-fn read_roster(reader: &mut impl Read) -> io::Result<Option<Vec<u32>>> {
-    let mut word = [0; 4];
-    reader.read_exact(&mut word)?;
-    let count = u32::from_le_bytes(word) as usize;
-    if count == 0 {
-        return Ok(None);
-    }
-    if count > super::threads::MAX_THREADS {
-        return Err(io::ErrorKind::InvalidData.into());
-    }
-    let mut bytes = vec![0; 4 * count];
-    reader.read_exact(&mut bytes)?;
-    let mut ids = Vec::with_capacity(count);
-    let mut previous = 0;
-    for &word in bytes.as_chunks::<4>().0 {
-        let id = u32::from_le_bytes(word);
-        if id <= previous {
-            return Err(io::ErrorKind::InvalidData.into());
-        }
-        ids.push(id);
-        previous = id;
-    }
-    Ok(Some(ids))
 }
 
 impl io::Read for WorkerStreams {
@@ -846,7 +819,7 @@ fn verify_server(pipe: &File) -> io::Result<()> {
 
 #[cfg(test)]
 mod handle_tests {
-    use super::{limited_process, read_roster, verify_nonce};
+    use super::{limited_process, verify_nonce};
 
     /// The worker's process and first thread hold their restricted lists before the worker runs
     /// one instruction (it stays suspended here).
@@ -997,19 +970,6 @@ mod handle_tests {
         assert!(verify_nonce(&mut nonce.to_le_bytes().as_slice(), nonce).is_ok());
         assert!(verify_nonce(&mut (nonce + 1).to_le_bytes().as_slice(), nonce).is_err());
         assert!(verify_nonce(&mut nonce.to_le_bytes()[..15].as_ref(), nonce).is_err());
-    }
-
-    #[test]
-    fn only_complete_ordered_rosters_are_accepted() {
-        fn parse(words: &[u32]) -> std::io::Result<Option<Vec<u32>>> {
-            let bytes: Vec<_> = words.iter().flat_map(|n| n.to_le_bytes()).collect();
-            read_roster(&mut bytes.as_slice())
-        }
-        assert_eq!(parse(&[0]).unwrap(), None);
-        assert_eq!(parse(&[2, 1, u32::MAX]).unwrap(), Some(vec![1, u32::MAX]));
-        for bad in [&[2, 1][..], &[1, 0], &[2, 1, 1], &[2, 9, 8], &[65_537]] {
-            assert!(parse(bad).is_err(), "{bad:?}");
-        }
     }
 
     use std::io;

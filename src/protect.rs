@@ -265,7 +265,8 @@ pub struct Isolation {
     /// Windows the check covers current process and thread access controls and debugger status.
     /// Access already granted to an existing handle can remain usable. On Linux the answer is
     /// unknown when an outside tracer could be hidden and no observed tracer or dumpable flag
-    /// already warrants refusal.
+    /// already warrants refusal. For a Linux worker the parent records it refused unless Yama's
+    /// `ptrace_scope` is 1 or more, as the worker was dumpable while it started.
     pub no_memory_reading: bool,
     /// No new socket can be opened, nor on Linux and Android an io_uring, which could open one; on
     /// macOS a socket can still be made, but the sandbox refuses to bind or connect it. On Windows
@@ -461,6 +462,16 @@ impl Isolation {
             findings.set(protection, Outcome::from_bits(byte & 7)?, byte & 8 != 0);
         }
         (bytes.iter().all(|&byte| byte < 16)).then(|| findings.finish())
+    }
+
+    /// This answer with `protection` refused and its reach kept, as a parent records a protection
+    /// that the worker's start left open.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn refusing(self, protection: Protection) -> Self {
+        let mut bytes = self.to_bytes();
+        let byte = &mut bytes[protection.index()];
+        *byte = Outcome::Refused.to_bits() | (*byte & 8);
+        Self::from_bytes(&bytes).unwrap_or(self)
     }
 }
 
