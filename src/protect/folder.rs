@@ -99,7 +99,7 @@ impl WritableFolder {
         let descriptor = open_at(opened.as_raw_fd(), b".", HOLD)?;
         let status = status(descriptor.as_raw_fd())?;
         let private = status.st_mode & 0o777 == 0o700
-            && !listed_access(opened.as_raw_fd())
+            && !past_the_mode(opened.as_raw_fd())
             && settled_above(descriptor.as_raw_fd());
         Ok(Self {
             descriptor,
@@ -215,7 +215,7 @@ fn settled_above(descriptor: RawFd) -> bool {
         ) else {
             return false;
         };
-        if !settled(&here) || listed_access(current.as_raw_fd()) {
+        if !settled(&here) || past_the_mode(current.as_raw_fd()) {
             return false;
         }
         // The root is its own parent.
@@ -228,16 +228,17 @@ fn settled_above(descriptor: RawFd) -> bool {
     false
 }
 
-/// Whether the access list of the folder held by `descriptor` allows anything to anyone, or
-/// cannot be read: on macOS, where such a list grants beyond the mode. Elsewhere the mode holds
-/// what a list may grant, and iOS gives each app its own user.
+/// Whether others may reach the folder held by `descriptor` past its mode, or it cannot be
+/// told: on macOS an access list that allows anything to anyone, or a volume mounted to ignore
+/// owners and modes. Elsewhere the mode holds what a list may grant, and iOS gives each app its
+/// own user.
 #[cfg(target_os = "macos")]
-fn listed_access(descriptor: RawFd) -> bool {
-    crate::os::listed_access(descriptor)
+fn past_the_mode(descriptor: RawFd) -> bool {
+    crate::os::listed_access(descriptor) || crate::os::owners_ignored(descriptor)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn listed_access(_descriptor: RawFd) -> bool {
+fn past_the_mode(_descriptor: RawFd) -> bool {
     false
 }
 

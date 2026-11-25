@@ -174,8 +174,10 @@ const NO_REPLACE: u32 = 1;
 
 /// A `prctl` option that no kernel has: without this crate's filter the kernel answers EINVAL,
 /// and another filter answers as it does; this crate's filter answers [`MARK`] with its
-/// options. The four bytes read "SPC1".
-const MARK_OPTION: u32 = 0x5350_4331;
+/// options. The four bytes read "S02M", for the 0.2 line: the filter of 0.1, which a program
+/// may hold too through another dependency, answers "SPC1" and lacks rules of this one, so its
+/// mark never counts as this filter's.
+const MARK_OPTION: u32 = 0x5330_324d;
 /// The error numbers of that answer, beyond every one a kernel gives (MAX_ERRNO is 4095): this
 /// base with the filter's bits in its low eight bits, the sign that a thread holds this
 /// crate's filter, whoever installed it. A filter that refuses other calls gets another base.
@@ -194,8 +196,8 @@ pub(super) const SCOPE: u32 = 16;
 pub(super) const FOLDERS: u32 = 32;
 
 /// A second option that no kernel has, asked with a process number: a filter with the signal
-/// rule answers whether the rule names that process. The four bytes read "SPC2".
-const OWNER_OPTION: u32 = 0x5350_4332;
+/// rule answers whether the rule names that process. The four bytes read "S02O", as above.
+const OWNER_OPTION: u32 = 0x5330_324f;
 /// The error numbers of its two answers, which no kernel gives.
 const NAMED: u32 = 0xD01;
 const NOT_NAMED: u32 = 0xD00;
@@ -509,11 +511,6 @@ pub(super) fn held() -> Option<u32> {
     (result == -1 && error & !MARK_BITS == MARK).then_some(error & MARK_BITS)
 }
 
-/// Installs the filter with the bits `options` for the calling thread and the threads it
-/// starts afterwards, and returns the bits of the filter it holds now. With `sync`, on every
-/// thread of the process at once (TSYNC), and whether that went through: a thread whose filter
-/// the caller's does not descend from refuses it, and the filter then goes onto the calling
-/// thread alone, when it is `needed` there.
 /// Puts a filter that allows every call onto every thread at once (TSYNC), after which every
 /// thread's filters descend from the calling thread's. False, with nothing put in anywhere, when
 /// a thread holds a filter the caller's does not descend from.
@@ -541,6 +538,11 @@ pub(super) fn share_filters() -> bool {
     }
 }
 
+/// Installs the filter with the bits `options` for the calling thread and the threads it
+/// starts afterwards, and returns the bits of the filter it holds now. With `sync`, on every
+/// thread of the process at once (TSYNC), and whether that went through: a thread whose filter
+/// the caller's does not descend from refuses it, and the filter then goes onto the calling
+/// thread alone, when it is `needed` there.
 pub(super) fn install(options: u32, sync: bool, needed: bool) -> (Option<u32>, bool) {
     // SAFETY: getpid takes nothing and touches no memory.
     let own = unsafe { libc::getpid() };

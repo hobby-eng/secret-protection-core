@@ -808,25 +808,12 @@ fn inspect_thread(
     // SAFETY: the handle is open, with THREAD_QUERY_LIMITED_INFORMATION under either list.
     let owner = unsafe { GetProcessIdOfThread(thread) };
     let integrity = if owner == process {
+        // A live thread pinned earlier was answered above, by its own handle; here the thread
+        // was not pinned, or the one pinned ended and another may have its number.
         Some(if set_acl {
             Outcome::Unknown
         } else {
-            // A newly created thread can reuse a numeric ID. Only use the earlier rights
-            // when Windows confirms both handles identify the very same thread object.
-            let original = pinned.remove(&id).filter(|handle| {
-                // SAFETY: both handles remain live for this identity comparison.
-                unsafe {
-                    windows_sys::Win32::Foundation::CompareObjectHandles(
-                        handle.as_raw_handle().cast(),
-                        thread,
-                    ) != 0
-                }
-            });
-            thread_integrity(
-                original
-                    .as_ref()
-                    .map_or(thread, |handle| handle.as_raw_handle().cast()),
-            )
+            thread_integrity(thread)
         })
     } else if owner == 0 {
         Some(Outcome::Unknown)

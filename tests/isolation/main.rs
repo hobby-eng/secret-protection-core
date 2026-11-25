@@ -110,6 +110,11 @@ fn main() {
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
+        Ok("old-marks") => linux::old_marks_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
         Ok("all-threads") => linux::threads_role(true),
         #[cfg(all(
             target_os = "linux",
@@ -246,6 +251,10 @@ fn linux_role_checks() {
     run(
         "threads that cannot be listed leave the reading of memory unknown",
         || linux::role_ends_well("unlisted"),
+    );
+    run(
+        "a filter with the marks of the 0.1 line does not keep this version's out",
+        || linux::role_ends_well("old-marks"),
     );
     run(
         "speculation the kernel does not limit or report is not called limited",

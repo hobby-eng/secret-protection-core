@@ -25,8 +25,9 @@ const SWITCHED_OFF: CONSOLE_MODE = ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABL
 /// A console that shows nothing typed on it until [`HiddenTerminal::restore`] or the drop.
 pub(crate) struct HiddenTerminal {
     input: HANDLE,
-    /// Where the prompt goes: standard error, else standard output, if either is a console.
-    output: Option<HANDLE>,
+    /// Where the prompt may go: standard error, then standard output, those that are consoles.
+    /// One that refuses the write, as a handle opened for reading does, is passed over.
+    outputs: Vec<HANDLE>,
     original: CONSOLE_MODE,
     restored: bool,
     /// Whether the switch read back, after which input is dropped on the way out too.
@@ -46,10 +47,11 @@ impl HiddenTerminal {
         }
         let mut console = Self {
             input,
-            output: [STD_ERROR_HANDLE, STD_OUTPUT_HANDLE]
+            outputs: [STD_ERROR_HANDLE, STD_OUTPUT_HANDLE]
                 .into_iter()
                 .map(standard)
-                .find(|&handle| mode(handle).is_some()),
+                .filter(|&handle| mode(handle).is_some())
+                .collect(),
             original,
             restored: false,
             switched: false,
@@ -64,30 +66,25 @@ impl HiddenTerminal {
         // in, are no part of the line: a console that cannot drop them is refused.
         // SAFETY: the console input handle of this process.
         if unsafe { FlushConsoleInputBuffer(input) } == 0 {
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            return Err(io::Error::new(
+                error.kind(),
+                format!("the input waiting before the reading could not be dropped: {error}"),
+            ));
         }
         Ok(console)
     }
 
     /// Writes `text` to the console, if one shows it.
     pub(crate) fn write(&mut self, text: &str) -> io::Result<()> {
-        let Some(output) = self.output else {
-            return Ok(());
-        };
+        use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
         let wide: Vec<u16> = text.encode_utf16().collect();
-        let mut rest = wide.as_slice();
-        while !rest.is_empty() {
-            let length = u32::try_from(rest.len()).unwrap_or(u32::MAX);
-            let mut written = 0;
-            // SAFETY: WriteConsoleW reads `length` units of `rest`, which live for the call.
-            if unsafe { WriteConsoleW(output, rest.as_ptr(), length, &mut written, ptr::null()) }
-                == 0
-            {
-                return Err(io::Error::last_os_error());
-            }
-            match usize::try_from(written) {
-                Ok(0) | Err(_) => return Err(io::ErrorKind::WriteZero.into()),
-                Ok(written) => rest = rest.get(written..).unwrap_or_default(),
+        while let Some(&output) = self.outputs.first() {
+            match write_wide(output, &wide) {
+                Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => {
+                    self.outputs.remove(0);
+                }
+                written => return written,
             }
         }
         Ok(())
@@ -183,4 +180,22 @@ fn not_text() -> io::Error {
         io::ErrorKind::InvalidData,
         "the console sent UTF-16 that is no text",
     )
+}
+
+/// Writes `wide` whole to the console `output`, again for what a partial write left.
+fn write_wide(output: HANDLE, wide: &[u16]) -> io::Result<()> {
+    let mut rest = wide;
+    while !rest.is_empty() {
+        let length = u32::try_from(rest.len()).unwrap_or(u32::MAX);
+        let mut written = 0;
+        // SAFETY: WriteConsoleW reads `length` units of `rest`, which live for the call.
+        if unsafe { WriteConsoleW(output, rest.as_ptr(), length, &mut written, ptr::null()) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        match usize::try_from(written) {
+            Ok(0) | Err(_) => return Err(io::ErrorKind::WriteZero.into()),
+            Ok(written) => rest = rest.get(written..).unwrap_or_default(),
+        }
+    }
+    Ok(())
 }

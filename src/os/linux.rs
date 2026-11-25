@@ -561,6 +561,23 @@ fn on_every_thread(rules: u32) -> u64 {
     u64::from(own.unsigned_abs()) << 32 | u64::from(rules | ON_EVERY_THREAD)
 }
 
+/// Whether every thread's filters descend from the caller's, by [`seccomp::share_filters`] now or
+/// earlier in this process: once is enough, and a layer TSYNC the kernel keeps refusing would
+/// otherwise add an allowing filter at every call.
+#[cfg(target_os = "linux")]
+fn shared_filters() -> bool {
+    static SHARED: super::unix::forks::AtomicMark = super::unix::forks::AtomicMark::new(0);
+    let own = super::unix::forks::mark();
+    if SHARED.load(Ordering::Acquire) == own {
+        return true;
+    }
+    let shared = seccomp::share_filters();
+    if shared {
+        SHARED.store(own, Ordering::Release);
+    }
+    shared
+}
+
 /// The Landlock bits the calling thread holds: from the mark of the filter that went in after
 /// the layer, which the threads it starts answer too, or from what the thread or the process
 /// recorded. Only a layer the kernel took is ever recorded.
@@ -610,7 +627,7 @@ fn restrict(
     let sync = sync
         && !((layer & seccomp::LAYER == 0 || again)
             && landlock_layer::syncs()
-            && !seccomp::share_filters());
+            && !shared_filters());
     #[cfg(target_os = "linux")]
     let again = again && sync;
     #[cfg(target_os = "linux")]

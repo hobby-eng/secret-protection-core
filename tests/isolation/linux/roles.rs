@@ -326,6 +326,36 @@ pub(crate) fn unlisted_role() {
     assert_eq!(missing.missing, [Protection::NoMemoryReading]);
 }
 
+/// The `old-marks` role: a filter that answers the mark of this crate's 0.1 line, as one put in
+/// through another dependency of the same program does, is not taken for this version's: the
+/// call puts its own filter in, and the option it asked for holds.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+pub(crate) fn old_marks_role() {
+    use secret_protection_core::{Options, Outcome, Protection};
+    // "SPC1" answered with every bit that line's mark had.
+    install_a_filter_answering(libc::SYS_prctl, Some(0x5350_4331), 0xE00 | 0x3F);
+    let before = filters();
+    let isolation = Isolation::enter_with(Options::new().refuse_file_locks());
+    assert_eq!(filters(), before.map(|count| count + 1), "{isolation:?}");
+    assert_eq!(
+        isolation.outcome(Protection::FileLocksRefused),
+        Outcome::Confirmed,
+        "{isolation:?}"
+    );
+}
+
+/// How many seccomp filters the calling thread holds.
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+fn filters() -> Option<u32> {
+    fs::read_to_string("/proc/thread-self/status")
+        .ok()?
+        .lines()
+        .find_map(|line| line.strip_prefix("Seccomp_filters:"))?
+        .trim()
+        .parse()
+        .ok()
+}
+
 /// The speculation roles. In `speculating` the kernel refuses to turn speculation off; in
 /// `unspeculated` it does not say how speculation stands, as AArch64 does for indirect
 /// branches. A refusal reads as refused unless the processor needs no limit, what cannot be

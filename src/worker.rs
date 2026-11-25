@@ -346,23 +346,24 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
     }
     // Whatever a wrong setting makes fail comes before the isolation, which cannot be undone.
     // The streams end when this returns: the parent then sees that the worker serves no more.
-    let mut clean = crate::os::starts_clean();
+    // On Linux one thread first, as the kernel counts them: another could open a descriptor
+    // after the census below, or hold a table of its own that the census misses.
+    #[cfg(target_os = "linux")]
+    let mut clean = crate::os::one_thread();
+    #[cfg(not(target_os = "linux"))]
+    let mut clean = true;
+    clean &= crate::os::starts_clean();
     let Ok(mut streams) = crate::os::worker_streams(channel) else {
         return true;
     };
     // No worker keeps a controlling terminal: through one, input it typed would reach the shell
     // as the user's own (TIOCSTI). A worker on the terminal has it as standard error.
     clean &= crate::os::leave_terminal();
-    // A worker isolates itself alone, at its start: no TSYNC, and on Linux one thread as the
-    // kernel counts them, since another thread could hold a descriptor table the census misses.
+    // A worker isolates itself alone, at its start: no TSYNC.
     let options = Options {
         all_threads: false,
         ..Options::from_bits(options)
     };
-    #[cfg(target_os = "linux")]
-    {
-        clean &= crate::os::one_thread();
-    }
     #[cfg(windows)]
     let Ok(isolation) = streams.enter(options) else {
         return true;

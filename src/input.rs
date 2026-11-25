@@ -208,11 +208,13 @@ pub fn read_hidden_line(prompt: &str, line: &mut SecretLine) -> io::Result<LineE
             .write(prompt)
             .and_then(|()| edit(line, || terminal.next_char()));
         // Back first, so that output that cannot drain keeps no key hidden; a terminal left
-        // changed is the error that counts most.
+        // changed is the error that counts most, and is returned before anything is written.
         let restored = terminal.restore();
         // The Enter typed was not shown: what comes next starts a line of its own. The line
         // counts whether or not this lands.
-        let _ = terminal.write("\r\n");
+        if restored.is_ok() {
+            let _ = terminal.write("\r\n");
+        }
         restored.and(edited)
     });
     if !matches!(ended, Ok(LineEnd::Entered)) {

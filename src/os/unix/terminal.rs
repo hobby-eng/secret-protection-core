@@ -168,18 +168,19 @@ impl HiddenTerminal {
     /// input still on its way to the terminal.
     fn drain(&mut self) -> bool {
         let mut sink = Zeroizing::new([0u8; 256]);
-        let mut left = DRAINED;
-        while left > 0 {
+        let mut taken = 0_usize;
+        loop {
             // SAFETY: read writes at most the buffer's length into it, which lives for the call.
             let read = unsafe { libc::read(self.input, sink.as_mut_ptr().cast(), sink.len()) };
             match usize::try_from(read) {
                 Ok(0) => return true,
-                Ok(read) => left = left.saturating_sub(read),
+                // More than DRAINED: no end in sight.
+                Ok(read) if taken + read > DRAINED => return false,
+                Ok(read) => taken += read,
                 Err(_) if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
                 Err(_) => return false,
             }
         }
-        false
     }
 }
 
@@ -219,6 +220,10 @@ fn terminal_for(descriptor: RawFd, refused: libc::c_int) -> bool {
 
 /// Whether two settings agree in every field a terminal keeps: the modes and the control keys.
 fn same(now: &libc::termios, then: &libc::termios) -> bool {
+    // SAFETY: each call reads the speed out of a termios that lives for it.
+    let speeds = |settings: &libc::termios| unsafe {
+        (libc::cfgetispeed(settings), libc::cfgetospeed(settings))
+    };
     (now.c_iflag, now.c_oflag, now.c_cflag, now.c_lflag, now.c_cc)
         == (
             then.c_iflag,
@@ -227,6 +232,7 @@ fn same(now: &libc::termios, then: &libc::termios) -> bool {
             then.c_lflag,
             then.c_cc,
         )
+        && speeds(now) == speeds(then)
 }
 
 /// The device behind `descriptor`, which tells one terminal from another.

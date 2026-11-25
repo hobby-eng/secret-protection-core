@@ -200,6 +200,9 @@ mod macos {
     /// sandbox is inherited, and a second profile is refused.
     static ENTERED: AtomicBool = AtomicBool::new(false);
 
+    /// The folders the profile in place grants, once this crate put it in.
+    static GRANTED: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+
     /// Whether this crate's profile is in place.
     pub(super) fn entered() -> bool {
         ENTERED.load(Ordering::Relaxed)
@@ -252,6 +255,19 @@ mod macos {
         // SAFETY: frees the list read above, once.
         unsafe { acl_free(list) };
         allows
+    }
+
+    /// Whether the volume of `descriptor` is mounted to ignore owners and modes, as macOS mounts
+    /// many removable volumes, or cannot be told.
+    pub(crate) fn owners_ignored(descriptor: std::os::fd::RawFd) -> bool {
+        let mut volume = std::mem::MaybeUninit::<libc::statfs>::uninit();
+        // SAFETY: fstatfs fills the statfs when it succeeds.
+        if unsafe { libc::fstatfs(descriptor, volume.as_mut_ptr()) } != 0 {
+            return true;
+        }
+        // SAFETY: filled by the call that just succeeded.
+        let volume = unsafe { volume.assume_init() };
+        volume.f_flags & libc::MNT_IGNORE_OWNERSHIP.cast_unsigned() != 0
     }
 
     /// PROC_PIDREGIONPATHINFO and struct proc_regionwithpathinfo of sys/proc_info.h, which libc
@@ -413,8 +429,11 @@ mod macos {
                 // SAFETY: frees the message sandbox_init allocated, once.
                 unsafe { sandbox_free_error(error) };
             }
-            // Never back to false: a profile that went in stays in.
+            // Never back to false: a profile that went in stays in, with its folders.
             ENTERED.fetch_or(entered, Ordering::Relaxed);
+            if entered {
+                let _ = GRANTED.set(folders.to_vec());
+            }
             granted = entered && !folders.is_empty();
         }
         let outcome = |refused: bool| match (ENTERED.load(Ordering::Relaxed), refused) {
@@ -422,7 +441,9 @@ mod macos {
             (false, true) => Outcome::Unknown,
             (_, false) => Outcome::Refused,
         };
-        let files = file_writes_refused(folders).map_or(Outcome::Unknown, outcome);
+        // The probe keeps out of the folders the profile in place grants, whichever call put it.
+        let grants = GRANTED.get().map_or(folders, Vec::as_slice);
+        let files = file_writes_refused(grants).map_or(Outcome::Unknown, outcome);
         (outcome(network_refused()), files, granted)
     }
 
@@ -480,7 +501,7 @@ mod macos {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::listed_access;
+pub(crate) use macos::{listed_access, owners_ignored};
 
 /// The shared mappings the process can write, region by region from the kernel: files mapped
 /// other than copy-on-write, and memory shared by its mode or inheritance, whose highest

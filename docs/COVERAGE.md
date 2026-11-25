@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-25 covered **93.78%** (3,601 of 3,840 measured source lines). All 112 checks passed (47 unit tests, 32 isolation checks, 9 secret-memory checks and 24 worker checks).
+The Linux x86-64 run on 2026-11-25 covered **93.80%** (3,616 of 3,855 measured source lines). All 113 checks passed (47 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `62ec9e049235c06f28ec69330eb924683e61eeed55187f5af1b4fe21eda5b0c3`. The run reported no profile mismatches.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `1aadb92095106bcb09ec76b713fdce9ac9dbaf2bba5b978bef2d175077967877`. The run reported no profile mismatches.
 
 ## Scope and exclusions
 
@@ -46,20 +46,20 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | File                             | Covered lines | Measured lines | Coverage |
 | -------------------------------- | ------------: | -------------: | -------: |
 | `src/channels.rs`                |            54 |             54 |  100.00% |
-| `src/input.rs`                   |           275 |            278 |   98.92% |
+| `src/input.rs`                   |           277 |            280 |   98.93% |
 | `src/os.rs`                      |            69 |             69 |  100.00% |
-| `src/os/linux.rs`                |           561 |            580 |   96.72% |
+| `src/os/linux.rs`                |           571 |            591 |   96.62% |
 | `src/os/linux/landlock_layer.rs` |            49 |             49 |  100.00% |
-| `src/os/linux/mappings.rs`       |            69 |             70 |   98.57% |
+| `src/os/linux/mappings.rs`       |            70 |             71 |   98.59% |
 | `src/os/linux/seccomp.rs`        |           269 |            272 |   98.90% |
 | `src/os/unix.rs`                 |           317 |            350 |   90.57% |
 | `src/os/unix/child.rs`           |            76 |             97 |   78.35% |
 | `src/os/unix/forks.rs`           |            23 |             23 |  100.00% |
-| `src/os/unix/terminal.rs`        |           232 |            269 |   86.25% |
+| `src/os/unix/terminal.rs`        |           236 |            272 |   86.76% |
 | `src/os/unix/worker.rs`          |           314 |            368 |   85.33% |
 | `src/protect.rs`                 |           449 |            450 |   99.78% |
 | `src/protect/closed.rs`          |           131 |            132 |   99.24% |
 | `src/protect/folder.rs`          |           116 |            169 |   68.64% |
 | `src/protect/options.rs`         |           148 |            148 |  100.00% |
 | `src/stack.rs`                   |           168 |            171 |   98.25% |
-| `src/worker.rs`                  |           281 |            291 |   96.56% |
+| `src/worker.rs`                  |           279 |            289 |   96.54% |

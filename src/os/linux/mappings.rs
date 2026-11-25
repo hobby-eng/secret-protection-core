@@ -22,10 +22,13 @@ const SECRET_NAME: &str = "/secretmem (deleted)";
 pub(in crate::os) fn remember(start: NonNull<u8>) {
     let start = start.as_ptr() as usize;
     let own = crate::os::unix::forks::mark();
-    if OWNER.swap(own, Ordering::AcqRel) != own {
+    // The inherited slots are emptied before the owner names this process, so that no check in
+    // between takes them for its own; the allocation gate keeps a second writer out.
+    if OWNER.load(Ordering::Acquire) != own {
         for slot in &OWN {
             slot.store(0, Ordering::Release);
         }
+        OWNER.store(own, Ordering::Release);
     }
     for slot in &OWN {
         if slot
