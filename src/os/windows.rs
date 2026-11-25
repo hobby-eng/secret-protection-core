@@ -7,6 +7,7 @@
               foreign functions"
 )]
 
+mod console;
 mod threads;
 mod worker;
 
@@ -69,6 +70,7 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::core::{PCWSTR, w};
 
+pub(crate) use console::HiddenTerminal;
 pub(crate) use worker::{WorkerProcess, leave_terminal, starts_clean, worker_streams};
 
 use super::{Access, Pages, Region};

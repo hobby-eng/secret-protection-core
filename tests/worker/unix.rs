@@ -100,7 +100,7 @@ pub(super) fn on_a_terminal() {
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     // SAFETY: posix_openpt opens a new controller, owned once below; grantpt and unlockpt take its
     // descriptor; ptsname gives a NUL-terminated name, copied at once.
-    let (_controller, name) = unsafe {
+    let (controller, name) = unsafe {
         let controller = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
         assert!(controller >= 0);
         let controller = OwnedFd::from_raw_fd(controller);
@@ -130,6 +130,81 @@ pub(super) fn on_a_terminal() {
     let asked = unsafe { libc::ioctl(libc::STDIN_FILENO, libc::FIONREAD, &raw mut waiting) };
     assert_eq!(asked, 0);
     assert_eq!(waiting, 0, "input reached the terminal");
+    // The isolated worker reads a hidden line: the keys typed once its prompt shows come back as
+    // the line, the terminal shows none of them, and its settings are as before.
+    let before = settings(libc::STDIN_FILENO);
+    let (line, screen) = std::thread::scope(|scope| {
+        let typist = scope.spawn(|| {
+            let prompt = read_until(&controller, "Password: ");
+            // Backspace, a word, Ctrl+U, an arrow key, two-byte UTF-8, Enter; or, when no
+            // prompt came, Ctrl+C, which ends the reading.
+            let keys = if prompt.is_some() {
+                "pass\x7fs w\x15\x1b[Asec\u{e9}t\r"
+            } else {
+                "\x03"
+            };
+            type_keys(&controller, keys);
+            Some(prompt? + &read_until(&controller, "\n")?)
+        });
+        let line = worker.call_within(b"hidden", 100, Duration::from_secs(20));
+        (line.unwrap(), typist.join().unwrap())
+    });
+    assert_eq!(line.as_str().unwrap(), "line:sec\u{e9}t");
+    let screen = screen.unwrap();
+    let after_prompt = screen.strip_prefix("Password: ").unwrap();
+    assert!(
+        after_prompt
+            .chars()
+            .all(|shown| shown == '\r' || shown == '\n'),
+        "{screen:?}"
+    );
+    let after = settings(libc::STDIN_FILENO);
+    assert_eq!((after.c_lflag, after.c_cc), (before.c_lflag, before.c_cc));
+}
+
+/// The settings of the terminal on `descriptor`.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn settings(descriptor: i32) -> libc::termios {
+    let mut settings = std::mem::MaybeUninit::<libc::termios>::uninit();
+    // SAFETY: tcgetattr fills the termios when it succeeds, which is asserted before it is read.
+    unsafe {
+        assert_eq!(libc::tcgetattr(descriptor, settings.as_mut_ptr()), 0);
+        settings.assume_init()
+    }
+}
+
+/// Writes `keys` to the controller of a pseudo-terminal, as typed on it.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn type_keys(controller: &std::os::fd::OwnedFd, keys: &str) {
+    use std::os::fd::AsRawFd;
+    // SAFETY: write reads the bytes of `keys`, which live for the call.
+    let written = unsafe { libc::write(controller.as_raw_fd(), keys.as_ptr().cast(), keys.len()) };
+    assert_eq!(usize::try_from(written).ok(), Some(keys.len()));
+}
+
+/// What the controller of a pseudo-terminal shows until `end` appears, or `None` when nothing
+/// more comes for ten seconds.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn read_until(controller: &std::os::fd::OwnedFd, end: &str) -> Option<String> {
+    use std::os::fd::AsRawFd;
+    let mut shown = Vec::new();
+    while !String::from_utf8_lossy(&shown).contains(end) {
+        let mut ready = libc::pollfd {
+            fd: controller.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: poll reads and writes the one pollfd, which lives for the call.
+        if unsafe { libc::poll(&raw mut ready, 1, 10_000) } != 1 {
+            return None;
+        }
+        let mut buffer = [0_u8; 256];
+        // SAFETY: read writes at most the buffer's length into it.
+        let read = unsafe { libc::read(controller.as_raw_fd(), buffer.as_mut_ptr().cast(), 256) };
+        let read = usize::try_from(read).ok().filter(|&read| read > 0)?;
+        shown.extend_from_slice(&buffer[..read]);
+    }
+    Some(String::from_utf8_lossy(&shown).into_owned())
 }
 
 /// The `streamless` role.

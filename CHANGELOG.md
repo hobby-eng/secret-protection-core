@@ -20,6 +20,7 @@
 - On Windows a start or call with a deadline goes by the clock: work that ends past the deadline fails, and the launch checks the deadline before and after the calls that cannot be cut short. A Unix launch that finishes after its start gave up is ended through its stable handle.
 - The macOS sandbox keeps reads off every terminal device but the process's own.
 - `with_cleared_stack` and `clear_stack` overwrite 128 KiB of the calling thread's stack below the caller's frame after secret work, for computations whose dependencies leave their state on the stack, such as the lanes of a password hash.
+- `read_hidden_line` reads a line typed on a terminal (Unix) or console (Windows) into a `SecretLine`, shows none of it and says how the line ended (`LineEnd`). Echo, the terminal's own line editing and its signal keys are off while it reads, as the terminal reports back, and restored after, a failed restore being an error. Input waiting when the reading starts or left when it ends, up to 64 KiB, is dropped, and the 16 KiB of stack below it are wiped. It uses only the standard streams the process holds, so an isolated worker on the terminal reads the line itself.
 
 ## 0.1.1 (2026-11-24)
 

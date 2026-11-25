@@ -46,7 +46,7 @@ On Linux, for example, a desktop application can keep its file picker and networ
 
 To guard the current process, call `Isolation::enter_requiring` before reading a secret. The report records which restrictions the OS confirmed and whether each applies to the calling thread or the whole process. A socket opened before isolation can still be usable.
 
-A GUI can send individual keystrokes to a worker that holds the password in a `SecretLine`. The GUI sees each key event and needs only the character count back to draw the password field. On Linux and macOS, a worker on the terminal reads the terminal on its standard error, so the password bypasses the parent. The worker has no controlling terminal and so cannot type into the shell. The application must disable and restore terminal echo.
+A GUI can send individual keystrokes to a worker that holds the password in a `SecretLine`. The GUI sees each key event and needs only the character count back to draw the password field. On Linux and macOS, a worker on the terminal reads the terminal on its standard error, so the password bypasses the parent. The worker has no controlling terminal and so cannot type into the shell. There `read_hidden_line` reads the password with the echo off and restores the terminal after.
 
 ## Platform support
 

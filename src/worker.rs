@@ -100,7 +100,8 @@ impl Worker {
     /// reading and writing, so that the application can read input there without routing it
     /// through the parent; `/dev/null` when no standard stream is a terminal. The worker has no
     /// controlling terminal, so it cannot type into the shell (TIOCSTI) and `/dev/tty` does not
-    /// open. The application must disable and restore terminal echo.
+    /// open. There `read_hidden_line` reads with the echo off; as the worker has no job control,
+    /// the program must stay the foreground job and leave the terminal alone while it reads.
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],

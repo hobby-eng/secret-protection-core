@@ -95,6 +95,16 @@ pub fn with_cleared_stack<T>(work: impl FnOnce() -> T) -> T {
     result
 }
 
+/// As [`with_cleared_stack`], with `BYTES` overwritten: for shallow work on a thread that may
+/// have less stack to spare.
+#[cfg(any(unix, windows))]
+#[inline(never)]
+pub(crate) fn with_cleared<const BYTES: usize, T>(work: impl FnOnce() -> T) -> T {
+    let result = run(work);
+    clear::<BYTES>();
+    result
+}
+
 #[inline(never)]
 fn run<T>(work: impl FnOnce() -> T) -> T {
     work()
@@ -104,7 +114,12 @@ fn run<T>(work: impl FnOnce() -> T) -> T {
 /// each thread of a pool after secret work it ran, such as the lanes of a password hash.
 #[inline(never)]
 pub fn clear_stack() {
-    let mut stack = [0u8; CLEARED_STACK_BYTES];
+    clear::<CLEARED_STACK_BYTES>();
+}
+
+#[inline(never)]
+fn clear<const BYTES: usize>() {
+    let mut stack = [0u8; BYTES];
     // Volatile writes; `black_box` keeps the array, and so the writes, where the frames were.
     stack.zeroize();
     black_box(&stack);

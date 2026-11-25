@@ -18,8 +18,8 @@ pub(crate) use heap::Pages;
 pub(crate) use linux::{enter, evidence};
 #[cfg(unix)]
 pub(crate) use unix::{
-    WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean, worker_streams,
-    write_secret,
+    HiddenTerminal, WorkerProcess, leave_terminal, open_channels, run_on_stack, starts_clean,
+    worker_streams, write_secret,
 };
 #[cfg(not(any(unix, windows)))]
 pub(crate) use unsupported::{
@@ -27,8 +27,8 @@ pub(crate) use unsupported::{
 };
 #[cfg(windows)]
 pub(crate) use windows::{
-    WorkerProcess, enter, evidence, leave_terminal, open_channels, run_on_stack, starts_clean,
-    worker_streams, write_secret,
+    HiddenTerminal, WorkerProcess, enter, evidence, leave_terminal, open_channels, run_on_stack,
+    starts_clean, worker_streams, write_secret,
 };
 
 /// How long a worker gets to end by itself once its pipes are closed, and again once it was

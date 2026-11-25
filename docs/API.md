@@ -10,7 +10,7 @@ All application-facing types and functions are exported from the crate root, `se
 | [Open file descriptors](#inspect-open-channels)     | `open_channels`, `OpenChannels`, `Channel`, `ChannelKind`                                                                                                             |
 | [Worker processes](#run-a-worker)                   | `serve`, `Worker`, `WorkerError`                                                                                                                                      |
 | [Protected thread stacks](#protected-thread-stacks) | `run_on_protected_stack`, `StackProperties`, `StackRun`, `StackError`                                                                                                 |
-| [Input and output](#handle-input-and-output)        | `SecretLine`, `Keystroke`, `KeystrokeBytes`, `write_secret`                                                                                                           |
+| [Input and output](#handle-input-and-output)        | `SecretLine`, `Keystroke`, `KeystrokeBytes`, `read_hidden_line`, `LineEnd`, `write_secret`                                                                            |
 
 [Error handling and formatting](#error-handling-and-formatting) covers the standard Rust traits used by these types. [Fuzz builds](#fuzz-builds-only) expose four additional test functions.
 
@@ -300,7 +300,7 @@ The handler’s request limit and the parent’s reply limit are independent. Fr
 
 `end` waits up to one second. Windows and Linux with a spawn-time pidfd can then request termination and wait up to one more second. On macOS and on Linux without that handle, `false` can mean the worker is still running. A dedicated Unix waiter collects the child on exit. Leave the child’s wait status to the library on the POSIX fallback.
 
-The parent retains its own request bytes. The transport uses best-effort `Secret::zeroed` buffers at the receiving end, and dropping them does not erase kernel pipe buffers. For input that must bypass the parent, the terminal worker can read the terminal on its standard error directly. The application must disable echo, check the setting and restore it afterwards; the parent can save the settings before the start and restore them after the worker ends. The worker can write any bytes to the terminal, control sequences included. Linux Landlock can deny terminal-control operations on a newly opened terminal.
+The parent retains its own request bytes. The transport uses best-effort `Secret::zeroed` buffers at the receiving end, and dropping them does not erase kernel pipe buffers. For input that must bypass the parent, the terminal worker can read the terminal on its standard error with `read_hidden_line`, which turns echo off, checks it and restores it. The worker has no job control, so the parent must stay the foreground job and leave the terminal alone meanwhile; it can also save the settings before the start and restore them after the worker ends. The worker can write any bytes to the terminal, control sequences included. Linux Landlock can deny terminal-control operations on a newly opened terminal.
 
 ## Protected thread stacks
 
@@ -365,6 +365,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     assert_eq!(line.as_secret().as_bytes().len(), 2);
     line.remove_last();
     assert_eq!(line.characters(), 0);
+    Ok(())
+}
+```
+
+### Hidden terminal input
+
+`read_hidden_line(prompt: &str, line: &mut SecretLine) -> std::io::Result<LineEnd>` is exported on Unix and Windows. It reads one line typed on a terminal into `line` and shows none of it, not even dots. It returns `LineEnd::Entered` at Enter, `LineEnd::EndOfInput` at the end of the input and `LineEnd::Cancelled` at Ctrl+C. It empties `line` first, and again unless Enter took it, so a cancelled or failed read leaves nothing there. If the line must stay out of swap, check `line.as_secret().is_locked()` before the call. Calls from several threads take turns. The reading wipes the 16 KiB of stack below its frame after, so the calling thread needs that much free.
+
+Before it writes `prompt`, it turns the terminal's echo, its own line editing and its signal keys off and reads the settings back; a terminal that does not report them off is refused before anything is read. Up to 64 KiB of keys waiting when the reading starts are read and dropped, and so are up to 64 KiB left when it ends, such as the rest of a pasted text that the shell would read next; keys that arrive after the settings are back go to the next reader. The settings it found come back when the reading ends, by any key or error, and a failed restore is returned as an error even after a good line. A signal sent by another process, such as `kill`, can end the program with the echo still off, and so can Ctrl+Break on Windows; `stty sane` or a new console window restores the terminal.
+
+On Unix it reads standard input when that is a terminal open for reading, else standard error, where `Worker::start_on_terminal` puts the terminal. The prompt goes to the first of these, standard error and standard output that is the same terminal open for writing, else to the first of them that is any terminal open for writing, as with `< /dev/tty`; when there is none, no prompt is shown. It opens nothing, so an isolated worker can call it. A worker has no controlling terminal, so the kernel's job control does not stop it: the program must be the foreground job and must not read the terminal itself while the worker reads, or the keys are split between them and part of the line can reach the shell. On Windows it reads the console of standard input and writes the prompt to standard error or standard output, whichever is a console. A Windows worker has no console, so there the parent reads the line and sends it.
+
+| Key                               | Effect                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Enter, Enter on the keypad        | Takes the line.                                                                                             |
+| Backspace, Ctrl+U                 | Remove the last character, or all of them.                                                                  |
+| Ctrl+C                            | Cancels: `LineEnd::Cancelled`.                                                                              |
+| Ctrl+D or Ctrl+Z on an empty line | Ends the input: `LineEnd::EndOfInput`.                                                                      |
+| Arrow, function and mouse keys    | Nothing: their escape sequences are read to the end.                                                        |
+| Escape alone, Tab, other controls | Nothing. After a lone Escape the next key counts as itself, except `[` and `O`, which begin a key sequence. |
+
+With mouse tracking left on by another program, a click far to the right can act as Backspace or end the reading with `InvalidData`.
+
+| Error kind     | Cause                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `NotFound`     | Unix: neither standard input nor standard error is a terminal open for reading. Windows: standard input is no console.        |
+| `InvalidInput` | At Enter, the typed line is longer than `line` holds. Keys past the capacity are counted, so Backspace takes them back first. |
+| `InvalidData`  | The terminal sent bytes that are not UTF-8, or the console a lone surrogate.                                                  |
+| another kind   | The echo could not be turned off or restored, or a read or write failed.                                                      |
+
+```rust
+use secret_protection_core::{LineEnd, SecretLine, read_hidden_line};
+use std::io;
+
+fn main() -> io::Result<()> {
+    let mut line = SecretLine::with_capacity(256);
+    if !line.as_secret().is_locked() {
+        return Err(io::Error::other("the password would not stay out of swap"));
+    }
+    if read_hidden_line("Password: ", &mut line)? == LineEnd::Entered {
+        println!("{} characters", line.characters());
+    }
     Ok(())
 }
 ```

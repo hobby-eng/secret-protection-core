@@ -140,6 +140,15 @@ fn answer(request: &[u8]) -> Secret {
                     .to_string()
             }
         }
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        b"hidden" => {
+            let mut line = SecretLine::with_capacity(64);
+            match secret_protection_core::read_hidden_line("Password: ", &mut line) {
+                Ok(secret_protection_core::LineEnd::Entered) => format!("line:{}", line.as_str()),
+                Ok(end) => format!("{end:?}"),
+                Err(error) => format!("error:{:?}", error.kind()),
+            }
+        }
         // A second call of `serve` in a worker: it returns at once and serves nothing.
         b"again" => serve(MOST, answer).to_string(),
         [1, ..] | [2] | [3] => {

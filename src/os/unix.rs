@@ -18,8 +18,10 @@ use super::{Access, Pages, Region};
 
 mod child;
 pub(super) mod forks;
+mod terminal;
 mod worker;
 
+pub(crate) use terminal::HiddenTerminal;
 pub(crate) use worker::WorkerProcess;
 
 impl Pages {
