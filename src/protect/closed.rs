@@ -142,6 +142,11 @@ impl ClosedSecret {
 
 impl Drop for ClosedSecret {
     fn drop(&mut self) {
+        // Pages whose lock a closing took are not unlocked again.
+        #[cfg(windows)]
+        if self.state.unlocked {
+            self.secret.pages.lock_lost();
+        }
         // Open for the wipe in the drop of the secret that follows; pages that stay closed to
         // writing end the process rather than keep the bytes unwiped. A child of `fork` leaves
         // its parent's pages alone.

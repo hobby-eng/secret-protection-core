@@ -1,3 +1,4 @@
+// long: secret memory, filter, Landlock and namespaces of one Linux process, read whole.
 //! Linux and Android: secret memory, the seccomp filter, Landlock, namespaces, and the probes that
 //! check them.
 //!

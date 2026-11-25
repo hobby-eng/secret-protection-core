@@ -319,10 +319,13 @@ mod macos {
 
     pub(super) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
         let regions = regions()?;
-        // How many of this process's regions map each object, by its number and references.
+        // How many of this process's own regions map each object, by its number and references:
+        // a submap's belong to the system's shared map, and an empty one reads a count of 0.
         let mut ours = std::collections::BTreeMap::<(u32, u32), usize>::new();
         for (region, _, _) in &regions {
-            *ours.entry((region.obj_id, region.ref_count)).or_default() += 1;
+            if region.flags & PROC_REGION_SUBMAP == 0 && region.share_mode != SM_EMPTY {
+                *ours.entry((region.obj_id, region.ref_count)).or_default() += 1;
+            }
         }
         // The logging buffer is left out when it is the one region that looks like it: isolation
         // itself brings it in, and writes there reach the system log, as `os_log` calls do.

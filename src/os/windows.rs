@@ -134,6 +134,12 @@ impl Pages {
     pub(crate) fn is_out_of_children(&self) -> bool {
         true
     }
+
+    /// Records that the pages lost their lock, as Windows takes it from a page it makes
+    /// inaccessible, so that the drop does not unlock them again.
+    pub(crate) fn lock_lost(&mut self) {
+        self.locked = false;
+    }
 }
 
 impl Drop for Pages {
