@@ -15,8 +15,9 @@ The main crate uses these fast gates (CORE-43).
 - `cargo fmt --check`
 - `cargo clippy --locked --all-targets -- -D warnings` for the host. Add `--target <triple>` before `--` for each target in `rust-toolchain.toml`.
 - `cargo test --locked`. The integration binaries `isolation`, `secret_memory` and `worker` each use a custom main and run parts of the suite in child processes.
+- `dprint check` for the Markdown, JSON, TOML and YAML, with the plugins `dprint.json` pins.
 
-The CI workflow runs these checks on Linux x86-64 and runs the tests on Linux ARM64, macOS and Windows. The RustSec workflow checks the root and fuzz lockfiles. The separate fuzz workspace has its own manifest and lockfile. To check it locally, use `cargo fmt --manifest-path fuzz/Cargo.toml --check`, `RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings`, and `cargo audit -f fuzz/Cargo.lock`.
+The CI workflow runs these checks on Linux x86-64, the stack-clearing tests in the release profile too, and runs the tests on Linux ARM64, macOS and Windows. The RustSec workflow checks the root and fuzz lockfiles. The separate fuzz workspace has its own manifest and lockfile. To check it locally, use `cargo fmt --manifest-path fuzz/Cargo.toml --check`, `RUSTFLAGS="--cfg fuzzing" cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings`, and `cargo audit -f fuzz/Cargo.lock`.
 
 Before a release or after changing data exchanged between processes, run the three sanitizer-backed fuzz targets, `setting`, `report` and `keystrokes`. Run all three in turn.
 

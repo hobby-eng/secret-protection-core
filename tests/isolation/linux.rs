@@ -1,3 +1,4 @@
+// long: every check of what Linux and Android refuse, each beside its role, read best whole.
 //! What Linux and Android show of an isolated process: the checks and the roles of their own.
 #![allow(
     clippy::useless_conversion,

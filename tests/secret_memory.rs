@@ -132,7 +132,11 @@ fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
             !area.is_locked() && !area.is_out_of_dumps() && !area.is_out_of_children()
         }) && closed
             .as_ref()
-            .is_some_and(|closed| !closed.is_locked() && !closed.is_closed());
+            .is_some_and(|closed| !closed.is_locked() && !closed.is_closed())
+            // Its debug text names the size without reaching the pages, which would end the child.
+            && area
+                .as_ref()
+                .is_some_and(|area| format!("{area:?}") == "WorkArea(8192 bytes, hidden)");
         drop((secret.take(), area.take(), closed.take()));
         let mut own = Secret::with_capacity(8);
         let works = own.push(b"own").is_ok() && own.as_bytes() == b"own";

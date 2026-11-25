@@ -87,6 +87,20 @@ pub(crate) fn folders_role() {
     fs::set_permissions(&shared, fs::Permissions::from_mode(0o775)).unwrap();
     let inner = WritableFolder::create(shared.join("inner")).unwrap();
     assert_eq!(inner.is_private(), !cfg!(target_os = "macos"), "{inner:?}");
+    // Made through a link in a folder that others may write in without the sticky bit: on macOS
+    // someone else could point the link elsewhere; the folder itself is the user's.
+    let open = place.join("open");
+    fs::create_dir(&open).unwrap();
+    fs::set_permissions(&open, fs::Permissions::from_mode(0o777)).unwrap();
+    let target = place.join("target");
+    fs::create_dir(&target).unwrap();
+    std::os::unix::fs::symlink(&target, open.join("link")).unwrap();
+    let linked = WritableFolder::create(open.join("link").join("linked")).unwrap();
+    assert_eq!(
+        linked.is_private(),
+        !cfg!(target_os = "macos"),
+        "{linked:?}"
+    );
     // Made before isolation, as a program makes all its folders: granted by a later call, none.
     let later = WritableFolder::create(place.join("later")).unwrap();
     let spare = WritableFolder::create(place.join("spare")).unwrap();

@@ -106,6 +106,8 @@ mod fork_gate {
     use std::time::{Duration, Instant};
 
     static HELD: AtomicBool = AtomicBool::new(false);
+    static REGISTERING: Once = Once::new();
+    static REGISTERED: OnceLock<bool> = OnceLock::new();
     /// How long a secret waits for a `fork` that holds the gate. A fork handler of the program's
     /// own may wait for a lock that the thread making the secret holds: past this, the secret
     /// takes anonymous pages instead of waiting for ever.
@@ -133,8 +135,6 @@ mod fork_gate {
     /// registered after it started, and would pass the gate. The caller blocks signals, so no
     /// handler starts a thread in between.
     fn registered() -> bool {
-        static REGISTERING: Once = Once::new();
-        static REGISTERED: OnceLock<bool> = OnceLock::new();
         REGISTERING.call_once(|| {
             // SAFETY: registers three functions that live as long as the program.
             let done = super::one_thread()
@@ -149,6 +149,16 @@ mod fork_gate {
     pub(super) struct Gate(libc::sigset_t);
 
     impl Gate {
+        /// The gate where an earlier secret or isolation registered it, else `None`: a call made
+        /// among other threads never asks, which would settle the question as no for good.
+        pub(super) fn take_registered() -> Option<Self> {
+            if REGISTERED.get() == Some(&true) {
+                Self::take()
+            } else {
+                None
+            }
+        }
+
         /// `None` when `fork` does not take the gate: then no secret memory is taken.
         pub(super) fn take() -> Option<Self> {
             // SAFETY: the two sets are filled by the calls before they are read.
@@ -642,12 +652,17 @@ fn restrict(
             &[]
         };
         let first = layer & seccomp::LAYER == 0;
+        // A fork on another thread between a layer on every thread and its record would give a
+        // child the layer without the record. Where the gate of secret memory is in place, and
+        // free within its 100 ms, it holds such a fork until both are in.
+        let gate = sync.then(fork_gate::Gate::take_registered).flatten();
         let (applied, synced) = landlock_layer::restrict_self(folders, sync, first);
         let applied = applied | (layer & (seccomp::LAYER | seccomp::SCOPE | seccomp::FOLDERS));
         LAYERED_THREAD.set(applied);
         if whole_process || synced {
             LAYERED_PROCESS.store(applied, Ordering::Relaxed);
         }
+        drop(gate);
         (
             applied,
             applied & seccomp::FOLDERS != 0 && !folders.is_empty(),

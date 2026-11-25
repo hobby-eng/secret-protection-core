@@ -13,12 +13,16 @@
     )
 )]
 
+#[cfg(target_os = "macos")]
+use std::ffi::OsString;
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::io;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
+#[cfg(target_os = "macos")]
+use std::path::Component;
 use std::path::{Path, PathBuf};
 
 /// How a folder is held: on Linux a handle that reads nothing, which Landlock takes.
@@ -43,9 +47,12 @@ impl WritableFolder {
     /// exist yet. Refused, and the folder removed again, when the folder made is not this
     /// user's. A file system that keeps no Unix modes (FAT, exFAT, NTFS, many network mounts)
     /// gives it the mount's: [`WritableFolder::is_private`] says which. Isolation checks the path
-    /// as given, so a relative one stops leading to it after a change of directory.
+    /// as given, so a relative one stops leading to it after a change of directory; a final `/`
+    /// or `/.` is not kept.
     pub fn create(path: impl AsRef<Path>) -> io::Result<Self> {
-        let path = path.as_ref();
+        // Without a final `/` or `/.`, after which a check of the path would follow a link there.
+        let path: PathBuf = path.as_ref().components().collect();
+        let path = path.as_path();
         let name = path.file_name().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "the path names no folder")
         })?;
@@ -100,7 +107,8 @@ impl WritableFolder {
         let status = status(descriptor.as_raw_fd())?;
         let private = status.st_mode & 0o777 == 0o700
             && !past_the_mode(opened.as_raw_fd())
-            && settled_above(descriptor.as_raw_fd());
+            && settled_above(descriptor.as_raw_fd())
+            && settled_on_the_way(path);
         Ok(Self {
             descriptor,
             path: path.to_owned(),
@@ -116,7 +124,8 @@ impl WritableFolder {
 
     /// Whether only this user can reach it, as made: false where the file system keeps no Unix
     /// modes. On macOS also false where an access list on it or above it allows anything to
-    /// anyone, or where someone else could move it or a folder above it (docs/API.md).
+    /// anyone, or where someone else could move it or a folder above it, or change a symbolic link
+    /// on its path (docs/API.md).
     pub fn is_private(&self) -> bool {
         self.private
     }
@@ -193,10 +202,8 @@ fn entry(parent: &OwnedFd, name: &CStr) -> io::Result<libc::stat> {
 /// only with the sticky bit, which keeps them from moving what is not theirs; no access list
 /// there allows anything to anyone. Only macOS, whose sandbox grants a folder by its path; a
 /// Landlock rule holds the folder itself, wherever it is moved.
+#[cfg(target_os = "macos")]
 fn settled_above(descriptor: RawFd) -> bool {
-    if !cfg!(target_os = "macos") {
-        return true;
-    }
     // SAFETY: geteuid takes nothing and only answers.
     let user = unsafe { libc::geteuid() };
     let settled = |status: &libc::stat| {
@@ -226,6 +233,95 @@ fn settled_above(descriptor: RawFd) -> bool {
         }
     }
     false
+}
+
+/// Whether no one but this user and root can change where `path` leads before its last name,
+/// the folder itself: every folder a name of it is looked up in is settled as above, a name in a
+/// folder others may write in is theirs, and so is every symbolic link on the way. Only macOS, as
+/// for [`settled_above`], which walks the folder's real parents and so misses a link that another
+/// user can point elsewhere, along with the path the program writes by.
+#[cfg(target_os = "macos")]
+fn settled_on_the_way(path: &Path) -> bool {
+    // SAFETY: geteuid takes nothing and only answers.
+    let user = unsafe { libc::geteuid() };
+    let ours = |owner: u32| owner == user || owner == 0;
+    let start = if path.is_absolute() {
+        Ok(PathBuf::from("/"))
+    } else {
+        std::env::current_dir()
+    };
+    let Ok(mut folder) = start else {
+        return false;
+    };
+    // The names still to look up, the next one last; a link puts its target's names first.
+    let mut names = Vec::new();
+    push_names(&mut names, path);
+    let mut links = 0;
+    while names.len() > 1 {
+        let Some(name) = names.pop() else { break };
+        match name.as_bytes() {
+            b"/" => folder = PathBuf::from("/"),
+            b"." => {}
+            b".." => {
+                folder.pop();
+            }
+            _ => {
+                let (Ok(here), Ok(entry)) = (
+                    std::fs::symlink_metadata(&folder),
+                    std::fs::symlink_metadata(folder.join(&name)),
+                ) else {
+                    return false;
+                };
+                let shared = here.mode() & 0o022 != 0;
+                // S_ISVTX, the sticky bit, whose type differs between systems.
+                let sticky = here.mode() & 0o1000 != 0;
+                // A folder that cannot be opened cannot be checked: not settled, as above.
+                let past = match open_at(libc::AT_FDCWD, folder.as_os_str().as_bytes(), HOLD) {
+                    Ok(held) => past_the_mode(held.as_raw_fd()),
+                    Err(_) => true,
+                };
+                if !ours(here.uid()) || (shared && (!sticky || !ours(entry.uid()))) || past {
+                    return false;
+                }
+                if entry.file_type().is_symlink() {
+                    links += 1;
+                    let Ok(target) = std::fs::read_link(folder.join(&name)) else {
+                        return false;
+                    };
+                    if links > 32 || !ours(entry.uid()) {
+                        return false;
+                    }
+                    push_names(&mut names, &target);
+                } else {
+                    folder.push(&name);
+                }
+            }
+        }
+    }
+    true
+}
+
+/// Puts the names of `path` before `names`, so that they are looked up next and in order, its
+/// root as `/`.
+#[cfg(target_os = "macos")]
+fn push_names(names: &mut Vec<OsString>, path: &Path) {
+    for component in path.components().rev() {
+        names.push(match component {
+            Component::RootDir => OsString::from("/"),
+            other => other.as_os_str().to_owned(),
+        });
+    }
+}
+
+/// Elsewhere a Landlock rule holds the folder itself, wherever it is moved or its path leads.
+#[cfg(not(target_os = "macos"))]
+fn settled_above(_: RawFd) -> bool {
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn settled_on_the_way(_: &Path) -> bool {
+    true
 }
 
 /// Whether others may reach the folder held by `descriptor` past its mode, or it cannot be
@@ -319,4 +415,29 @@ fn empty(descriptor: RawFd) -> io::Result<bool> {
 #[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
 fn empty(_descriptor: RawFd) -> io::Result<bool> {
     Err(io::ErrorKind::Unsupported.into())
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+mod tests {
+    use super::*;
+
+    /// A final `/.` is no part of the path kept, which a check follows by name.
+    #[test]
+    fn a_folder_keeps_its_path_without_a_final_separator() {
+        let place = std::env::temp_dir().join(format!("spc-folder-test-{}", std::process::id()));
+        std::fs::create_dir_all(&place).unwrap();
+        let made = place.join("made");
+        let folder = WritableFolder::create(format!("{}/.", made.display())).unwrap();
+        assert_eq!(folder.path().as_os_str(), made.as_os_str());
+        assert!(folder.still_new());
+        // The folder moved away and a link to it put at its path: the path leads to it no more.
+        let moved = place.join("moved");
+        std::fs::rename(&made, &moved).unwrap();
+        std::os::unix::fs::symlink(&moved, &made).unwrap();
+        assert!(!folder.still_new());
+        drop(folder);
+        std::fs::remove_file(&made).unwrap();
+        std::fs::remove_dir(&moved).unwrap();
+        std::fs::remove_dir(&place).unwrap();
+    }
 }

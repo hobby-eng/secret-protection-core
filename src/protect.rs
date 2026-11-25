@@ -171,9 +171,9 @@ impl fmt::Debug for Secret {
 /// Fixed-size scratch storage for a computation that handles secrets. It starts zeroed and
 /// wipes the whole area on drop if a writable slice was borrowed. Unix and Windows allocate
 /// dedicated pages with guards and attempt to lock them where supported. WebAssembly uses a heap
-/// allocation. Linux uses anonymous pages here,
-/// even when [`Secret`] can use kernel secret memory. See [`WorkArea::is_locked`] and
-/// [`WorkArea::is_out_of_children`] for the properties of a particular allocation.
+/// allocation. Linux uses anonymous pages here, even when [`Secret`] can use kernel secret
+/// memory. See [`WorkArea::is_locked`] and [`WorkArea::is_out_of_children`] for the properties
+/// of a particular allocation.
 pub struct WorkArea {
     pages: Pages,
     /// A mutable slice can have written anywhere in the area, even if it was only borrowed.
@@ -241,7 +241,8 @@ impl Drop for WorkArea {
 
 impl fmt::Debug for WorkArea {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WorkArea({} bytes, hidden)", self.as_slice().len())
+        // Without the bytes, which a child of `fork` may not reach.
+        write!(f, "WorkArea({} bytes, hidden)", self.pages.len())
     }
 }
 

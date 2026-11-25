@@ -195,7 +195,7 @@ fn not_text() -> io::Error {
 }
 
 /// Whether `handle` is a character device, as a console is; a file or pipe is not.
-fn character_device(handle: HANDLE) -> bool {
+pub(super) fn character_device(handle: HANDLE) -> bool {
     use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_CHAR, GetFileType};
     // SAFETY: reads the type of a handle of this process; an invalid one answers unknown.
     (unsafe { GetFileType(handle) }) == FILE_TYPE_CHAR

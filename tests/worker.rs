@@ -1,3 +1,4 @@
+// long: one program of roles, each a worker the parent starts again, read best whole.
 //! Exercises worker admission, request limits, transport failure and shutdown. The parent
 //! and worker use the same executable. The outcomes depend on the platform and on whether
 //! the launcher acquired a stable handle for termination.
@@ -549,6 +550,10 @@ fn a_worker_answers_isolated() {
     assert_eq!(worker.call(b"again", 10).unwrap().as_bytes(), b"false");
     // An answer as long as allowed passes.
     assert_eq!(worker.call(b"large", 100).unwrap().as_bytes().len(), 100);
+    // A request longer than the worker's first buffer of 4 KiB gets a larger one.
+    let long: Vec<u8> = (b'a'..=b'z').cycle().take(5000).collect();
+    let reversed: Vec<u8> = long.iter().rev().copied().collect();
+    assert_eq!(worker.call(&long, 5000).unwrap().as_bytes(), reversed);
 }
 
 fn a_worker_gets_nothing_but_its_pipes() {

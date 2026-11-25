@@ -181,6 +181,16 @@ mod tests {
         !words[17]
     }
 
+    /// `clear_stack` alone, as a thread of a pool calls it after the work it ran, clears what that
+    /// work left below the caller's frame.
+    #[test]
+    fn clear_stack_alone_clears_what_the_work_left() {
+        const MARK: u64 = 0x5350_435f_504f_4f21; // "SPC_POO!"
+        assert_eq!(work(MARK), !MARK);
+        clear_stack();
+        assert!(!stack_holds(!MARK));
+    }
+
     /// Locals of the closure itself, which an optimized build keeps in the frame that runs it,
     /// are cleared too.
     #[test]

@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-25 covered **93.74%** (3,623 of 3,865 measured source lines). All 114 checks passed (48 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
+The Linux x86-64 run on 2026-11-25 covered **94.55%** (3,710 of 3,924 measured source lines). All 118 checks passed (52 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `d8f39e8655bfaf4c93e82277e21c5785eaf379b20821067323255d00d91663cf`. The run reported no profile mismatches.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 during the remediation of AUD-018, before its release. The SHA-256 of its measured input manifest is `aa49fb49b4d67afbd9b3c4a768305b49d0551a1583b313a79a3c3d43d268ed51`. The commit that adds this report changed a few lines after that run, at the independent review of the remediation; coverage is measured again before the release. The run reported no profile mismatches.
 
 ## Scope and exclusions
 
@@ -20,7 +20,7 @@ The nested PID-namespace check can report a skip if the host refuses `mlockall` 
 
 The percentage counts library source lines compiled for Linux x86-64. Integration test source files and code specific to other platforms are outside the denominator. Some uncovered lines handle Linux errors or alternative C library implementations.
 
-CI also runs tests on Linux ARM64, macOS and Windows. Android, iOS and WebAssembly receive compile-time checks. The native macOS run at `e7b0d38` verified that the library collected a worker after the shutdown deadline. [CI configuration](../.github/workflows/ci.yml) · [Native run](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745920704)
+CI also runs tests on Linux ARM64, macOS and Windows. Android, iOS, WebAssembly and a 32-bit Linux without this crate's seccomp filter receive compile-time checks. The native macOS run at `e7b0d38` verified that the library collected a worker after the shutdown deadline. [CI configuration](../.github/workflows/ci.yml) · [Native run](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745920704)
 
 ## Reproduce on Linux
 
@@ -46,20 +46,20 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | File                             | Covered lines | Measured lines | Coverage |
 | -------------------------------- | ------------: | -------------: | -------: |
 | `src/channels.rs`                |            54 |             54 |  100.00% |
-| `src/input.rs`                   |           277 |            280 |   98.93% |
-| `src/os.rs`                      |            69 |             69 |  100.00% |
-| `src/os/linux.rs`                |           572 |            592 |   96.62% |
+| `src/input.rs`                   |           280 |            283 |   98.94% |
+| `src/os.rs`                      |            72 |             72 |  100.00% |
+| `src/os/linux.rs`                |           575 |            594 |   96.80% |
 | `src/os/linux/landlock_layer.rs` |            49 |             49 |  100.00% |
 | `src/os/linux/mappings.rs`       |            70 |             71 |   98.59% |
 | `src/os/linux/seccomp.rs`        |           269 |            272 |   98.90% |
-| `src/os/unix.rs`                 |           314 |            350 |   89.71% |
-| `src/os/unix/child.rs`           |            76 |             97 |   78.35% |
+| `src/os/unix.rs`                 |           317 |            350 |   90.57% |
+| `src/os/unix/child.rs`           |            77 |             98 |   78.57% |
 | `src/os/unix/forks.rs`           |            23 |             23 |  100.00% |
-| `src/os/unix/terminal.rs`        |           236 |            272 |   86.76% |
+| `src/os/unix/terminal.rs`        |           284 |            323 |   87.93% |
 | `src/os/unix/worker.rs`          |           314 |            368 |   85.33% |
 | `src/protect.rs`                 |           458 |            459 |   99.78% |
 | `src/protect/closed.rs`          |           131 |            132 |   99.24% |
-| `src/protect/folder.rs`          |           116 |            169 |   68.64% |
+| `src/protect/folder.rs`          |           131 |            161 |   81.37% |
 | `src/protect/options.rs`         |           148 |            148 |  100.00% |
-| `src/stack.rs`                   |           168 |            171 |   98.25% |
-| `src/worker.rs`                  |           279 |            289 |   96.54% |
+| `src/stack.rs`                   |           176 |            176 |  100.00% |
+| `src/worker.rs`                  |           282 |            291 |   96.91% |

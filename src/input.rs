@@ -189,9 +189,10 @@ pub enum LineEnd {
 }
 
 /// Reads a line typed on the terminal into `line` and shows none of it. The terminal's echo, line
-/// editing and signal keys are off while it reads, as the terminal reports back, and restored
-/// after; a failed restore is an error. The line is emptied first, and again unless Enter took
-/// it. Keys, errors and which terminal: docs/API.md.
+/// editing and signal keys are off while it reads, on Unix also flow control and the settings that
+/// would drop Enter or a byte's eighth bit, as the terminal reports back, and restored after; a
+/// failed restore is an error, and a Unix input set not to wait is refused. The line is emptied
+/// first, and again unless Enter took it. Keys, errors and which terminal: docs/API.md.
 #[cfg(any(unix, windows))]
 pub fn read_hidden_line(prompt: &str, line: &mut SecretLine) -> io::Result<LineEnd> {
     // One reading at a time: a second would take the first's hidden settings for the ones to
@@ -443,6 +444,11 @@ mod tests {
         assert_eq!(typed("a\x1b[M\rb", 64), taken("a"));
         // A mouse report at column 95 holds DEL, which is no Backspace there.
         assert_eq!(typed("a\x1b[M \x7f!b\r", 64), taken("ab"));
+        // SGR mouse reports, a press and a release, at a column and row past 223.
+        assert_eq!(
+            typed("a\x1b[<0;300;240Mb\x1b[<0;300;240mc\r", 64),
+            taken("abc")
+        );
         // Tab, Ctrl+W, NUL and a C1 control.
         assert_eq!(typed("a\tb\u{17}c\u{0}d\u{85}e\r", 64), taken("abcde"));
         assert_eq!(typed("пароль é\r", 64), taken("пароль é"));

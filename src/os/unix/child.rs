@@ -88,11 +88,13 @@ pub(super) fn launch(
 }
 
 impl Child {
+    /// Whether the worker was sent SIGKILL, or had already ended (ESRCH), which the wait that
+    /// follows reports: only a stable handle can tell.
     pub(super) fn terminate(&self) -> bool {
         #[cfg(target_os = "linux")]
         if let Self::Descriptor(fd) = self {
             // SAFETY: the live fd is this worker's kernel identity, independent of PID reuse.
-            return unsafe {
+            let sent = unsafe {
                 libc::syscall(
                     libc::SYS_pidfd_send_signal,
                     fd.as_raw_fd(),
@@ -101,6 +103,7 @@ impl Child {
                     0u32,
                 )
             } == 0;
+            return sent || std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
         }
         false
     }
@@ -159,5 +162,25 @@ impl Child {
                 }
             },
         }
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+    use std::os::fd::FromRawFd;
+
+    /// A worker collected before the kill is ended: ESRCH counts as such.
+    #[test]
+    fn a_child_collected_before_the_kill_counts_as_ended() {
+        let mut process = std::process::Command::new("/bin/true").spawn().unwrap();
+        let pid = libc::pid_t::try_from(process.id()).unwrap();
+        // SAFETY: pidfd_open takes a number and flags and returns a new descriptor or -1.
+        let pidfd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+        assert!(pidfd >= 0, "{}", io::Error::last_os_error());
+        process.wait().unwrap();
+        // SAFETY: the descriptor was just opened, and nothing else owns it.
+        let fd = unsafe { OwnedFd::from_raw_fd(libc::c_int::try_from(pidfd).unwrap()) };
+        assert!(Child::Descriptor(Arc::new(fd)).terminate());
     }
 }

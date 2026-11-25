@@ -224,6 +224,8 @@ At `e7b0d38fba46e45994cd8e7ecbdda185de9cee70`, the macOS test also verified that
 - The original AUD-009-SEC002 fix record described the function that runs before `main` as closing the descriptors above standard error. Since the fixes of AUD-010 it closes only those its parent names in the setting, so that descriptors the program's libraries opened before it stay theirs.
 - The rows of AUD-006-SEC001, AUD-009-SEC002 and AUD-010-SEC002, the erratum above and the original AUD-010 fix register describe a function that runs before `main` and closes descriptors. Since the fixes of AUD-012, at `9e0897994b3c16ab1e07b8021ca8fce9fe4a5ad6`, nothing in the worker closes a descriptor: `posix_spawn` closes those the worker would inherit in the child, before the program runs, and that function only counts forks.
 
+### Reading two earlier harnesses
+
 - The AUD-002 inherited-descriptor example bind-mounts the host root and substitutes a synthetic `/proc`. Its harness prints PASS when the worker starts with its socket closed. A startup refusal also prevents use of that socket, but the harness returns an error for that path. Its IPC check compares IPC namespace inodes and uses the crate’s own network report. On Windows the stack-size harness also accepts an unsupported result.
 - The AUD-005 signal harness requires the specific outcome Refused. A nonzero exit also covers failure to install the test policy or start its subprocess. The AUD-012 harness prints FAIL when a descriptor was closed or replaced. Its other error exits can indicate a setup failure. Read the diagnostic alongside the exit code.
 

@@ -222,10 +222,11 @@ mod macos {
             fn acl_get_tag_type(entry: *mut c_void, tag: *mut libc::c_int) -> libc::c_int;
             fn acl_free(object: *mut c_void) -> libc::c_int;
         }
-        /// ACL_FIRST_ENTRY, ACL_NEXT_ENTRY and ACL_EXTENDED_ALLOW of sys/acl.h.
+        /// ACL_FIRST_ENTRY, ACL_NEXT_ENTRY and ACL_EXTENDED_DENY of sys/acl.h: an entry of any
+        /// other kind counts as allowing.
         const FIRST: libc::c_int = 0;
         const NEXT: libc::c_int = -1;
-        const ALLOW: libc::c_int = 1;
+        const DENY: libc::c_int = 2;
         let errno = || io::Error::last_os_error().raw_os_error();
         // SAFETY: the calling thread's errno, which this thread alone writes.
         let clear = || unsafe { *libc::__error() = 0 };
@@ -247,7 +248,7 @@ mod macos {
             }
             let mut tag = 0;
             // SAFETY: an entry of the list, which lives until the list is freed.
-            if unsafe { acl_get_tag_type(entry, &mut tag) } != 0 || tag == ALLOW {
+            if unsafe { acl_get_tag_type(entry, &mut tag) } != 0 || tag != DENY {
                 break true;
             }
             which = NEXT;
@@ -447,9 +448,10 @@ mod macos {
         (outcome(network_refused()), files, granted)
     }
 
-    /// Probes exclusive creation in the temporary directory, or in /private/tmp when that lies
-    /// beneath a granted folder; `None` when both do. An existing file is never opened or
-    /// truncated. After successful creation, cleanup attempts to unlink the probe path.
+    /// Probes exclusive creation in the temporary directory, then /private/tmp, each where it
+    /// exists outside the granted folders; a refusal that is not the sandbox's tries the next, and
+    /// `None` is none left. An existing file is never opened or truncated. After successful
+    /// creation, cleanup attempts to unlink the probe path.
     fn file_writes_refused(folders: &[String]) -> Option<bool> {
         // As the sandbox may compare names: without regard to letter case.
         let granted = |place: &std::path::Path| {
@@ -460,32 +462,38 @@ mod macos {
             (folders.iter())
                 .any(|folder| std::path::Path::new(&place).starts_with(folder.to_lowercase()))
         };
-        let place = [std::env::temp_dir(), "/private/tmp".into()]
+        // Only folders that exist: a TMPDIR that leads nowhere answers NotFound, which says
+        // nothing of the sandbox.
+        let places = [std::env::temp_dir(), "/private/tmp".into()]
             .into_iter()
-            .find(|place| !granted(place))?;
-        // A name no other user can take first, as /private/tmp is everyone's.
-        let mut random = [0u8; 8];
-        // SAFETY: getentropy fills the 8 bytes given, well within its 256.
-        if unsafe { libc::getentropy(random.as_mut_ptr().cast(), random.len()) } != 0 {
-            return None;
-        }
-        let path = place.join(format!(
-            "secret-protection-core-{}-{:016x}",
-            std::process::id(),
-            u64::from_ne_bytes(random)
-        ));
-        let made = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path);
-        match made {
-            Ok(_) => {
-                let _ = std::fs::remove_file(&path);
-                Some(false)
+            .filter(|place| place.is_dir() && !granted(place));
+        for place in places {
+            // A name no other user can take first, as /private/tmp is everyone's.
+            let mut random = [0u8; 8];
+            // SAFETY: getentropy fills the 8 bytes given, well within its 256.
+            if unsafe { libc::getentropy(random.as_mut_ptr().cast(), random.len()) } != 0 {
+                return None;
             }
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => None,
-            Err(error) => Some(error.kind() == io::ErrorKind::PermissionDenied),
+            let path = place.join(format!(
+                "secret-protection-core-{}-{:016x}",
+                std::process::id(),
+                u64::from_ne_bytes(random)
+            ));
+            let made = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path);
+            match made {
+                Ok(_) => {
+                    let _ = std::fs::remove_file(&path);
+                    return Some(false);
+                }
+                Err(error) if error.kind() == io::ErrorKind::PermissionDenied => return Some(true),
+                // A name taken first, or a refusal that is not the sandbox's: the next place.
+                Err(_) => {}
+            }
         }
+        None
     }
 
     /// Whether the sandbox refuses to bind or connect a UDP socket on the loopback address, which

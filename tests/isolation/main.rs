@@ -290,6 +290,11 @@ fn checks() {
         target_os = "macos"
     ))]
     folders::checks();
+    #[cfg(target_os = "macos")]
+    run(
+        "a temporary folder that does not exist leaves the file probe its other place",
+        a_missing_temporary_folder_leaves_the_file_probe_its_other_place,
+    );
     #[cfg(target_os = "linux")]
     run(
         "a tracer of another thread makes the whole process readable",
@@ -620,6 +625,26 @@ fn writer() {
 
 fn webassembly_applies_nothing_and_says_so() {
     assert_eq!(Isolation::enter(), Isolation::default());
+}
+
+/// A temporary folder that does not exist leaves the file probe its other place: file changes
+/// still read as refused.
+#[cfg(target_os = "macos")]
+fn a_missing_temporary_folder_leaves_the_file_probe_its_other_place() {
+    let output = Command::new(std::env::current_exe().unwrap())
+        .env(ROLE, "isolated")
+        .env("TMPDIR", "/secret-protection-core-test-no-such-folder")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.starts_with(b"entered\n"));
 }
 
 fn a_process_of_one_thread_is_isolated_as_a_whole() {

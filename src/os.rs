@@ -205,6 +205,11 @@ impl Pages {
         self.locked && self.here()
     }
 
+    /// The bytes asked for, without touching the pages, which a child of `fork` may not.
+    pub(crate) fn len(&self) -> usize {
+        self.bytes
+    }
+
     /// Whether this process allocated the pages. Ordinary Unix `fork` advances the child's
     /// generation even when the OS could not exclude the contents.
     pub(crate) fn here(&self) -> bool {
@@ -398,6 +403,10 @@ mod heap {
         /// No process starts here, so no buffer is another's.
         pub(crate) fn here(&self) -> bool {
             true
+        }
+
+        pub(crate) fn len(&self) -> usize {
+            self.0.len()
         }
 
         pub(crate) fn is_locked(&self) -> bool {

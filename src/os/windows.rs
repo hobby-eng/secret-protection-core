@@ -21,8 +21,8 @@ use std::slice;
 use std::sync::Once;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_INVALID_PARAMETER, ERROR_SUCCESS, GetLastError, HANDLE, LocalFree, S_OK,
-    WAIT_OBJECT_0,
+    CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, ERROR_SUCCESS, GetLastError, HANDLE,
+    LocalFree, S_OK, WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, ConvertStringSidToSidW, GetSecurityInfo,
@@ -63,11 +63,11 @@ use windows_sys::Win32::System::Memory::{
 };
 use windows_sys::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, GetCurrentProcessId, GetProcessIdOfThread, GetProcessMitigationPolicy,
-    OpenProcessToken, OpenThread, PROCESS_MITIGATION_POLICY, ProcessChildProcessPolicy,
-    ProcessDynamicCodePolicy, ProcessExtensionPointDisablePolicy, ProcessImageLoadPolicy,
-    ProcessSideChannelIsolationPolicy, ProcessSignaturePolicy, SetProcessMitigationPolicy,
-    WaitForSingleObject,
+    GetCurrentProcess, GetCurrentProcessId, GetCurrentThread, GetProcessIdOfThread,
+    GetProcessMitigationPolicy, OpenProcessToken, OpenThread, PROCESS_MITIGATION_POLICY,
+    ProcessChildProcessPolicy, ProcessDynamicCodePolicy, ProcessExtensionPointDisablePolicy,
+    ProcessImageLoadPolicy, ProcessSideChannelIsolationPolicy, ProcessSignaturePolicy,
+    SetProcessMitigationPolicy, WaitForSingleObject,
 };
 use windows_sys::core::{PCWSTR, w};
 
@@ -748,7 +748,7 @@ fn inspect_threads(
     let thread_list = Descriptor::of(THREAD_ACCESS).ok();
     let wanted = thread_list.as_ref().and_then(Descriptor::access_list);
     for id in ids {
-        let (restricted, level) = inspect_thread(id, process, set_acl, wanted, pinned);
+        let (restricted, level) = inspect_thread(id, process, caller, set_acl, wanted, pinned);
         all &= restricted;
         if let Some(level) = level
             && (level == Outcome::Refused || integrity == Outcome::Confirmed)
@@ -783,12 +783,24 @@ fn inspect_threads(
 fn inspect_thread(
     id: u32,
     process: u32,
+    caller: u32,
     set_acl: bool,
     wanted: Option<*mut ACL>,
     pinned: &mut BTreeMap<u32, OwnedHandle>,
 ) -> (bool, Option<Outcome>) {
     if !set_acl && let Some(level) = threads::pinned_integrity(id, pinned) {
         return (true, Some(level));
+    }
+    // The calling thread goes through its pseudo handle, which has every right whatever its list:
+    // an AppContainer worker's first thread starts with THREAD_ACCESS, which grants the worker's
+    // package SID nothing, so OpenThread would refuse it.
+    if id == caller {
+        // SAFETY: the pseudo handle of the calling thread needs no closing.
+        let current = unsafe { GetCurrentThread() };
+        return (
+            wanted.is_some_and(|list| restrict_to(current, list)),
+            Some(Outcome::Unknown),
+        );
     }
     // SAFETY: opens the thread with what its list grants: every right while it has the list it
     // started with; READ_CONTROL and THREAD_QUERY_LIMITED_INFORMATION once it has THREAD_ACCESS.
@@ -949,9 +961,14 @@ pub(crate) fn write_secret(text: &str) -> io::Result<()> {
     // SAFETY: returns the handle of standard output, which this process does not own and keeps
     // open; a missing one makes the writes below fail.
     let output = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
+    // A console takes UTF-16. GetConsoleMode tells one, but needs the read right: a console open
+    // only for writing answers ACCESS_DENIED, where NUL, a file or a pipe answer otherwise.
     let mut mode = 0;
     // SAFETY: writes the console mode into `mode`, and fails when the handle is no console.
-    if unsafe { GetConsoleMode(output, &mut mode) } == 0 {
+    let console = unsafe { GetConsoleMode(output, &mut mode) } != 0
+        // SAFETY: reads this thread's last error, which GetConsoleMode set.
+        || (unsafe { GetLastError() } == ERROR_ACCESS_DENIED && console::character_device(output));
+    if !console {
         return write_all(text.as_bytes(), 1, |bytes, length, written| {
             // SAFETY: WriteFile reads `length` bytes of `bytes`, which live for the call.
             unsafe { WriteFile(output, bytes.as_ptr(), length, written, ptr::null_mut()) }

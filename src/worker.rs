@@ -390,6 +390,8 @@ pub fn serve(most: usize, mut answer: impl FnMut(&[u8]) -> Secret) -> bool {
             return true;
         }
         if length > request.capacity() {
+            // The old buffer goes first: both at once would hold twice the locked memory.
+            drop(request);
             request = Secret::zeroed(length.max(REQUEST_BUFFER));
         }
         if streams

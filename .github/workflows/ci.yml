@@ -24,16 +24,31 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      DPRINT: "0.63.0"
+      DPRINT_SHA256: f58b5d7c13ccd613cfa264f1ae82d4e5db1373f8fe20462bc1126051d111b0ce
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install the pinned Rust toolchain
         run: rustup show
+      # dprint formats the Markdown, JSON, TOML and YAML; dprint.json pins its plugins with their
+      # SHA-256.
+      - name: Install dprint, checked against its SHA-256
+        run: |
+          archive="dprint-x86_64-unknown-linux-gnu.zip"
+          curl --fail --silent --show-error --location --proto '=https' \
+            --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/dprint/dprint/releases/download/$DPRINT/$archive"
+          echo "$DPRINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/$archive" -d "$RUNNER_TEMP/dprint"
+          echo "$RUNNER_TEMP/dprint" >> "$GITHUB_PATH"
       - name: Check the formatting
         run: |
           cargo fmt --check
           cargo fmt --manifest-path fuzz/Cargo.toml --check
+          dprint check
       # The notices name exactly the packages of the library's dependency tree, each with its
       # complete version: both lists of "name vVERSION" pairs must be equal.
       - name: Check the third-party notices against the dependency tree

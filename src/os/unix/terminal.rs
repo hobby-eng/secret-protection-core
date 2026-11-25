@@ -16,6 +16,11 @@ use zeroize::Zeroizing;
 const LOCAL_OFF: libc::tcflag_t =
     libc::ECHO | libc::ECHONL | libc::ICANON | libc::IEXTEN | libc::ISIG;
 
+/// What it switches off in the input modes: Ctrl+C on a break, and what would change or lose a
+/// typed key: Ctrl+S and Ctrl+Q as flow control, a dropped carriage return (Enter), and the
+/// eighth bit of a byte, which UTF-8 needs.
+const INPUT_OFF: libc::tcflag_t = libc::BRKINT | libc::IXON | libc::IGNCR | libc::ISTRIP;
+
 /// The most bytes a drain reads and drops: the input left before and after a reading, such as the
 /// rest of a pasted text.
 const DRAINED: usize = 64 << 10;
@@ -41,7 +46,7 @@ impl HiddenTerminal {
     pub(crate) fn open() -> io::Result<Self> {
         let input = [libc::STDIN_FILENO, libc::STDERR_FILENO]
             .into_iter()
-            .find(|&descriptor| terminal_for(descriptor, libc::O_WRONLY))
+            .find(|&descriptor| terminal_for(descriptor, libc::O_RDONLY))
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::NotFound,
@@ -51,7 +56,7 @@ impl HiddenTerminal {
         // The same terminal first; `/dev/tty`, as `< /dev/tty` gives it, is a device of its own.
         let writable = [input, libc::STDERR_FILENO, libc::STDOUT_FILENO]
             .into_iter()
-            .filter(|&descriptor| terminal_for(descriptor, libc::O_RDONLY));
+            .filter(|&descriptor| terminal_for(descriptor, libc::O_WRONLY));
         let output = writable
             .clone()
             .find(|&descriptor| device(descriptor).is_some_and(|own| Some(own) == device(input)))
@@ -62,6 +67,18 @@ impl HiddenTerminal {
     /// Switches the terminal on `input`, and refuses before reading anything unless the switch
     /// reads back. Break conditions on a serial line stop raising Ctrl+C too.
     pub(crate) fn on(input: RawFd, output: Option<RawFd>) -> io::Result<Self> {
+        // A read that does not wait ends the line at once, and a drain cannot tell an empty queue
+        // from a refusal: such an input is refused before anything changes.
+        // SAFETY: fcntl with F_GETFL takes integers and only asks.
+        let flags = unsafe { libc::fcntl(input, libc::F_GETFL) };
+        if flags == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        if flags & libc::O_NONBLOCK != 0 {
+            return Err(io::Error::other(
+                "the terminal input is set not to wait for keys (O_NONBLOCK); nothing was read",
+            ));
+        }
         let original = settings(input)?;
         // From here on every way out restores the settings, whatever went through.
         let mut terminal = Self {
@@ -73,20 +90,21 @@ impl HiddenTerminal {
         };
         let mut hidden = original;
         hidden.c_lflag &= !LOCAL_OFF;
-        hidden.c_iflag &= !libc::BRKINT;
+        hidden.c_iflag &= !INPUT_OFF;
         hidden.c_cc[libc::VMIN] = 0;
         hidden.c_cc[libc::VTIME] = 0;
         set(input, &hidden)?;
         // tcsetattr succeeds when any one of the changes was made: what reads back decides.
         switched(input, 0)?;
-        terminal.draining = Some(hidden);
         // Keys waiting now, which the terminal may have shown or another program put in, are no
         // part of the line: read and dropped without waiting, those still on their way included.
+        // A failed drain is not tried again on the way out, which would drop more than allowed.
         if !terminal.drain() {
             return Err(io::Error::other(
                 "the input waiting before the reading could not be dropped; nothing was read",
             ));
         }
+        terminal.draining = Some(hidden);
         hidden.c_cc[libc::VMIN] = 1;
         set(input, &hidden)?;
         switched(input, 1)?;
@@ -177,8 +195,12 @@ impl HiddenTerminal {
                 // More than DRAINED: no end in sight.
                 Ok(read) if taken + read > DRAINED => return false,
                 Ok(read) => taken += read,
-                Err(_) if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
-                Err(_) => return false,
+                Err(_) => match io::Error::last_os_error().kind() {
+                    io::ErrorKind::Interrupted => {}
+                    // Nothing waiting, where another program set the input not to wait.
+                    io::ErrorKind::WouldBlock => return true,
+                    _ => return false,
+                },
             }
         }
     }
@@ -194,20 +216,20 @@ impl Drop for HiddenTerminal {
 fn switched(descriptor: RawFd, minimum: libc::cc_t) -> io::Result<()> {
     let now = settings(descriptor)?;
     if now.c_lflag & LOCAL_OFF != 0
-        || now.c_iflag & libc::BRKINT != 0
+        || now.c_iflag & INPUT_OFF != 0
         || now.c_cc[libc::VMIN] != minimum
         || now.c_cc[libc::VTIME] != 0
     {
         return Err(io::Error::other(
-            "the terminal did not turn its echo off; nothing was read",
+            "the terminal did not take the hidden settings; nothing was read",
         ));
     }
     Ok(())
 }
 
-/// Whether `descriptor` is a terminal whose access mode is not `refused`: readable when it is
-/// not `O_WRONLY`, writable when it is not `O_RDONLY`.
-fn terminal_for(descriptor: RawFd, refused: libc::c_int) -> bool {
+/// Whether `descriptor` is a terminal open for `access`, `O_RDONLY` to read or `O_WRONLY` to
+/// write, or open for both; Linux's mode 3, for ioctls alone, is neither.
+fn terminal_for(descriptor: RawFd, access: libc::c_int) -> bool {
     // SAFETY: isatty and fcntl with F_GETFL take integers and only ask.
     let (terminal, flags) = unsafe {
         (
@@ -215,7 +237,8 @@ fn terminal_for(descriptor: RawFd, refused: libc::c_int) -> bool {
             libc::fcntl(descriptor, libc::F_GETFL),
         )
     };
-    terminal && flags != -1 && flags & libc::O_ACCMODE != refused
+    let mode = flags & libc::O_ACCMODE;
+    terminal && flags != -1 && (mode == access || mode == libc::O_RDWR)
 }
 
 /// Whether two settings agree in every field a terminal keeps: the modes and the control keys.
@@ -370,6 +393,57 @@ mod tests {
         );
         assert_eq!(shown(&controller), "Password: ");
         Ok(())
+    }
+
+    /// Typed keys arrive whole: flow control, a dropped carriage return and a stripped eighth bit
+    /// are off while it reads. An input set not to wait is refused before anything changes.
+    #[test]
+    fn keys_arrive_whole_and_an_input_that_does_not_wait_is_refused() -> io::Result<()> {
+        let (controller, terminal) = pseudo_terminal();
+        let mut before = settings(terminal.as_raw_fd())?;
+        before.c_iflag |= libc::IXON | libc::IGNCR | libc::ISTRIP;
+        set(terminal.as_raw_fd(), &before)?;
+        let mut hidden = hidden(&terminal)?;
+        assert_eq!(settings(terminal.as_raw_fd())?.c_iflag & INPUT_OFF, 0);
+        // Ctrl+S is a key, which the line drops; é keeps its eighth bit; Enter ends the line.
+        type_keys(&controller, "a\x13\u{e9}\r".as_bytes());
+        let mut line = crate::SecretLine::with_capacity(16);
+        assert_eq!(edit(&mut line, || hidden.next_char())?, LineEnd::Entered);
+        hidden.restore()?;
+        drop(hidden);
+        assert_eq!(line.as_str(), "a\u{e9}");
+        assert_eq!(settings(terminal.as_raw_fd())?.c_iflag, before.c_iflag);
+        // SAFETY: fcntl takes a descriptor and integers.
+        unsafe {
+            let flags = libc::fcntl(terminal.as_raw_fd(), libc::F_GETFL);
+            libc::fcntl(
+                terminal.as_raw_fd(),
+                libc::F_SETFL,
+                flags | libc::O_NONBLOCK,
+            );
+        }
+        assert!(self::hidden(&terminal).is_err());
+        assert_eq!(settings(terminal.as_raw_fd())?.c_iflag, before.c_iflag);
+        Ok(())
+    }
+
+    /// A descriptor in Linux's access mode 3, for ioctls alone, is a terminal to neither read
+    /// nor write.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_descriptor_for_ioctls_alone_is_no_terminal_to_use() {
+        let (_controller, terminal) = pseudo_terminal();
+        let path =
+            std::ffi::CString::new(format!("/proc/self/fd/{}", terminal.as_raw_fd())).unwrap();
+        // SAFETY: open reads the NUL-terminated path, which lives for the call.
+        let ioctls = unsafe { libc::open(path.as_ptr(), 3 | libc::O_NOCTTY) };
+        assert!(ioctls >= 0, "{}", io::Error::last_os_error());
+        // SAFETY: the descriptor was just opened, and nothing else owns it.
+        let ioctls = unsafe { OwnedFd::from_raw_fd(ioctls) };
+        assert!(!terminal_for(ioctls.as_raw_fd(), libc::O_RDONLY));
+        assert!(!terminal_for(ioctls.as_raw_fd(), libc::O_WRONLY));
+        assert!(terminal_for(terminal.as_raw_fd(), libc::O_RDONLY));
+        assert!(terminal_for(terminal.as_raw_fd(), libc::O_WRONLY));
     }
 
     /// Ctrl+C cancels the line, and the drop restores the terminal all the same.

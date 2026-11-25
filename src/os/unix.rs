@@ -449,10 +449,11 @@ pub(crate) fn run_on_stack<R: Send, F: FnOnce() -> R + Send>(
         ptr::null_mut()
     }
 
+    // The system's least size first, then whole pages, which it may not be.
     let size = bytes
+        .max(libc::PTHREAD_STACK_MIN)
         .checked_next_multiple_of(page_size())
-        .ok_or(StackError::Size)?
-        .max(libc::PTHREAD_STACK_MIN);
+        .ok_or(StackError::Size)?;
     let mut stack =
         Pages::stack(size).ok_or_else(|| StackError::System(io::ErrorKind::OutOfMemory.into()))?;
     let has = crate::StackProperties {
