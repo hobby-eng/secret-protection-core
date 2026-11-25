@@ -475,7 +475,7 @@ mod tests {
         assert!(setting("0,0,").is_none() && setting("0,0,3.17").is_none());
         // No other text: a flag that is neither 0 nor 1, or an option this crate does not have.
         for other in [
-            "", "none", "x,1", "+1,0", "01,0", "00,0", "7", "0,2", "0,true", "64,0",
+            "", "none", "x,1", "+1,0", "01,0", "00,0", "7", "0,2", "0,true", "128,0",
         ] {
             assert_eq!(setting(other), None, "{other}");
         }

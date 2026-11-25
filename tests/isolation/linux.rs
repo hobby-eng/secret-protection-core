@@ -13,8 +13,10 @@ use std::ptr;
 use secret_protection_core::{Isolation, Secret};
 
 mod roles;
+mod threads;
 
 pub(crate) use roles::*;
+pub(crate) use threads::*;
 
 /// Requests of linux/fsverity.h, linux/fscrypt.h and linux/btrfs.h that change a file or make
 /// a folder through a descriptor open only for reading.

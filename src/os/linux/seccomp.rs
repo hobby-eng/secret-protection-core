@@ -506,8 +506,11 @@ pub(super) fn held() -> Option<u32> {
 }
 
 /// Installs the filter with the bits `options` for the calling thread and the threads it
-/// starts afterwards, and returns the bits of the filter it holds now.
-pub(super) fn install(options: u32) -> Option<u32> {
+/// starts afterwards, and returns the bits of the filter it holds now. With `sync`, on every
+/// thread of the process at once (TSYNC), and whether that went through: a thread whose filter
+/// the caller's does not descend from refuses it, and the filter then goes onto the calling
+/// thread alone, when it is `needed` there.
+pub(super) fn install(options: u32, sync: bool, needed: bool) -> (Option<u32>, bool) {
     // SAFETY: getpid takes nothing and touches no memory.
     let own = unsafe { libc::getpid() };
     let mut program = program(options, own);
@@ -515,8 +518,25 @@ pub(super) fn install(options: u32) -> Option<u32> {
         len: program.len() as u16,
         filter: program.as_mut_ptr(),
     };
-    // SAFETY: the filter points to `len` instructions that live for the call; the kernel
-    // copies them. It holds for the calling thread and the threads it starts afterwards.
+    if sync {
+        // SAFETY: the filter points to `len` instructions that live for the call; the kernel
+        // copies them. 0 is success; a thread number names a thread that could not take it.
+        let answer = unsafe {
+            libc::syscall(
+                libc::SYS_seccomp,
+                libc::SECCOMP_SET_MODE_FILTER,
+                libc::SECCOMP_FILTER_FLAG_TSYNC,
+                &raw const filter,
+            )
+        };
+        if answer == 0 {
+            return (held(), true);
+        }
+    }
+    if !needed {
+        return (held(), false);
+    }
+    // SAFETY: as above. It holds for the calling thread and the threads it starts afterwards.
     let installed = unsafe {
         libc::prctl(
             libc::PR_SET_SECCOMP,
@@ -526,5 +546,5 @@ pub(super) fn install(options: u32) -> Option<u32> {
             0 as libc::c_ulong,
         )
     } == 0;
-    if installed { held() } else { None }
+    (if installed { held() } else { None }, false)
 }

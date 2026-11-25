@@ -69,6 +69,11 @@ fn main() {
             target_os = "macos"
         ))]
         Ok("shared-memory") => folders::shared_memory_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("folders-then-threads") => folders::folders_then_threads_role(),
         Ok("idle") => idle(),
         #[cfg(windows)]
         Ok("impersonating-sibling") => windows::an_impersonating_sibling_keeps_its_own_integrity(),
@@ -96,6 +101,31 @@ fn main() {
             any(target_arch = "x86_64", target_arch = "aarch64")
         ))]
         Ok("unlisted") => linux::unlisted_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("all-threads") => linux::threads_role(true),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("one-thread-only") => linux::threads_role(false),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("foreign-sibling") => linux::foreign_sibling_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("repeated") => linux::repeated_role(),
+        #[cfg(all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ))]
+        Ok("forked-threads") => linux::forked_threads_role(),
         #[cfg(all(
             target_os = "linux",
             any(target_arch = "x86_64", target_arch = "aarch64")
@@ -179,6 +209,26 @@ fn linux_role_checks() {
     run(
         "a Landlock layer the kernel refused once is tried again",
         || linux::role_ends_well("relayered"),
+    );
+    run(
+        "with all_threads the filter and the layer reach a thread that was there before",
+        || linux::role_ends_well("all-threads"),
+    );
+    run(
+        "without all_threads a thread that was there before keeps what isolation takes",
+        || linux::role_ends_well("one-thread-only"),
+    );
+    run(
+        "a thread with a filter of its own keeps the filter on the calling thread alone",
+        || linux::role_ends_well("foreign-sibling"),
+    );
+    run(
+        "repeated calls with all_threads add no filter and keep the whole process",
+        || linux::role_ends_well("repeated"),
+    );
+    run(
+        "a child of fork does not take its parent's record of a filter on every thread",
+        || linux::role_ends_well("forked-threads"),
     );
     run(
         "a secret made where signals cannot be blocked takes no secret memory",

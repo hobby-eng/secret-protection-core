@@ -15,6 +15,7 @@ pub struct Options {
     pub(crate) microsoft_signed: bool,
     pub(crate) own_signals: bool,
     pub(crate) lock_all: bool,
+    pub(crate) all_threads: bool,
 }
 
 impl Options {
@@ -28,6 +29,7 @@ impl Options {
             microsoft_signed: false,
             own_signals: false,
             lock_all: false,
+            all_threads: false,
         }
     }
 
@@ -93,6 +95,18 @@ impl Options {
         self
     }
 
+    /// Linux: puts the filter, and from Linux 7.0 the Landlock layer, on every thread of a
+    /// process that already has other threads when it isolates itself (TSYNC); without it they
+    /// reach the calling thread and the threads it starts afterwards. The other threads lose what
+    /// isolation takes in the middle of their work, and the layer replaces any Landlock layer
+    /// one of them had of its own. Android ignores it. Check [`Isolation::whole_process`] and
+    /// the reach of each protection.
+    #[must_use]
+    pub const fn all_threads(mut self) -> Self {
+        self.all_threads = true;
+        self
+    }
+
     /// One bit for each option, as a worker gets them from its parent.
     pub(crate) fn to_bits(self) -> u32 {
         u32::from(self.file_locks)
@@ -101,6 +115,7 @@ impl Options {
             | u32::from(self.microsoft_signed) << 3
             | u32::from(self.own_signals) << 4
             | u32::from(self.lock_all) << 5
+            | u32::from(self.all_threads) << 6
     }
 
     /// The options that [`Options::to_bits`] made.
@@ -112,6 +127,7 @@ impl Options {
             microsoft_signed: bits & 8 != 0,
             own_signals: bits & 16 != 0,
             lock_all: bits & 32 != 0,
+            all_threads: bits & 64 != 0,
         }
     }
 }
@@ -300,11 +316,12 @@ mod tests {
             Options::new().microsoft_signed_only(),
             Options::new().signals_to_self_only(),
             Options::new().lock_all_memory(),
+            Options::new().all_threads(),
         ];
         let bits: Vec<u32> = each.iter().map(|options| options.to_bits()).collect();
         assert!(bits.iter().all(|bits| bits.count_ones() == 1));
-        assert_eq!(bits.iter().fold(0, |all, bits| all | bits), 0b11_1111);
-        for set in 0..64 {
+        assert_eq!(bits.iter().fold(0, |all, bits| all | bits), 0b111_1111);
+        for set in 0..128 {
             assert_eq!(Options::from_bits(set).to_bits(), set);
         }
     }

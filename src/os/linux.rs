@@ -243,6 +243,9 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
     #[cfg(target_os = "linux")]
     prepare_secret_pages();
     let whole_process = one_thread();
+    // TSYNC only matters with other threads, whose restrictions it changes in mid-work. Not on
+    // Android: an app's own threads (Binder, the runtime's) would lose what the filter refuses.
+    let sync = cfg!(target_os = "linux") && options.all_threads && !whole_process;
     // Before the user namespace: once in one, every process of the user holds CAP_SYS_PTRACE
     // there, which passes Yama, and only a cleared dumpable flag still keeps it out.
     let core_limit = super::unix::forbid_core_dumps();
@@ -279,7 +282,7 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
     // Seccomp and Landlock require no_new_privs of an unprivileged process: no program it starts
     // can gain privileges, as a set-user-ID program would.
     // SAFETY: as above.
-    let (held, granted) = if unsafe {
+    let restricted = if unsafe {
         libc::prctl(
             libc::PR_SET_NO_NEW_PRIVS,
             1 as libc::c_ulong,
@@ -289,10 +292,21 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
         )
     } == 0
     {
-        restrict(whole_process, wanted, &fresh)
+        restrict(whole_process, wanted, &fresh, sync)
     } else {
-        (seccomp::held(), false)
+        Restricted {
+            held: seccomp::held(),
+            granted: false,
+            filter_synced: false,
+            layer_synced: false,
+        }
     };
+    let held = restricted.held;
+    // How far the per-thread restrictions reach: the filter, and the layer where there is one.
+    let filter_wide = whole_process || restricted.filter_synced;
+    let layer_wide = whole_process || restricted.layer_synced;
+    let layered = layer_bits(held) & seccomp::LAYER != 0;
+    let folders_held = held.is_some_and(|rules| rules & seccomp::FOLDERS != 0);
     // SAFETY: PR_GET_DUMPABLE takes no pointer and returns the flag.
     let dumpable = unsafe {
         libc::prctl(
@@ -321,24 +335,29 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
     found.set(
         P::NoNewSockets,
         probed(filter, sockets_refused()),
-        whole_process,
+        filter_wide,
     );
     #[cfg(target_os = "linux")]
     found.check(P::EmptyNetwork, empty_network, true);
     // Only the filter refuses every change of a file, by the calls and the flags of an open;
     // Landlock alone leaves modes, owners, extended attributes and times.
+    // With folders, the filter alone lets writes through: only where the layer went too.
     found.check(
         P::NoFileChanges,
         held.is_some() && writing_refused(),
-        whole_process,
+        filter_wide && (!folders_held || layer_wide),
     );
     found.set(P::SpeculationLimited, speculation, whole_process);
     found.set(
         P::NoNewPrograms,
         probed(filter, programs_refused()),
-        whole_process,
+        filter_wide,
     );
-    found.check(P::WholeProcess, whole_process, true);
+    found.check(
+        P::WholeProcess,
+        filter_wide && (!layered || layer_wide),
+        true,
+    );
     let rule = |bit: u32| held.is_some_and(|rules| rules & bit != 0);
     found.set(
         P::FileLocksRefused,
@@ -347,24 +366,24 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
             rule(seccomp::FILE_LOCKS),
             file_locks_refused(),
         ),
-        whole_process,
+        filter_wide,
     );
     found.set(
         P::SendmsgRefused,
         option_probed(options.sendmsg, rule(seccomp::SENDMSG), sendmsg_refused()),
-        whole_process,
+        filter_wide,
     );
     found.option(
         P::SignalsToSelfOnly,
         options.own_signals,
         self_only,
-        whole_process,
+        filter_wide,
     );
     #[cfg(target_os = "linux")]
     found.check(
         P::SignalsWithinLayer,
         layer_bits(held) & seccomp::SCOPE != 0,
-        whole_process,
+        layer_wide,
     );
     found.set(P::MemoryLocked, memory, true);
     // This call's layer took the folders, which keeps writes beneath them, and the filter lets
@@ -372,8 +391,8 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
     found.option(
         P::FolderWrites,
         asked,
-        granted && rule(seccomp::FOLDERS),
-        whole_process,
+        restricted.granted && rule(seccomp::FOLDERS),
+        filter_wide && layer_wide,
     );
     found.finish()
 }
@@ -503,6 +522,21 @@ thread_local! {
 #[cfg(target_os = "linux")]
 static LAYERED_PROCESS: AtomicU32 = AtomicU32::new(0);
 
+/// The bits of a filter that reached every thread, by TSYNC or by going in while the process had
+/// one thread, with [`ON_EVERY_THREAD`] set, and in the high half the process it holds for; 0
+/// before. A later call that holds the same filter installs it again on no thread. A child of
+/// `fork` inherits the record but not its truth: its threads may hold a filter that names the
+/// parent, so a record of another process counts for nothing.
+static PROCESS_FILTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+const ON_EVERY_THREAD: u32 = 1 << 31;
+
+/// The record of [`PROCESS_FILTER`] for `rules` in this process.
+fn on_every_thread(rules: u32) -> u64 {
+    // SAFETY: getpid takes nothing and touches no memory.
+    let own = unsafe { libc::getpid() };
+    u64::from(own.unsigned_abs()) << 32 | u64::from(rules | ON_EVERY_THREAD)
+}
+
 /// The Landlock bits the calling thread holds: from the mark of the filter that went in after
 /// the layer, which the threads it starts answer too, or from what the thread or the process
 /// recorded. Only a layer the kernel took is ever recorded.
@@ -514,36 +548,63 @@ fn layer_bits(held: Option<u32>) -> u32 {
     marked
 }
 
+/// What [`restrict`] did: the filter the calling thread holds, whether this call's layer took
+/// the folders, and whether the filter and the layer went onto every thread at once.
+struct Restricted {
+    held: Option<u32>,
+    granted: bool,
+    filter_synced: bool,
+    layer_synced: bool,
+}
+
 /// Gives this thread the Landlock layer and the seccomp filter, if it doesn't have them yet, and
-/// returns the bits of the filter it now holds (`None` if none). Only what the kernel accepted
-/// is recorded, so a refused layer or filter is tried again by the next call; a filter goes in
-/// only when it adds a bit. A filter installed by someone else (Android, containers) doesn't
-/// count.
+/// reports what it holds then. Only what the kernel accepted is recorded, so a refused layer or
+/// filter is tried again by the next call; a filter goes in only when it adds a bit. A filter
+/// installed by someone else (Android, containers) doesn't count. With `sync`, both go onto every
+/// thread (TSYNC), the ones already there again too, so that the other threads get them.
 fn restrict(
     whole_process: bool,
     wanted: u32,
     folders: &[std::os::fd::BorrowedFd<'_>],
-) -> (Option<u32>, bool) {
+    sync: bool,
+) -> Restricted {
     let held = seccomp::held();
     let layer = layer_bits(held);
     // Whether this call's layer took `folders`: an earlier layer may hold other folders.
+    // A layer again for `sync` only where it can reach every thread, when none did yet, and when
+    // the one there grants no folder: one without them would close the folders, as layers only
+    // narrow. Each layer counts against the kernel's limit of 16.
     #[cfg(target_os = "linux")]
-    let (layer, granted) = if layer & seccomp::LAYER == 0 {
-        // Folders only with a first filter as well: an earlier one keeps every write closed.
-        let folders = if held.is_none() { folders } else { &[] };
-        let applied = landlock_layer::restrict_self(folders);
+    let process_layer = LAYERED_PROCESS.load(Ordering::Relaxed) & seccomp::LAYER != 0;
+    #[cfg(target_os = "linux")]
+    let again = sync && layer & seccomp::FOLDERS == 0 && !process_layer && landlock_layer::syncs();
+    #[cfg(target_os = "linux")]
+    let (layer, granted, layer_synced) = if layer & seccomp::LAYER == 0 || again {
+        // Folders only into a first layer, with a first filter: an earlier one keeps them closed.
+        let folders = if held.is_none() && layer & seccomp::LAYER == 0 {
+            folders
+        } else {
+            &[]
+        };
+        let first = layer & seccomp::LAYER == 0;
+        let (applied, synced) = landlock_layer::restrict_self(folders, sync, first);
+        let applied = applied | (layer & (seccomp::LAYER | seccomp::SCOPE | seccomp::FOLDERS));
         LAYERED_THREAD.set(applied);
-        if whole_process {
+        if whole_process || synced {
             LAYERED_PROCESS.store(applied, Ordering::Relaxed);
         }
-        (applied, applied & seccomp::FOLDERS != 0)
+        (
+            applied,
+            applied & seccomp::FOLDERS != 0 && !folders.is_empty(),
+            synced || process_layer,
+        )
     } else {
-        (layer, false)
+        (layer, false, process_layer)
     };
     #[cfg(target_os = "android")]
-    let granted = {
+    let (granted, layer_synced) = {
         let _ = (whole_process, folders);
-        false
+        (false, false)
     };
     let rules = held.unwrap_or(0) | wanted | layer;
     // A signal rule inherited from the process this one was forked from names that process:
@@ -551,10 +612,27 @@ fn restrict(
     let inherited = wanted & seccomp::SIGNALS != 0
         && held.is_some_and(|rules| rules & seccomp::SIGNALS != 0)
         && !seccomp::names_this_process();
-    if held == Some(rules) && !inherited {
-        return (held, granted);
+    // A filter goes in when it adds a rule, or for `sync` when this one has not reached every
+    // thread yet; stacked filters all run on every call, up to the kernel's limit.
+    let needed = held != Some(rules) || inherited;
+    let everywhere = PROCESS_FILTER.load(Ordering::Relaxed) == on_every_thread(rules);
+    let (held, filter_synced) = if !needed && (everywhere || !sync) {
+        (held, everywhere)
+    } else {
+        let (installed, synced) = seccomp::install(rules, sync, needed);
+        if installed == Some(rules) && (synced || whole_process) {
+            PROCESS_FILTER.store(on_every_thread(rules), Ordering::Relaxed);
+        }
+        // Only this call's TSYNC: a filter put in again for a rule inherited from the process this
+        // one was forked from reaches the calling thread alone.
+        (installed.or(held), synced)
+    };
+    Restricted {
+        held,
+        granted,
+        filter_synced,
+        layer_synced,
     }
-    (seccomp::install(rules).or(held), granted)
 }
 
 /// `prctl` options of linux/prctl.h for the processor's speculation, written out because libc
@@ -797,8 +875,8 @@ mod seccomp {
         None
     }
 
-    pub(super) fn install(_options: u32) -> Option<u32> {
-        None
+    pub(super) fn install(_options: u32, _sync: bool, _needed: bool) -> (Option<u32>, bool) {
+        (None, false)
     }
 }
 
@@ -810,8 +888,9 @@ mod landlock_layer {
     use std::os::fd::BorrowedFd;
 
     use landlock::{
-        ABI, Access, AccessFs, AccessNet, BitFlags, LandlockStatus, PathBeneath, Ruleset,
-        RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetError, RulesetStatus, Scope,
+        ABI, Access, AccessFs, AccessNet, BitFlags, LandlockStatus, PathBeneath, RestrictSelfAttr,
+        Ruleset, RulesetAttr, RulesetCreated, RulesetCreatedAttr, RulesetError, RulesetStatus,
+        Scope,
     };
 
     /// The newest Landlock ABI whose rights the layer asks for: that of Linux 7.1.
@@ -827,6 +906,20 @@ mod landlock_layer {
             | AccessFs::RemoveFile
             | AccessFs::RemoveDir
             | AccessFs::Refer
+    }
+
+    /// Whether the running kernel can put a layer on every thread at once (ABI 8, Linux 7.0).
+    pub(super) fn syncs() -> bool {
+        // SAFETY: with a null attribute and the version flag the call only returns a number.
+        let abi = unsafe {
+            libc::syscall(
+                libc::SYS_landlock_create_ruleset,
+                std::ptr::null::<u8>(),
+                0_usize,
+                1_u32,
+            )
+        };
+        abi >= 8
     }
 
     /// The layer, with the rights of `folders` beneath each.
@@ -847,22 +940,39 @@ mod landlock_layer {
     /// has the signal scope (ABI 6, Linux 6.12) and [`super::seccomp::FOLDERS`] when it took the
     /// folders' rules, and 0 when it refused or has no Landlock. A folder rule the kernel refuses
     /// leaves the layer without any, closed everywhere.
-    pub(super) fn restrict_self(folders: &[BorrowedFd<'_>]) -> u32 {
+    /// With `sync`, on every thread at once (TSYNC, Linux 7.0), which the second value says.
+    /// TSYNC replaces a Landlock layer another thread had of its own, which can be wider for
+    /// that thread. A TSYNC the kernel refuses leaves a `first` layer to the calling thread, and
+    /// adds none to a thread that holds one, as the kernel takes at most 16.
+    pub(super) fn restrict_self(
+        folders: &[BorrowedFd<'_>],
+        sync: bool,
+        first: bool,
+    ) -> (u32, bool) {
         let (created, granted) = match layer(folders) {
             Err(_) if !folders.is_empty() => (layer(&[]), false),
             created => (created, !folders.is_empty()),
         };
-        match created.and_then(RulesetCreated::restrict_self) {
+        let taken = if granted { folders } else { &[] };
+        let applied = created
+            .and_then(|created| created.all_threads(sync))
+            .and_then(RulesetCreated::restrict_self);
+        let applied = match applied {
+            Err(_) if sync && first => layer(taken).and_then(RulesetCreated::restrict_self),
+            applied => applied,
+        };
+        match applied {
             Ok(status) if status.ruleset != RulesetStatus::NotEnforced => {
                 let scoped = matches!(
                     status.landlock,
                     LandlockStatus::Available { effective_abi, .. } if effective_abi >= ABI::V6
                 );
-                super::seccomp::LAYER
+                let bits = super::seccomp::LAYER
                     | (u32::from(scoped) * super::seccomp::SCOPE)
-                    | (u32::from(granted) * super::seccomp::FOLDERS)
+                    | (u32::from(granted) * super::seccomp::FOLDERS);
+                (bits, status.all_threads)
             }
-            _ => 0,
+            _ => (0, false),
         }
     }
 }
@@ -907,9 +1017,13 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         (P::SpeculationLimited, O::Unknown) => {
             "the kernel did not return a state for at least one mechanism"
         }
-        (P::WholeProcess, O::Confirmed) => "the process had one thread at the call",
+        (P::WholeProcess, O::Confirmed) => {
+            "the process had one thread at the call, or the filter, and the Landlock layer where \
+             there is one, reached every thread (TSYNC)"
+        }
         (P::WholeProcess, O::Refused) => {
-            "the call could not establish that the process had exactly one thread"
+            "the process had other threads, or could not be shown to have one, and the filter or \
+             the layer reaches only the calling thread and the threads it starts"
         }
         (P::FileLocksRefused, O::Confirmed) => {
             "the filter has the rule, and a lock on /dev/null was refused"

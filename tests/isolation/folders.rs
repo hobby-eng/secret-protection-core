@@ -27,6 +27,11 @@ pub(crate) fn checks() {
         "shared memory made before isolation is named until it is gone",
         || role_ends_well("shared-memory"),
     );
+    #[cfg(target_os = "linux")]
+    run(
+        "folders granted with one thread stay open, and all_threads then reaches every thread",
+        || role_ends_well("folders-then-threads"),
+    );
 }
 
 /// Runs `role` in a child of its own, in a new folder of the test that is removed after it.
@@ -342,4 +347,31 @@ pub(crate) fn shared_memory_role() {
     let after = open_channels().unwrap();
     assert_eq!(after.only(&streams), Ok(()), "{after:?}");
     drop(secret);
+}
+
+/// The `folders-then-threads` role: folders granted while the process had one thread, then a
+/// call with `all_threads` once another thread runs. The layer and the filter reached every
+/// thread already, so nothing goes in again, the whole process holds and the folder stays open.
+#[cfg(target_os = "linux")]
+pub(crate) fn folders_then_threads_role() {
+    use secret_protection_core::{Protection, Reach};
+    let granted = WritableFolder::create(place().join("granted")).unwrap();
+    let first = Isolation::enter_with_folders(Options::new(), &[&granted]);
+    if !landlock() {
+        support::skip_role("the kernel has no Landlock");
+    }
+    assert!(first.folder_writes && first.whole_process, "{first:?}");
+    let (park, parked) = std::sync::mpsc::channel::<()>();
+    let sibling = std::thread::spawn(move || {
+        let _ = parked.recv();
+    });
+    let later = Isolation::enter_with(Options::new().all_threads());
+    let reach = (later.measures().into_iter())
+        .find(|measure| measure.protection == Protection::NoFileChanges)
+        .map(|measure| measure.reach);
+    assert_eq!(reach, Some(Reach::Process), "{later:?}");
+    assert!(later.whole_process, "{later:?}");
+    new_file(&granted.path().join("still-open")).unwrap();
+    drop(park);
+    sibling.join().unwrap();
 }

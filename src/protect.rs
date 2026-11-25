@@ -267,15 +267,18 @@ pub struct Isolation {
     pub empty_network: bool,
     /// Files cannot be opened for writing, created, renamed or removed, apart from the exceptions
     /// docs/TECHNICAL.md names for each system and beneath folders `enter_with_folders` granted.
-    /// Not offered on Windows, whose low integrity level still writes where a low label allows it; refused on Linux without the seccomp filter,
-    /// whose Landlock layer alone leaves modes, owners, extended attributes and times.
+    /// Not offered on Windows, whose low integrity level still writes where a low label allows
+    /// it; refused on Linux without the seccomp filter, whose Landlock layer alone leaves modes,
+    /// owners, extended attributes and times.
     pub no_file_changes: bool,
     /// Linux and Android require both mitigation states to be permanently disabled or unnecessary.
     /// A reversible or enabled state gives `Refused`. Otherwise an unreadable state gives `Unknown`.
     /// Windows checks its side-channel mitigation policy.
     pub speculation_limited: bool,
-    /// Whether isolation has process scope. Check the outcome and reach of each protection
-    /// an application needs.
+    /// Whether isolation has process scope: one thread at entry, or the filter, and the layer
+    /// where there is one, on every thread, by [`Options::all_threads`] on Linux or by an
+    /// earlier call made with one thread. Check the outcome and reach of each protection an
+    /// application needs.
     pub whole_process: bool,
     /// File locks are refused (Linux and Android, with [`Options::refuse_file_locks`]).
     pub file_locks_refused: bool,
