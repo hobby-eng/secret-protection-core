@@ -80,7 +80,7 @@ jobs:
       # Clearing the stack depends on how the compiler lays out frames: its tests run in the
       # release profile too, as the library ships.
       - name: Run the stack-clearing tests in the release profile
-        run: cargo test --locked --release --lib stack::
+        run: "cargo test --locked --release --lib stack::"
 
   # The tests on each other system the crate runs on natively. Code for one system alone is
   # compiled only there, so warnings fail the job.
@@ -110,4 +110,4 @@ jobs:
         run: cargo test --locked
       - name: Run the stack-clearing tests in the release profile
         if: runner.os == 'Linux'
-        run: cargo test --locked --release --lib stack::
+        run: "cargo test --locked --release --lib stack::"
