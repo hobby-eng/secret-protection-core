@@ -14,7 +14,7 @@
     clippy::unwrap_used,
     clippy::panic,
     reason = "a test program with a main of its own, which clippy does not see as a test: a failed \
-              check ends it, as in a test harness"
+              check panics, as in a test harness"
 )]
 
 #[path = "support/run.rs"]
@@ -461,6 +461,7 @@ fn main() {
             || linux::role("without-null"),
         );
     }
+    support::finish();
 }
 
 /// What every worker must have on the systems where it starts.

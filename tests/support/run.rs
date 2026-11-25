@@ -4,6 +4,7 @@
 
 use std::process::ExitStatus;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The exit status of a role that cannot make its check on this system.
 pub(crate) const SKIPPED: i32 = 77;
@@ -23,10 +24,20 @@ enum Mark {
 
 static MARK: Mutex<Option<Mark>> = Mutex::new(None);
 
+/// How many checks failed so far; [`finish`] fails the program when any did.
+static FAILED: AtomicUsize = AtomicUsize::new(0);
+
+/// The process that runs the checks.
+#[cfg(unix)]
+static RUNNER: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+
 /// Runs one check unless a `--skip <part of its name>` argument leaves it out, as the standard
 /// harness does. A sanitizer puts its own `mlock` in, which locks nothing, so the checks of
-/// locked memory have to be left out under it.
+/// locked memory have to be left out under it. A failed check does not stop the next ones, as
+/// in the standard harness: [`finish`] fails the program at the end.
 pub(crate) fn run(name: &str, check: fn()) {
+    #[cfg(unix)]
+    RUNNER.get_or_init(std::process::id);
     let arguments: Vec<String> = std::env::args().collect();
     let left_out = arguments
         .windows(2)
@@ -34,12 +45,40 @@ pub(crate) fn run(name: &str, check: fn()) {
     if left_out {
         return println!("test {name} ... ignored");
     }
-    check();
+    if std::panic::catch_unwind(check).is_err() {
+        #[cfg(unix)]
+        end_a_forked_child();
+        FAILED.fetch_add(1, Ordering::SeqCst);
+        MARK.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        return println!("test {name} ... FAILED");
+    }
     match MARK.lock().unwrap().take() {
         Some(Mark::Whole(reason)) => println!("test {name} ... ignored, {reason}"),
         Some(Mark::Part(reason)) => println!("test {name} ... ok, but not checked here: {reason}"),
         None => println!("test {name} ... ok"),
     }
+}
+
+/// Ends a child of `fork` whose part of a check panicked, at once and without its parent's exit
+/// handlers: the parent reads the failure from its exit status, and the next checks are the
+/// parent's to run.
+#[cfg(unix)]
+fn end_a_forked_child() {
+    if RUNNER
+        .get()
+        .is_some_and(|&runner| runner != std::process::id())
+    {
+        // SAFETY: _exit ends this process at once and takes no pointer.
+        unsafe { libc::_exit(101) };
+    }
+}
+
+/// Fails the program when a check failed, once every check had its turn.
+pub(crate) fn finish() {
+    let failed = FAILED.load(Ordering::SeqCst);
+    assert_eq!(failed, 0, "{failed} checks failed: see FAILED above");
 }
 
 /// Marks the check now running as one this system cannot make, for `reason`.

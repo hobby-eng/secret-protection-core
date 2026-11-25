@@ -121,11 +121,16 @@ pub(super) fn on_a_terminal() {
     assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
     let stderr = worker.call(b"stderr", 100).unwrap();
     assert_eq!(stderr.as_str().unwrap(), identity(libc::STDIN_FILENO));
-    // Refused by the filter or because this is not the worker's controlling terminal.
+    // Refused by the filter or because this is not the worker's controlling terminal. macOS
+    // answers EPERM on a terminal open for reading, whose settings the worker may read and
+    // change: likely its sandbox, as the kernel answers EPERM only without read access, and
+    // EACCES where the terminal is not the controlling one.
     let typed = worker.call(b"type", 10).unwrap();
     let refused: libc::c_int = typed.as_str().unwrap().parse().unwrap();
-    if crate::support::LINUX_SECCOMP || cfg!(target_os = "macos") {
+    if crate::support::LINUX_SECCOMP {
         assert_eq!(refused, libc::EACCES);
+    } else if cfg!(target_os = "macos") {
+        assert!(matches!(refused, libc::EPERM | libc::EACCES), "{refused}");
     } else {
         assert!(refused > 0, "terminal input was accepted");
     }

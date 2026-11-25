@@ -14,7 +14,7 @@
 #![allow(
     clippy::unwrap_used,
     reason = "a test program with a main of its own, which clippy does not see as a test: a failed \
-              check ends it, as in a test harness"
+              check panics, as in a test harness"
 )]
 
 #[path = "../support/run.rs"]
@@ -94,10 +94,13 @@ fn main() {
         Ok("writer") => writer(),
         #[cfg(unix)]
         Ok("unread-writer") => unread_writer(),
-        _ if cfg!(target_family = "wasm") => run(
-            "WebAssembly applies nothing and says so",
-            webassembly_applies_nothing_and_says_so,
-        ),
+        _ if cfg!(target_family = "wasm") => {
+            run(
+                "WebAssembly applies nothing and says so",
+                webassembly_applies_nothing_and_says_so,
+            );
+            support::finish();
+        }
         _ => checks(),
     }
 }
@@ -320,6 +323,7 @@ fn checks() {
         "the channels a process holds are listed by kind",
         the_channels_a_process_holds_are_listed_by_kind,
     );
+    support::finish();
 }
 
 /// Starts this program again in `role` and expects it to end well.

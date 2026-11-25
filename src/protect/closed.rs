@@ -7,35 +7,64 @@ use crate::os::{Access, Region};
 
 /// A [`Secret`] that asks the OS to deny access to its pages between uses. Check
 /// [`ClosedSecret::is_closed`] after each use if closing is required. WebAssembly has no
-/// per-buffer page permissions. On Unix a continuing child must leave pre-fork byte references
-/// unused. If the callback returns or unwinds in that child, its guard skips the permission change.
+/// per-buffer page permissions. On Windows a lock and a closure exclude each other, as Windows
+/// unlocks a page it makes inaccessible: [`ClosedSecret::locked`] keeps the lock and leaves the
+/// pages open, [`ClosedSecret::with_capacity`] closes them and gives the lock up. On Unix a
+/// continuing child must leave pre-fork byte references unused. If the callback returns or unwinds
+/// in that child, its guard skips the permission change.
 pub struct ClosedSecret {
     secret: Secret,
+    state: State,
+}
+
+/// Whether closing pages takes their lock away: Windows unlocks a page it makes inaccessible
+/// (`STATUS_WAS_UNLOCKED`), and the page file may then take it.
+const CLOSING_UNLOCKS: bool = cfg!(windows);
+
+/// What the pages allow, and what closing them does.
+struct State {
     /// What the pages allow now, as the system last confirmed.
     access: Access,
+    /// Whether the pages close between uses: not those that would lose a lock asked for.
+    closes: bool,
+    /// Whether a closing took the lock of the pages away.
+    unlocked: bool,
+}
+
+impl State {
+    /// Asks the system to close the pages, where they close at all.
+    fn close(&mut self, region: Region) {
+        if self.closes {
+            self.access = after(self.access, Access::Nothing, region.allow(Access::Nothing));
+            self.unlocked |= CLOSING_UNLOCKS && self.access == Access::Nothing;
+        }
+    }
 }
 
 impl ClosedSecret {
     /// Creates an empty [`Secret`] and asks the OS to close its pages. Check [`Self::is_closed`]
-    /// if the application requires closure.
+    /// if the application requires closure. On Windows the first closing takes the lock away
+    /// ([`Self::is_locked`]).
     pub fn with_capacity(bytes: usize) -> Self {
-        Self::closing(Secret::with_capacity(bytes))
+        Self::closing(Secret::with_capacity(bytes), false)
     }
 
     /// As [`Secret::locked`]: refuses with [`SecretError::NotLocked`] when the system does not lock
-    /// the pages.
+    /// the pages. On Windows the pages stay open to keep the lock, and [`Self::is_closed`] is
+    /// false.
     pub fn locked(bytes: usize) -> Result<Self, SecretError> {
-        Secret::locked(bytes).map(Self::closing)
+        Secret::locked(bytes).map(|secret| Self::closing(secret, true))
     }
 
-    fn closing(secret: Secret) -> Self {
+    fn closing(secret: Secret, keeps_lock: bool) -> Self {
         // New pages allow reading and writing until the system agrees to close them.
-        let access = after(
-            Access::ReadWrite,
-            Access::Nothing,
-            secret.pages.region().allow(Access::Nothing),
-        );
-        Self { secret, access }
+        let mut state = State {
+            access: Access::ReadWrite,
+            closes: !(keeps_lock && CLOSING_UNLOCKS),
+            unlocked: false,
+        };
+        state.close(secret.pages.region());
+        Self { secret, state }
     }
 
     /// Appends `bytes`, as [`Secret::push`].
@@ -43,7 +72,7 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.access,
+            &mut self.state,
         );
         self.secret.push(bytes)
     }
@@ -53,14 +82,14 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.access,
+            &mut self.state,
         );
         self.secret.truncate(len);
     }
 
     /// Passes the stored bytes to `use_bytes` for reading and requests closure when it returns.
     pub fn read<R>(&mut self, use_bytes: impl FnOnce(&[u8]) -> R) -> R {
-        let _open = Open::new(self.secret.pages.region(), Access::Read, &mut self.access);
+        let _open = Open::new(self.secret.pages.region(), Access::Read, &mut self.state);
         use_bytes(self.secret.as_bytes())
     }
 
@@ -69,7 +98,7 @@ impl ClosedSecret {
         let _open = Open::new(
             self.secret.pages.region(),
             Access::ReadWrite,
-            &mut self.access,
+            &mut self.state,
         );
         change(self.secret.as_mut_bytes())
     }
@@ -92,12 +121,12 @@ impl ClosedSecret {
     /// Whether the OS last confirmed that these pages deny access. An inherited owner reports
     /// false in a continuing child of ordinary Unix `fork`.
     pub fn is_closed(&self) -> bool {
-        self.secret.pages.here() && self.access == Access::Nothing
+        self.secret.pages.here() && self.state.access == Access::Nothing
     }
 
-    /// As [`Secret::is_locked`].
+    /// As [`Secret::is_locked`], until a closing takes the lock away, as on Windows.
     pub fn is_locked(&self) -> bool {
-        self.secret.is_locked()
+        self.secret.is_locked() && !self.state.unlocked
     }
 
     /// As [`Secret::is_out_of_dumps`].
@@ -120,7 +149,7 @@ impl Drop for ClosedSecret {
             open(
                 self.secret.pages.region(),
                 Access::ReadWrite,
-                &mut self.access,
+                &mut self.state,
             );
         }
     }
@@ -147,12 +176,16 @@ fn serves(has: Access, needs: Access) -> bool {
     }
 }
 
-/// Opens `region` for `needs` and records what it allows now. When the system refuses and what
-/// the pages allow does not serve the use, the process ends here: a reference to them would be
-/// undefined behaviour, and the access a fault.
-fn open(region: Region, needs: Access, access: &mut Access) {
-    *access = after(*access, needs, region.allow(needs));
-    if !serves(*access, needs) {
+/// Opens `region` for `needs` and records what it allows now; pages that never close stay open
+/// for reading and writing. When the system refuses and what the pages allow does not serve the
+/// use, the process ends here: a reference to them would be undefined behaviour, and the access a
+/// fault.
+fn open(region: Region, needs: Access, state: &mut State) {
+    if !state.closes {
+        return;
+    }
+    state.access = after(state.access, needs, region.allow(needs));
+    if !serves(state.access, needs) {
         std::process::abort();
     }
 }
@@ -160,23 +193,19 @@ fn open(region: Region, needs: Access, access: &mut Access) {
 /// Pages opened for one use, closed again when it ends, by its return or by a panic.
 struct Open<'a> {
     region: Region,
-    access: &'a mut Access,
+    state: &'a mut State,
 }
 
 impl<'a> Open<'a> {
-    fn new(region: Region, needs: Access, access: &'a mut Access) -> Self {
-        open(region, needs, access);
-        Self { region, access }
+    fn new(region: Region, needs: Access, state: &'a mut State) -> Self {
+        open(region, needs, state);
+        Self { region, state }
     }
 }
 
 impl Drop for Open<'_> {
     fn drop(&mut self) {
-        *self.access = after(
-            *self.access,
-            Access::Nothing,
-            self.region.allow(Access::Nothing),
-        );
+        self.state.close(self.region);
     }
 }
 
@@ -216,7 +245,7 @@ mod tests {
             crate::os::refuse_changes(1);
             bytes.len()
         });
-        assert_eq!((length, secret.access), (6, Access::Read));
+        assert_eq!((length, secret.state.access), (6, Access::Read));
         assert!(!secret.is_closed());
         // A refused opening for reading does not matter: the pages already allow it.
         crate::os::refuse_changes(1);

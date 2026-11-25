@@ -13,7 +13,7 @@
 #![allow(
     clippy::unwrap_used,
     reason = "a test program with a main of its own, which clippy does not see as a test: a failed \
-              check ends it, as in a test harness"
+              check panics, as in a test harness"
 )]
 
 #[path = "support/run.rs"]
@@ -92,6 +92,7 @@ fn main() {
         "a secret beyond what the system gives ends the program as a full heap does",
         a_secret_beyond_the_system_ends_the_program,
     );
+    support::finish();
 }
 
 /// The variable that starts this program again to ask for a secret no system gives.
@@ -215,17 +216,27 @@ fn a_secret_lies_on_pages_kept_out_of_swap_and_core_dumps() {
     linux::secret_pages_are_marked(&secret);
     #[cfg(windows)]
     assert!(windows::locked(secret.as_bytes().as_ptr()));
-    // A closed secret keeps its pages locked while they refuse every access.
+    // Windows unlocks a page it makes inaccessible: a secret made locked keeps its pages locked
+    // and open, and one made to close says that its lock is gone, as the system shows.
     #[cfg(windows)]
     {
-        let mut closed = secret_protection_core::ClosedSecret::locked(16).unwrap();
-        closed.push(b"public").unwrap();
-        let address = closed.read(<[u8]>::as_ptr);
-        assert!(closed.is_closed() && closed.is_locked());
+        let mut kept = secret_protection_core::ClosedSecret::locked(16).unwrap();
+        kept.push(b"public").unwrap();
+        let address = kept.read(<[u8]>::as_ptr);
+        assert!(!kept.is_closed() && kept.is_locked());
         assert!(
             windows::locked(address),
-            "the pages of a closed secret left the working set"
+            "the pages of a secret made locked left the working set"
         );
+        let mut closed = secret_protection_core::ClosedSecret::with_capacity(16);
+        closed.push(b"public").unwrap();
+        assert!(closed.is_closed() && !closed.is_locked());
+        // Opened again and read, its page is back in the working set, but not locked.
+        let relocked = closed.read(|bytes| {
+            std::hint::black_box(bytes[0]);
+            windows::locked(bytes.as_ptr())
+        });
+        assert!(!relocked, "Windows kept the lock of a page it closed");
     }
 }
 

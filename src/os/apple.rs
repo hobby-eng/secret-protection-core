@@ -303,21 +303,95 @@ mod macos {
         address: u64,
         size: u64,
     }
-    /// PROC_REGION_SUBMAP of sys/proc_info.h.
+    /// PROC_REGION_SUBMAP and PROC_REGION_SHARED of sys/proc_info.h.
     const PROC_REGION_SUBMAP: u32 = 1;
-    /// SM_COW and SM_EMPTY of mach/vm_region.h: writes go to copies, or nothing is mapped yet.
+    const PROC_REGION_SHARED: u32 = 2;
+    /// The share modes of mach/vm_region.h that tell more than "shared".
     const SM_COW: u32 = 1;
+    const SM_PRIVATE: u32 = 2;
     const SM_EMPTY: u32 = 3;
-    /// SM_SHARED, SM_TRUESHARED and SM_SHARED_ALIASED of mach/vm_region.h.
-    const SHARED_MODES: [u32; 3] = [4, 5, 7];
+    const SM_TRUESHARED: u32 = 5;
+    const SM_PRIVATE_ALIASED: u32 = 6;
+    const SM_LARGE_PAGE: u32 = 8;
+    /// VM_MEMORY_GENEALOGY of mach/vm_statistics.h: the tag of the buffer `os_log` shares with
+    /// the log daemon, which the sandbox brings in as isolation starts.
+    const LOG_BUFFER_TAG: u32 = 78;
 
     pub(super) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
+        let regions = regions()?;
+        // How many of this process's regions map each object, by its number and references.
+        let mut ours = std::collections::BTreeMap::<(u32, u32), usize>::new();
+        for (region, _, _) in &regions {
+            *ours.entry((region.obj_id, region.ref_count)).or_default() += 1;
+        }
+        // The logging buffer is left out when it is the one region that looks like it: isolation
+        // itself brings it in, and writes there reach the system log, as `os_log` calls do.
+        let log_buffers = (regions.iter())
+            .filter(|(region, _, maps_file)| log_buffer(region, *maps_file))
+            .count();
+        let mut found = Vec::new();
+        for (region, path, maps_file) in regions {
+            let elsewhere = usize::try_from(region.ref_count).ok()?
+                > ours
+                    .get(&(region.obj_id, region.ref_count))
+                    .copied()
+                    .unwrap_or(0);
+            let reaches_others = match region.share_mode {
+                // Taken to reach no one: an object above another (copy-on-write), nothing mapped
+                // yet, superpages, and an object the system found only in this process.
+                SM_COW | SM_EMPTY | SM_LARGE_PAGE | SM_PRIVATE_ALIASED => false,
+                // An object of a pager, as a file's, mapped once with one more reference reads
+                // as private and keeps a count of 2; so does a file mapped once, which reads 1
+                // while written out, and a copy that holds all its pages, as dyld maps a
+                // program's data: only a copy has pages found above another object, or swapped
+                // out of itself.
+                SM_PRIVATE => {
+                    region.ref_count > 1
+                        || (maps_file
+                            && region.pages_shared_now_private == 0
+                            && region.pages_swapped_out == 0)
+                }
+                // Not compared with this process's other regions by the system: an allocator's
+                // guard pages, one object mapped twice, have no references beyond them.
+                SM_TRUESHARED => elsewhere,
+                // SM_SHARED and SM_SHARED_ALIASED: references beyond this process.
+                _ => true,
+            };
+            // Memory a child of fork would share counts whatever its mode. A submap, as the
+            // system's shared library cache is mapped, is no mapping of the program's.
+            let shared = region.inheritance == libc::VM_INHERIT_SHARE as u32 || reaches_others;
+            let shared = shared && region.flags & PROC_REGION_SUBMAP == 0;
+            let left_out = log_buffers == 1 && log_buffer(&region, maps_file);
+            if shared && !left_out && region.max_protection & libc::VM_PROT_WRITE as u32 != 0 {
+                found.push(crate::SharedMapping {
+                    start: usize::try_from(region.address).ok()?,
+                    length: usize::try_from(region.size).ok()?,
+                    name: String::from_utf8_lossy(&path).into_owned(),
+                });
+            }
+        }
+        Some(found)
+    }
+
+    /// Whether `region` looks like the buffer `os_log` shares with the log daemon: its tag, no
+    /// file, kept from children, and shared. A region made to look the same cannot be told apart.
+    fn log_buffer(region: &RegionInfo, maps_file: bool) -> bool {
+        region.user_tag == LOG_BUFFER_TAG
+            && !maps_file
+            && region.inheritance == libc::VM_INHERIT_NONE as u32
+            && region.flags & PROC_REGION_SHARED != 0
+    }
+
+    /// Every region of this process, the path of the file it maps, empty for none, and whether
+    /// it maps one; `None` when the walk was cut short or missed the code, stack or heap of this
+    /// process.
+    fn regions() -> Option<Vec<(RegionInfo, Vec<u8>, bool)>> {
         let size = libc::c_int::try_from(std::mem::size_of::<RegionWithPath>()).ok()?;
         // SAFETY: getpid takes nothing and only answers.
         let pid = unsafe { libc::getpid() };
         let heap = std::hint::black_box(Box::new(0u8));
         let landmarks = [
-            shared_mappings as *const () as usize as u64,
+            regions as *const () as usize as u64,
             &raw const size as usize as u64,
             &raw const *heap as usize as u64,
         ];
@@ -358,25 +432,11 @@ mod macos {
                 .take_while(|&byte| byte != 0)
                 .collect();
             let maps_file = file.vip_vi.vi_type != 0 || !path.is_empty();
-            // Writes reach a mapped file unless they go to copies: whatever the share mode,
-            // which reads as private while this process alone maps it. Memory of no file is
-            // shared when its mode says so, or when a child of fork would share it. A submap,
-            // as the system's shared library cache is mapped, is no mapping of the program's.
-            let shared = SHARED_MODES.contains(&region.share_mode)
-                || region.inheritance == libc::VM_INHERIT_SHARE as u32
-                || (maps_file && region.share_mode != SM_COW && region.share_mode != SM_EMPTY);
-            let shared = shared && region.flags & PROC_REGION_SUBMAP == 0;
-            if shared && region.max_protection & libc::VM_PROT_WRITE as u32 != 0 {
-                found.push(crate::SharedMapping {
-                    start: usize::try_from(region.address).ok()?,
-                    length: usize::try_from(region.size).ok()?,
-                    name: String::from_utf8_lossy(&path).into_owned(),
-                });
-            }
             if end <= address {
                 return None;
             }
             address = end;
+            found.push((region, path, maps_file));
         }
         drop(heap);
         seen.iter().all(|&seen| seen).then_some(found)
@@ -511,10 +571,10 @@ mod macos {
 #[cfg(target_os = "macos")]
 pub(crate) use macos::{listed_access, owners_ignored};
 
-/// The shared mappings the process can write, region by region from the kernel: files mapped
-/// other than copy-on-write, and memory shared by its mode or inheritance, whose highest
+/// The shared mappings the process can write, region by region from the kernel: memory whose
+/// writes reach a file or another holder, or which a child of fork would share, whose highest
 /// protection allows writing. `None` when the walk cannot be read whole: an error other than its
-/// end, or no region of this function's code, its stack or the heap. Not on iOS.
+/// end, or no region of the walk's own code, its stack or the heap. Not on iOS.
 pub(crate) fn shared_mappings() -> Option<Vec<crate::SharedMapping>> {
     #[cfg(target_os = "macos")]
     return macos::shared_mappings();

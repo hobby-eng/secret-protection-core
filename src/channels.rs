@@ -57,7 +57,8 @@ pub struct OpenChannels {
     /// The descriptors, sorted by number, standard streams included.
     pub channels: Vec<Channel>,
     /// The shared mappings the process can write, now or after `mprotect`, sorted by address.
-    /// This crate's own secret memory is left out.
+    /// This crate's own secret memory is left out, and on macOS the buffer `os_log` shares with
+    /// the log daemon, which entering isolation brings in, when one region alone looks like it.
     pub shared_mappings: Vec<SharedMapping>,
     /// Whether every descriptor and mapping was listed and examined. When false, a channel may be
     /// missing or unknown, and empty lists prove nothing.
