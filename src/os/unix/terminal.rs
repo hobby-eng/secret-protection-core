@@ -21,6 +21,11 @@ const LOCAL_OFF: libc::tcflag_t =
 /// eighth bit of a byte, which UTF-8 needs.
 const INPUT_OFF: libc::tcflag_t = libc::BRKINT | libc::IXON | libc::IGNCR | libc::ISTRIP;
 
+/// Local-mode bits the terminal changes by itself, which are no settings to put back: PENDIN,
+/// which macOS sets when line editing comes back on, and FLUSHO, which Ctrl+O switches there and
+/// which drops all output while it is on.
+const LOCAL_STATE: libc::tcflag_t = libc::PENDIN | libc::FLUSHO;
+
 /// The most bytes a drain reads and drops: the input left before and after a reading, such as the
 /// rest of a pasted text.
 const DRAINED: usize = 64 << 10;
@@ -79,7 +84,10 @@ impl HiddenTerminal {
                 "the terminal input is set not to wait for keys (O_NONBLOCK); nothing was read",
             ));
         }
-        let original = settings(input)?;
+        let mut original = settings(input)?;
+        // Neither the hidden settings nor the restore sets the terminal's own bits again: FLUSHO
+        // left on by a Ctrl+O would drop the prompt and all output after the reading.
+        original.c_lflag &= !LOCAL_STATE;
         // From here on every way out restores the settings, whatever went through.
         let mut terminal = Self {
             input,
@@ -241,21 +249,19 @@ fn terminal_for(descriptor: RawFd, access: libc::c_int) -> bool {
     terminal && flags != -1 && (mode == access || mode == libc::O_RDWR)
 }
 
-/// Whether two settings agree in every field a terminal keeps: the modes and the control keys.
+/// Whether two settings agree in every field a terminal keeps: the modes, but for the bits it
+/// changes by itself, the control keys and the speeds.
 fn same(now: &libc::termios, then: &libc::termios) -> bool {
-    // SAFETY: each call reads the speed out of a termios that lives for it.
-    let speeds = |settings: &libc::termios| unsafe {
-        (libc::cfgetispeed(settings), libc::cfgetospeed(settings))
-    };
-    (now.c_iflag, now.c_oflag, now.c_cflag, now.c_lflag, now.c_cc)
-        == (
-            then.c_iflag,
-            then.c_oflag,
-            then.c_cflag,
-            then.c_lflag,
-            then.c_cc,
+    // SAFETY: each call reads a speed out of a termios that lives for it.
+    let kept = |settings: &libc::termios| unsafe {
+        (
+            (settings.c_iflag, settings.c_oflag, settings.c_cflag),
+            settings.c_lflag & !LOCAL_STATE,
+            settings.c_cc,
+            (libc::cfgetispeed(settings), libc::cfgetospeed(settings)),
         )
-        && speeds(now) == speeds(then)
+    };
+    kept(now) == kept(then)
 }
 
 /// The device behind `descriptor`, which tells one terminal from another.
@@ -373,9 +379,11 @@ mod tests {
     #[test]
     fn a_hidden_line_is_read_unseen_and_the_terminal_restored() -> io::Result<()> {
         let (controller, terminal) = pseudo_terminal();
-        // A break condition raises Ctrl+C before the reading, never during it.
+        // A break condition raises Ctrl+C before the reading, never during it, and output dropped
+        // after a Ctrl+O (FLUSHO) shows again, the prompt first.
         let mut before = settings(terminal.as_raw_fd())?;
         before.c_iflag |= libc::BRKINT;
+        before.c_lflag |= libc::FLUSHO;
         set(terminal.as_raw_fd(), &before)?;
         let mut hidden = hidden(&terminal)?;
         assert_eq!(settings(terminal.as_raw_fd())?.c_iflag & libc::BRKINT, 0);
@@ -388,9 +396,10 @@ mod tests {
         assert_eq!(line.as_str(), "sec\u{e9}t");
         let after = settings(terminal.as_raw_fd())?;
         assert_eq!(
-            (after.c_lflag, after.c_iflag, after.c_cc),
-            (before.c_lflag, before.c_iflag, before.c_cc)
+            (after.c_lflag & !LOCAL_STATE, after.c_iflag, after.c_cc),
+            (before.c_lflag & !LOCAL_STATE, before.c_iflag, before.c_cc)
         );
+        assert_eq!(after.c_lflag & libc::FLUSHO, 0);
         assert_eq!(shown(&controller), "Password: ");
         Ok(())
     }
@@ -457,7 +466,24 @@ mod tests {
         let cancelled = edit(&mut line, || hidden.next_char());
         drop(hidden);
         assert_eq!(cancelled?, LineEnd::Cancelled);
-        assert_eq!(settings(terminal.as_raw_fd())?.c_lflag, before.c_lflag);
+        assert_eq!(
+            settings(terminal.as_raw_fd())?.c_lflag & !LOCAL_STATE,
+            before.c_lflag & !LOCAL_STATE
+        );
+        Ok(())
+    }
+
+    /// The read-back after a restore passes over the bits the terminal changes by itself, such
+    /// as the PENDIN macOS sets when line editing comes back on, and still sees echo left off.
+    #[test]
+    fn a_restore_reads_back_the_settings_but_not_the_terminal_state() -> io::Result<()> {
+        let (_controller, terminal) = pseudo_terminal();
+        let then = settings(terminal.as_raw_fd())?;
+        let mut now = then;
+        now.c_lflag |= LOCAL_STATE;
+        assert!(same(&now, &then));
+        now.c_lflag ^= libc::ECHO;
+        assert!(!same(&now, &then));
         Ok(())
     }
 

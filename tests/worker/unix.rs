@@ -163,7 +163,13 @@ pub(super) fn on_a_terminal() {
         "{screen:?}"
     );
     let after = settings(libc::STDIN_FILENO);
-    assert_eq!((after.c_lflag, after.c_cc), (before.c_lflag, before.c_cc));
+    // PENDIN and FLUSHO are the terminal's own state: macOS sets PENDIN when line editing comes
+    // back on.
+    let settings_only = !(libc::PENDIN | libc::FLUSHO);
+    assert_eq!(
+        (after.c_lflag & settings_only, after.c_cc),
+        (before.c_lflag & settings_only, before.c_cc)
+    );
 }
 
 /// The settings of the terminal on `descriptor`.

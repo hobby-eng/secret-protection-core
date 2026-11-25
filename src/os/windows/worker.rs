@@ -858,6 +858,9 @@ mod handle_tests {
         use windows_sys::Win32::System::Threading::{
             CREATE_SUSPENDED, OpenProcess, PROCESS_VM_READ, TerminateProcess,
         };
+        // An enabled debug privilege would open the worker whatever its list. It goes before the
+        // worker is made, so that a failed check leaves no suspended process behind.
+        drop_debug_privilege();
         let program = std::env::current_exe()?;
         let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
         let container = super::Container::of(&path)?;
@@ -870,15 +873,15 @@ mod handle_tests {
         let process_holds = holds(&process, super::super::PROCESS_ACCESS);
         let thread_holds = holds(&thread, super::super::THREAD_ACCESS);
         // Another process of the same user, here this test opening it by number, cannot read its
-        // memory. An enabled debug privilege would pass any list.
+        // memory.
         // SAFETY: asks for a new handle by number and closes one it gets.
-        let refused = unsafe {
+        let (opened, error) = unsafe {
             let opened = OpenProcess(PROCESS_VM_READ, 0, id);
             let error = GetLastError();
             if !opened.is_null() {
                 CloseHandle(opened);
             }
-            opened.is_null() && error == ERROR_ACCESS_DENIED
+            (!opened.is_null(), error)
         };
         // SAFETY: ends the suspended process this test made, through its own handle.
         unsafe { TerminateProcess(process.as_raw_handle().cast(), 1) };
@@ -891,10 +894,61 @@ mod handle_tests {
             "the first thread was made without its access list"
         );
         assert!(
-            refused,
-            "another process of the user could open the worker's memory"
+            !opened && error == ERROR_ACCESS_DENIED,
+            "another process of the user could open the worker's memory (opened {opened}, error \
+             {error})"
         );
         Ok(())
+    }
+
+    /// Removes the debug privilege from the token of this test process, as the isolation tests
+    /// do: a program that holds it opens any process whatever its access list, and the test
+    /// runner of a CI machine may hold it. It stays removed from then on, for this process and
+    /// the children it starts.
+    fn drop_debug_privilege() {
+        use std::ptr;
+        use windows_sys::Win32::Foundation::{
+            CloseHandle, ERROR_NOT_ALL_ASSIGNED, ERROR_SUCCESS, GetLastError, LUID,
+        };
+        use windows_sys::Win32::Security::{
+            AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_DEBUG_NAME,
+            SE_PRIVILEGE_REMOVED, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES,
+        };
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+        let mut token = ptr::null_mut();
+        // SAFETY: opens the token of this process to change its privileges; closed below.
+        let opened =
+            unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &mut token) };
+        assert_ne!(opened, 0);
+        let mut privileges = TOKEN_PRIVILEGES {
+            PrivilegeCount: 1,
+            Privileges: [LUID_AND_ATTRIBUTES {
+                Luid: LUID::default(),
+                Attributes: SE_PRIVILEGE_REMOVED,
+            }],
+        };
+        // SAFETY: the name is NUL-terminated; the call writes the privilege's number.
+        let found = unsafe {
+            LookupPrivilegeValueW(
+                ptr::null(),
+                SE_DEBUG_NAME,
+                &mut privileges.Privileges[0].Luid,
+            )
+        };
+        assert_ne!(found, 0);
+        // SAFETY: the list lives for the call, which is asked for no earlier state.
+        let adjusted = unsafe {
+            AdjustTokenPrivileges(token, 0, &privileges, 0, ptr::null_mut(), ptr::null_mut())
+        };
+        // SAFETY: reads this thread's last error, which AdjustTokenPrivileges set.
+        let error = unsafe { GetLastError() };
+        // SAFETY: closes the token opened above, once.
+        unsafe { CloseHandle(token) };
+        // ERROR_NOT_ALL_ASSIGNED: the token does not hold the privilege.
+        assert!(
+            adjusted != 0 && matches!(error, ERROR_SUCCESS | ERROR_NOT_ALL_ASSIGNED),
+            "error {error}"
+        );
     }
 
     /// The clock decides a deadline: work that ends in time leaves the worker running; work that

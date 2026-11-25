@@ -76,7 +76,7 @@ jobs:
             cargo clippy --locked --all-targets --target "$target" -- -D warnings
           done
       - name: Run the tests
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       # Clearing the stack depends on how the compiler lays out frames: its tests run in the
       # release profile too, as the library ships.
       - name: Run the stack-clearing tests in the release profile
@@ -107,7 +107,7 @@ jobs:
           New-Item -ItemType Directory -Force target | Out-Null
           icacls target /grant "*S-1-15-2-1:(OI)(CI)RX"
       - name: Run the tests
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       - name: Run the stack-clearing tests in the release profile
         if: runner.os == 'Linux'
         run: "cargo test --locked --release --lib stack::"
