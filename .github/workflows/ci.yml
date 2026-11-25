@@ -83,12 +83,13 @@ jobs:
         run: "cargo test --locked --release --lib stack::"
 
   # The tests on each other system the crate runs on natively. Code for one system alone is
-  # compiled only there, so warnings fail the job.
+  # compiled only there, so warnings fail the job. macos-15-intel is GitHub's last Intel Mac
+  # runner, announced to go in 2027; Intel macOS then needs another runner.
   native:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04-arm, macos-latest, windows-latest]
+        os: [ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:

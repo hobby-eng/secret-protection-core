@@ -20,7 +20,7 @@ The nested PID-namespace check can report a skip if the host refuses `mlockall` 
 
 The percentage counts library source lines compiled for Linux x86-64. Integration test source files and code specific to other platforms are outside the denominator. Some uncovered lines handle Linux errors or alternative C library implementations.
 
-CI also runs tests on Linux ARM64, macOS and Windows. Android, iOS, WebAssembly and a 32-bit Linux without this crate's seccomp filter receive compile-time checks. The native macOS run at `e7b0d38` verified that the library collected a worker after the shutdown deadline. [CI configuration](../.github/workflows/ci.yml) · [Native run](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745920704)
+CI also runs tests on Linux ARM64, macOS on Apple silicon and on Intel, Windows, and, as a test rather than a supported platform, 32-bit x86 Linux. Windows GNU, Android, iOS, WebAssembly and 32-bit ARM Linux get compile-time checks with Clippy. The native macOS run at `e7b0d38` verified that the library collected a worker after the shutdown deadline. [CI configuration](../.github/workflows/ci.yml) · [Native run](https://github.com/hobby-eng/secret-protection-core/actions/runs/43745920704)
 
 ## Reproduce on Linux
 

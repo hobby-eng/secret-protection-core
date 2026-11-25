@@ -50,7 +50,7 @@
 - On Linux a worker's standard input and output are two pairs of connected sockets instead of pipes: another process of the same user could open the parent's pipes again through `/proc/PID/fd`, and read or change requests, answers and the startup report; it cannot open a socket so. The channel stays as private as the parent, which a process allowed to attach to it can still read.
 - A size whose pages would span more than `isize::MAX` bytes, the most a Rust slice may, is no longer mapped, though a 32-bit system could map it: work areas and protected stacks refuse it, and a secret of that size ends the program, as a size the system cannot map does.
 - On Unix an exchange with a worker that ends past its deadline fails with `TimedOut` when it failed for another reason too, as on Windows. `Worker::start_within` answers `Unsupported` on WebAssembly instead of reading a clock that is not there.
-- CI runs the tests on 32-bit Linux (`i686`), and the README tells the Windows MSVC toolchain, which CI runs the tests with, from the GNU target, which it only compiles.
+- CI runs the tests on Intel macOS, and on 32-bit x86 Linux (`i686`) for the 32-bit sizes; 32-bit Linux, like the 32-bit ARM target CI lints, is a test, not a supported platform. The README tells the Windows MSVC toolchain, which CI runs the tests with, from the GNU target, which it only compiles.
 
 ## 0.1.1 (2026-11-24)
 
