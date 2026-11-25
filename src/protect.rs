@@ -169,18 +169,24 @@ impl fmt::Debug for Secret {
 }
 
 /// Fixed-size scratch storage for a computation that handles secrets. It starts zeroed and
-/// wipes on drop. Unix and Windows allocate dedicated pages with guards and attempt to lock
-/// them where supported. WebAssembly uses a heap allocation. Linux uses anonymous pages here,
+/// wipes the whole area on drop if a writable slice was borrowed. Unix and Windows allocate
+/// dedicated pages with guards and attempt to lock them where supported. WebAssembly uses a heap
+/// allocation. Linux uses anonymous pages here,
 /// even when [`Secret`] can use kernel secret memory. See [`WorkArea::is_locked`] and
 /// [`WorkArea::is_out_of_children`] for the properties of a particular allocation.
 pub struct WorkArea {
     pages: Pages,
+    /// A mutable slice can have written anywhere in the area, even if it was only borrowed.
+    writable_borrowed: bool,
 }
 
 impl WorkArea {
     /// A work area of `bytes` bytes, at least one, or `None` when the system refuses the pages.
     pub fn new(bytes: usize) -> Option<Self> {
-        Pages::work_area(bytes.max(1)).map(|pages| Self { pages })
+        Pages::work_area(bytes.max(1)).map(|pages| Self {
+            pages,
+            writable_borrowed: false,
+        })
     }
 
     /// Like [`WorkArea::new`], but refuses with [`SecretError::NotLocked`] when the system does not
@@ -203,6 +209,7 @@ impl WorkArea {
 
     /// The bytes of the area, to change in place.
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        self.writable_borrowed = true;
         self.pages.as_mut_slice()
     }
 
@@ -224,7 +231,9 @@ impl WorkArea {
 
 impl Drop for WorkArea {
     fn drop(&mut self) {
-        if self.pages.here() {
+        // An untouched reservation is already zero. Writing it here could commit a large
+        // lazy mapping while recovering from a resource failure.
+        if self.writable_borrowed && self.pages.here() {
             self.pages.as_mut_slice().zeroize();
         }
     }
@@ -647,6 +656,15 @@ mod tests {
         let area = WorkArea::new(4096).unwrap();
         assert_eq!(area.is_out_of_children(), secret.is_out_of_children());
         assert_eq!(area.is_out_of_dumps(), secret.is_out_of_dumps());
+    }
+
+    #[test]
+    fn a_work_area_stays_zero_until_borrowed_for_writing() {
+        let mut area = WorkArea::new(8).unwrap();
+        assert_eq!(area.as_slice(), &[0; 8]);
+        assert!(!area.writable_borrowed);
+        assert_eq!(area.as_mut_slice(), &[0; 8]);
+        assert!(area.writable_borrowed);
     }
 
     /// The range and the permissions of the mapping that holds `address`, as /proc/self/maps lists

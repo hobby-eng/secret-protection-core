@@ -97,6 +97,13 @@ pub(crate) fn evidence(
 #[cfg(all(test, unix))]
 thread_local! {
     /// How many changes of access the tests have still to see refused on this thread.
+    #[cfg_attr(
+        target_os = "android",
+        expect(
+            clippy::missing_const_for_thread_local,
+            reason = "Clippy 1.99 reports the Android TLS expansion of this const initializer"
+        )
+    )]
     static REFUSALS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 

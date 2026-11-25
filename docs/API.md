@@ -39,7 +39,7 @@ gh attestation verify secret-protection-core-0.1.1.crate \
 
 ## Choose a buffer
 
-Use `Secret` for bytes of variable length up to a fixed capacity, `ClosedSecret` to restrict access between operations, and `WorkArea` for a computation that needs a fixed-size mutable slice. On normal drop in the owning process, each wipes its storage. Their `Debug` implementations hide the contents. Callers own any copies they make. Abrupt termination can bypass destructors.
+Use `Secret` for bytes of variable length up to a fixed capacity, `ClosedSecret` to restrict access between operations, and `WorkArea` for a computation that needs a fixed-size mutable slice. On normal drop in the owning process, each wipes its storage. A work area never borrowed for writing stays zero, so dropping it does not fill in its pages. Their `Debug` implementations hide the contents. Callers own any copies they make. Abrupt termination can bypass destructors.
 
 ### Secret
 

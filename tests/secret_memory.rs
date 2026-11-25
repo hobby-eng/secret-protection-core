@@ -120,7 +120,9 @@ fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
     if let Some(secret) = secret.as_mut() {
         secret.push(b"the parent's").unwrap();
     }
-    let mut area = Some(WorkArea::new(8192).unwrap());
+    let mut area = WorkArea::new(8192).unwrap();
+    area.as_mut_slice()[0] = 73;
+    let mut area = Some(area);
     let mut closed = Some(ClosedSecret::with_capacity(16));
     assert!(closed.as_ref().is_some_and(ClosedSecret::is_closed));
     let status = in_child(|| {
@@ -166,6 +168,7 @@ fn a_child_of_fork_leaves_the_buffers_of_its_parent_alone() {
     });
     assert_eq!(status, Ending::Signal(libc::SIGABRT));
     assert_eq!(secret.unwrap().as_bytes(), b"the parent's");
+    assert_eq!(area.unwrap().as_slice()[0], 73);
 }
 
 /// How a child ended.

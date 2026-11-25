@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-25 covered **93.83%** (3,618 of 3,856 measured source lines). All 113 checks passed (47 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
+The Linux x86-64 run on 2026-11-25 covered **93.74%** (3,623 of 3,865 measured source lines). All 114 checks passed (48 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `72c034b2dfd7e1a622e1814b4b40ff119268fcc14bdc2e573bf6b875732d25f9`. The run reported no profile mismatches.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `d8f39e8655bfaf4c93e82277e21c5785eaf379b20821067323255d00d91663cf`. The run reported no profile mismatches.
 
 ## Scope and exclusions
 
@@ -48,16 +48,16 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/channels.rs`                |            54 |             54 |  100.00% |
 | `src/input.rs`                   |           277 |            280 |   98.93% |
 | `src/os.rs`                      |            69 |             69 |  100.00% |
-| `src/os/linux.rs`                |           573 |            592 |   96.79% |
+| `src/os/linux.rs`                |           572 |            592 |   96.62% |
 | `src/os/linux/landlock_layer.rs` |            49 |             49 |  100.00% |
 | `src/os/linux/mappings.rs`       |            70 |             71 |   98.59% |
 | `src/os/linux/seccomp.rs`        |           269 |            272 |   98.90% |
-| `src/os/unix.rs`                 |           317 |            350 |   90.57% |
+| `src/os/unix.rs`                 |           314 |            350 |   89.71% |
 | `src/os/unix/child.rs`           |            76 |             97 |   78.35% |
 | `src/os/unix/forks.rs`           |            23 |             23 |  100.00% |
 | `src/os/unix/terminal.rs`        |           236 |            272 |   86.76% |
 | `src/os/unix/worker.rs`          |           314 |            368 |   85.33% |
-| `src/protect.rs`                 |           449 |            450 |   99.78% |
+| `src/protect.rs`                 |           458 |            459 |   99.78% |
 | `src/protect/closed.rs`          |           131 |            132 |   99.24% |
 | `src/protect/folder.rs`          |           116 |            169 |   68.64% |
 | `src/protect/options.rs`         |           148 |            148 |  100.00% |
