@@ -95,12 +95,15 @@ impl Options {
         self
     }
 
-    /// Linux: puts the filter, and from Linux 7.0 the Landlock layer, on every thread of a
-    /// process that already has other threads when it isolates itself (TSYNC); without it they
-    /// reach the calling thread and the threads it starts afterwards. The other threads lose what
-    /// isolation takes in the middle of their work, and the layer replaces any Landlock layer
-    /// one of them had of its own. Android ignores it. Check [`Isolation::whole_process`] and
-    /// the reach of each protection.
+    /// Linux: for a process that already has other threads when it isolates itself, puts the
+    /// Landlock layer from ABI 8 (Linux 7.0), and then the filter, on every thread (TSYNC);
+    /// below ABI 8 both stay on the calling thread, and without Landlock the filter goes alone.
+    /// The layer goes to the other threads once per process, and only while none holds a filter
+    /// the caller's does not descend from; it replaces any layer one of them had of its own, so
+    /// the option is for threads that hold none. A call that falls short leaves the other
+    /// threads more restricted, never less. Without it isolation reaches the calling thread and
+    /// the threads it starts afterwards. Android ignores it. Check
+    /// [`Isolation::whole_process`] and the reach of each protection (docs/API.md).
     #[must_use]
     pub const fn all_threads(mut self) -> Self {
         self.all_threads = true;

@@ -25,8 +25,10 @@ const SWITCHED_OFF: CONSOLE_MODE = ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABL
 /// A console that shows nothing typed on it until [`HiddenTerminal::restore`] or the drop.
 pub(crate) struct HiddenTerminal {
     input: HANDLE,
-    /// Where the prompt may go: standard error, then standard output, those that are consoles.
-    /// One that refuses the write, as a handle opened for reading does, is passed over.
+    /// Where the prompt may go: standard error, then standard output, those that are character
+    /// devices, as a console is; never a file or pipe they were redirected to. One that refuses
+    /// the console write is passed over: a handle without write access, or a device such as NUL
+    /// that is no console. A console output needs no read access, so no mode is read here.
     outputs: Vec<HANDLE>,
     original: CONSOLE_MODE,
     restored: bool,
@@ -50,7 +52,7 @@ impl HiddenTerminal {
             outputs: [STD_ERROR_HANDLE, STD_OUTPUT_HANDLE]
                 .into_iter()
                 .map(standard)
-                .filter(|&handle| mode(handle).is_some())
+                .filter(|&handle| character_device(handle))
                 .collect(),
             original,
             restored: false,
@@ -77,11 +79,21 @@ impl HiddenTerminal {
 
     /// Writes `text` to the console, if one shows it.
     pub(crate) fn write(&mut self, text: &str) -> io::Result<()> {
-        use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
+        use windows_sys::Win32::Foundation::{
+            ERROR_ACCESS_DENIED, ERROR_INVALID_FUNCTION, ERROR_INVALID_HANDLE,
+        };
         let wide: Vec<u16> = text.encode_utf16().collect();
         while let Some(&output) = self.outputs.first() {
             match write_wide(output, &wide) {
-                Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => {
+                Err(error)
+                    if [
+                        ERROR_ACCESS_DENIED,
+                        ERROR_INVALID_HANDLE,
+                        ERROR_INVALID_FUNCTION,
+                    ]
+                    .iter()
+                    .any(|&code| error.raw_os_error() == i32::try_from(code).ok()) =>
+                {
                     self.outputs.remove(0);
                 }
                 written => return written,
@@ -180,6 +192,13 @@ fn not_text() -> io::Error {
         io::ErrorKind::InvalidData,
         "the console sent UTF-16 that is no text",
     )
+}
+
+/// Whether `handle` is a character device, as a console is; a file or pipe is not.
+fn character_device(handle: HANDLE) -> bool {
+    use windows_sys::Win32::Storage::FileSystem::{FILE_TYPE_CHAR, GetFileType};
+    // SAFETY: reads the type of a handle of this process; an invalid one answers unknown.
+    (unsafe { GetFileType(handle) }) == FILE_TYPE_CHAR
 }
 
 /// Writes `wide` whole to the console `output`, again for what a partial write left.
