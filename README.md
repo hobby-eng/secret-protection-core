@@ -59,7 +59,7 @@ A GUI can send individual keystrokes to a worker that holds the password in a `S
 | Windows     | Native buffers with working-set locking, exclusions from Windows Error Reporting, and an AppContainer worker without network capabilities.    |
 | WebAssembly | Fixed-capacity heap buffers that wipe their own storage on drop. The browser controls paging and process isolation.                           |
 
-Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows, and a release waits for all of them. CI checks that the Android, iOS and WebAssembly targets compile. The last coverage measurement, of the 0.2.0 source on 2026-11-25, ran 113 checks on Linux x86-64 and covered **93.82%** of the measured source lines (3,612 of 3,850). [Coverage report](docs/COVERAGE.md)
+Native CI runs tests on Linux x86-64, Linux ARM64, macOS and Windows, and a release waits for all of them. CI checks that the Android, iOS and WebAssembly targets compile. The last coverage measurement, of the 0.2.0 source on 2026-11-25, ran 113 checks on Linux x86-64 and covered **93.83%** of the measured source lines (3,618 of 3,856). [Coverage report](docs/COVERAGE.md)
 
 ## Security reviews
 

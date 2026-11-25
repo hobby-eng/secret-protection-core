@@ -507,8 +507,17 @@ fn file_locks_refused() -> bool {
 /// Whether `sendmsg` is refused, by its answer for a descriptor of -1, which is EBADF without the
 /// filter.
 fn sendmsg_refused() -> bool {
+    let descriptor: libc::c_long = -1;
+    let flags: libc::c_long = 0;
     // SAFETY: a descriptor of -1 and a null message: without the filter the call fails at once.
-    let sent = unsafe { libc::syscall(libc::SYS_sendmsg, -1_i64, 0_i64, 0_i64) };
+    let sent = unsafe {
+        libc::syscall(
+            libc::SYS_sendmsg,
+            descriptor,
+            std::ptr::null::<libc::msghdr>(),
+            flags,
+        )
+    };
     sent < 0 && std::io::Error::last_os_error().raw_os_error() == Some(REFUSED)
 }
 

@@ -1,10 +1,10 @@
 # Test coverage
 
-The Linux x86-64 run on 2026-11-25 covered **93.82%** (3,612 of 3,850 measured source lines). All 113 checks passed (47 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
+The Linux x86-64 run on 2026-11-25 covered **93.83%** (3,618 of 3,856 measured source lines). All 113 checks passed (47 unit tests, 33 isolation checks, 9 secret-memory checks and 24 worker checks).
 
 ## Measurement
 
-Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `6c1443a85390d5a45c0dd1effc9c156f54e4dba394291a20f22bd6270ef8a801`. The run reported no profile mismatches.
+Rust 1.99.1 and cargo-llvm-cov 0.9.1 measured the source of version 0.2.0 as committed with this report, before its release. The SHA-256 of its measured input manifest is `72c034b2dfd7e1a622e1814b4b40ff119268fcc14bdc2e573bf6b875732d25f9`. The run reported no profile mismatches.
 
 ## Scope and exclusions
 
@@ -48,7 +48,7 @@ For the source fingerprint, hash each Rust file under `src/` and `tests/`, plus 
 | `src/channels.rs`                |            54 |             54 |  100.00% |
 | `src/input.rs`                   |           277 |            280 |   98.93% |
 | `src/os.rs`                      |            69 |             69 |  100.00% |
-| `src/os/linux.rs`                |           567 |            586 |   96.76% |
+| `src/os/linux.rs`                |           573 |            592 |   96.79% |
 | `src/os/linux/landlock_layer.rs` |            49 |             49 |  100.00% |
 | `src/os/linux/mappings.rs`       |            70 |             71 |   98.59% |
 | `src/os/linux/seccomp.rs`        |           269 |            272 |   98.90% |

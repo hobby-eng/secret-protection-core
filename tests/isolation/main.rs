@@ -43,12 +43,22 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 }
 
 fn main() {
-    match std::env::var(ROLE).as_deref() {
+    let role = std::env::var(ROLE);
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
+    ))]
+    if run_filter_role(role.as_deref().unwrap_or_default()) {
+        return;
+    }
+    match role.as_deref() {
         Ok("isolated") => isolated(),
         #[cfg(any(
             all(
                 target_os = "linux",
-                any(target_arch = "x86_64", target_arch = "aarch64")
+                any(target_arch = "x86_64", target_arch = "aarch64"),
+                target_endian = "little"
             ),
             target_os = "macos"
         ))]
@@ -56,7 +66,8 @@ fn main() {
         #[cfg(any(
             all(
                 target_os = "linux",
-                any(target_arch = "x86_64", target_arch = "aarch64")
+                any(target_arch = "x86_64", target_arch = "aarch64"),
+                target_endian = "little"
             ),
             target_os = "macos"
         ))]
@@ -64,120 +75,21 @@ fn main() {
         #[cfg(any(
             all(
                 target_os = "linux",
-                any(target_arch = "x86_64", target_arch = "aarch64")
+                any(target_arch = "x86_64", target_arch = "aarch64"),
+                target_endian = "little"
             ),
             target_os = "macos"
         ))]
         Ok("shared-memory") => folders::shared_memory_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("folders-then-threads") => folders::folders_then_threads_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("sibling-then-folders") => folders::sibling_then_folders_role(),
         Ok("idle") => idle(),
         #[cfg(windows)]
         Ok("impersonating-sibling") => windows::an_impersonating_sibling_keeps_its_own_integrity(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("foreign") => under_a_foreign_filter(),
         #[cfg(target_os = "linux")]
         Ok("traced") => linux::traced_role(false),
         #[cfg(target_os = "linux")]
         Ok("traced-sibling") => linux::traced_role(true),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("forked") => linux::forked_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("unlayered") => linux::unlayered_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("unlisted") => linux::unlisted_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("old-marks") => linux::old_marks_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("all-threads") => linux::threads_role(true),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("one-thread-only") => linux::threads_role(false),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("foreign-sibling") => linux::foreign_sibling_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("repeated") => linux::repeated_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("forked-threads") => linux::forked_threads_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("policed") => linux::policed_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("undumpable-refused") => linux::undumpable_refused_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("own-pids") => linux::own_pids_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("relayered") => linux::relayered_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("unmasked") => linux::unmasked_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("speculating") => linux::speculation_role(true),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("unspeculated") => linux::speculation_role(false),
         #[cfg(target_os = "linux")]
         Ok("locked") => linux::locked_role(),
-        #[cfg(all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ))]
-        Ok("refused") => refused_filter_role(),
         #[cfg(not(target_arch = "wasm32"))]
         Ok("writer") => writer(),
         #[cfg(unix)]
@@ -190,10 +102,44 @@ fn main() {
     }
 }
 
+/// Dispatches the Linux roles that require the generated seccomp filter.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
+fn run_filter_role(role: &str) -> bool {
+    match role {
+        "folders-then-threads" => folders::folders_then_threads_role(),
+        "sibling-then-folders" => folders::sibling_then_folders_role(),
+        "foreign" => under_a_foreign_filter(),
+        "forked" => linux::forked_role(),
+        "unlayered" => linux::unlayered_role(),
+        "unlisted" => linux::unlisted_role(),
+        "old-marks" => linux::old_marks_role(),
+        "all-threads" => linux::threads_role(true),
+        "one-thread-only" => linux::threads_role(false),
+        "foreign-sibling" => linux::foreign_sibling_role(),
+        "repeated" => linux::repeated_role(),
+        "forked-threads" => linux::forked_threads_role(),
+        "policed" => linux::policed_role(),
+        "undumpable-refused" => linux::undumpable_refused_role(),
+        "own-pids" => linux::own_pids_role(),
+        "relayered" => linux::relayered_role(),
+        "unmasked" => linux::unmasked_role(),
+        "speculating" => linux::speculation_role(true),
+        "unspeculated" => linux::speculation_role(false),
+        "refused" => refused_filter_role(),
+        _ => return false,
+    }
+    true
+}
+
 /// The checks that each run a Linux role in a child of its own.
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 fn linux_role_checks() {
     run(
@@ -273,17 +219,25 @@ fn checks() {
         support::role_ended("impersonating-sibling", output.status, &output.stderr);
     });
     #[cfg(target_os = "linux")]
-    run(
-        "an isolated thread is refused what the filter names and keeps what it needs",
-        linux::an_isolated_thread_is_refused_what_the_filter_names,
-    );
+    if support::LINUX_SECCOMP {
+        run(
+            "an isolated thread is refused what the filter names and keeps what it needs",
+            linux::an_isolated_thread_is_refused_what_the_filter_names,
+        );
+    } else {
+        run(
+            "an isolated Linux thread without seccomp reports its available protections",
+            linux::a_thread_without_seccomp_reports_its_protections,
+        );
+    }
     run(
         "a process of one thread is isolated as a whole",
         a_process_of_one_thread_is_isolated_as_a_whole,
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     run(
         "a filter installed by someone else does not keep this crate's out",
@@ -291,7 +245,8 @@ fn checks() {
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     run(
         "a filter the system refuses is reported missing and tried again",
@@ -299,7 +254,8 @@ fn checks() {
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     run(
         "options refuse file locks and sendmsg, with one more filter at most",
@@ -307,7 +263,8 @@ fn checks() {
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     run(
         "two threads that isolate themselves get one filter each",
@@ -320,13 +277,15 @@ fn checks() {
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     linux_role_checks();
     #[cfg(any(
         all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ),
         target_os = "macos"
     ))]
@@ -463,11 +422,13 @@ fn isolated() {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         use secret_protection_core::{Options, Protection};
-        let wide = Isolation::enter_requiring_process_wide(
-            Options::new(),
-            &[Protection::NoNewSockets, Protection::NoFileChanges],
-        );
-        assert!(wide.is_ok(), "{wide:?}");
+        let required = [Protection::NoNewSockets, Protection::NoFileChanges];
+        let wide = Isolation::enter_requiring_process_wide(Options::new(), &required);
+        if support::LINUX_SECCOMP || cfg!(target_os = "macos") {
+            assert!(wide.is_ok(), "{wide:?}");
+        } else {
+            assert_eq!(wide.unwrap_err().missing, required);
+        }
     }
     // Linux reads back the earlier setup. On Windows a repeated standalone check can lose
     // visibility of the threads needed to confirm access control and integrity.
@@ -563,7 +524,8 @@ fn seccomp_filters() -> Option<u32> {
 /// containers do, still gets this crate's filter, and only once.
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 fn a_foreign_filter_does_not_keep_this_crates_out() {
     let output = child("foreign").wait_with_output().unwrap();
@@ -577,7 +539,8 @@ fn a_foreign_filter_does_not_keep_this_crates_out() {
 /// The `foreign` role: installs a filter that allows every call, then enters the isolation twice.
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 fn under_a_foreign_filter() {
     linux::install_a_foreign_filter();
@@ -596,7 +559,8 @@ fn under_a_foreign_filter() {
 /// instead of taking the refusal for a filter in place.
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 fn a_refused_filter_is_reported_missing() {
     let output = child("refused").wait_with_output().unwrap();
@@ -611,7 +575,8 @@ fn a_refused_filter_is_reported_missing() {
 /// sandbox might; Landlock and the dump settings still apply.
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 fn refused_filter_role() {
     linux::install_a_filter_refusing_filters();
@@ -776,7 +741,8 @@ fn cannot_be_read_from_outside(pid: u32) {
 #[cfg(any(
     all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ),
     target_os = "macos"
 ))]

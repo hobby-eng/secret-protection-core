@@ -33,10 +33,10 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 }
 
 fn main() {
-    // A secret of a quarter of the address space, which no system gives.
+    // This size cannot fit between the guard pages, including on a 32-bit host.
     #[cfg(unix)]
     if std::env::var(NO_MEMORY).is_ok() {
-        drop(Secret::with_capacity(usize::MAX / 4));
+        drop(Secret::with_capacity(usize::MAX));
         return;
     }
     #[cfg(target_os = "linux")]
@@ -224,20 +224,26 @@ fn a_secret_lies_on_pages_kept_out_of_swap_and_core_dumps() {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn the_work_area_lies_on_pages_of_its_own() {
-    /// One page more than 1 MiB: a size that no other mapping of this program has.
-    const AREA_KIB: u32 = 1028;
+    const BYTES: usize = 1028 * 1024;
     #[cfg(target_os = "linux")]
     let before = linux::mappings();
-    let area = WorkArea::new(AREA_KIB as usize * 1024).unwrap();
+    let area = WorkArea::new(BYTES).unwrap();
     // Unix locks the area when RLIMIT_MEMLOCK holds all of it; Windows once the working set grew
     // by its size, which the process of a user may ask for.
     #[cfg(unix)]
-    let lockable = lock_limit() >= u64::from(AREA_KIB) * 1024;
+    let lockable = lock_limit() >= u64::try_from(BYTES.next_multiple_of(page_size())).unwrap();
     #[cfg(not(unix))]
     let lockable = true;
     assert_eq!(area.is_locked(), lockable);
     #[cfg(target_os = "linux")]
-    linux::work_area_is_marked(&before, AREA_KIB as usize * 1024, area.is_locked());
+    linux::work_area_is_marked(&before, &area);
+}
+
+#[cfg(unix)]
+fn page_size() -> usize {
+    // SAFETY: sysconf takes an integer and only reports the process page size.
+    let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    usize::try_from(size).unwrap()
 }
 
 fn six_hundred_secrets_made_one_after_another_report_their_core_dump_exclusion() {
@@ -324,8 +330,9 @@ mod linux {
         mappings
     }
 
-    /// Out of core dumps (`dd`) on pages of either kind. Anonymous pages are locked (`lo`) and give
-    /// a child process zeros (`wf`). Secret memory is shared, so a child gets none of it (`dc`),
+    /// Out of core dumps (`dd`) on pages of either kind. Anonymous pages report their lock
+    /// (`lo`) and whether a child process gets zeros (`wf`). Secret memory is shared, so a child
+    /// gets none of it (`dc`),
     /// and its kind is what keeps it out of swap: since Linux commit 97d34aa65c29 its folios are
     /// unevictable and the mapping has no `lo`, which an older kernel's has.
     pub(super) fn secret_pages_are_marked(secret: &Secret) {
@@ -333,7 +340,20 @@ mod linux {
         let flags: &[&str] = if mapping.name.starts_with("/secretmem") {
             &["dd", "dc"]
         } else {
-            &["dd", "lo", "wf"]
+            assert_eq!(mapping.has("lo"), secret.is_locked(), "{:?}", mapping.flags);
+            assert_eq!(
+                mapping.has("wf"),
+                wipe_on_fork_available(),
+                "{:?}",
+                mapping.flags
+            );
+            assert_eq!(
+                mapping.has("wf"),
+                secret.is_out_of_children(),
+                "{:?}",
+                mapping.flags
+            );
+            &["dd"]
         };
         assert!(
             flags.iter().all(|flag| mapping.has(flag)),
@@ -355,21 +375,35 @@ mod linux {
         );
     }
 
-    /// The one new mapping of `bytes` bytes is out of core dumps and gives a child zeros, and it
-    /// is locked exactly when the area says so.
-    pub(super) fn work_area_is_marked(before: &[Mapping], bytes: usize, locked: bool) {
+    /// The new area mapping covers the requested bytes rounded to the system page size.
+    pub(super) fn work_area_is_marked(before: &[Mapping], area: &WorkArea) {
+        let address = area.as_slice().as_ptr() as usize;
         let mappings = mappings();
-        let new: Vec<&Mapping> = mappings
+        let mapping = mappings
             .iter()
-            .filter(|mapping| mapping.range.len() == bytes)
-            .filter(|mapping| before.iter().all(|old| old.range != mapping.range))
-            .collect();
-        assert_eq!(new.len(), 1);
-        let area = new[0];
-        assert!(area.has("dd") && area.has("wf"), "{:?}", area.flags);
-        assert_eq!(area.has("lo"), locked, "{:?}", area.flags);
+            .find(|mapping| mapping.range.contains(&address))
+            .unwrap();
+        assert!(before.iter().all(|old| old.range != mapping.range));
+        assert_eq!(
+            mapping.range.len(),
+            area.as_slice().len().next_multiple_of(super::page_size())
+        );
+        assert!(mapping.has("dd"), "{:?}", mapping.flags);
+        assert_eq!(
+            mapping.has("wf"),
+            wipe_on_fork_available(),
+            "{:?}",
+            mapping.flags
+        );
+        assert_eq!(
+            mapping.has("wf"),
+            area.is_out_of_children(),
+            "{:?}",
+            mapping.flags
+        );
+        assert_eq!(mapping.has("lo"), area.is_locked(), "{:?}", mapping.flags);
         // It keeps the huge pages the system gives: only a secret refuses them.
-        assert!(!area.has("nh"), "{:?}", area.flags);
+        assert!(!mapping.has("nh"), "{:?}", mapping.flags);
     }
 
     /// With no memory to lock, work that requires a locked stack does not run, and work that
@@ -438,16 +472,41 @@ mod linux {
         std::path::Path::new("/sys/kernel/mm/transparent_hugepage/enabled").exists()
     }
 
+    /// Tests the kernel operation on an independent anonymous page.
+    fn wipe_on_fork_available() -> bool {
+        let bytes = super::page_size();
+        // SAFETY: reserves one private anonymous page with no file or requested address.
+        let page = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                bytes,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                -1,
+                0,
+            )
+        };
+        assert_ne!(page, libc::MAP_FAILED);
+        // SAFETY: both operations use the exact extent just reserved. The second gives it back.
+        unsafe {
+            let available = libc::madvise(page, bytes, libc::MADV_WIPEONFORK) == 0;
+            assert_eq!(libc::munmap(page, bytes), 0);
+            available
+        }
+    }
+
     /// Checks the anonymous fallback when another thread exists at the first allocation,
     /// including its dump, fork and page-size properties.
     pub(super) fn first_secret_among_threads() {
         let other = std::thread::spawn(std::thread::park);
         let first = Secret::with_capacity(16);
-        assert!(!mapping_of(&first).name.starts_with("/secretmem"));
-        // Anonymous pages: out of core dumps, and zeros in a child.
-        assert!(first.is_out_of_dumps() && first.is_out_of_children());
+        let mapping = mapping_of(&first);
+        assert!(!mapping.name.starts_with("/secretmem"));
+        assert!(first.is_out_of_dumps());
+        assert_eq!(mapping.has("wf"), wipe_on_fork_available());
+        assert_eq!(mapping.has("wf"), first.is_out_of_children());
         // Small pages only (`nh`): joining them into a huge one would copy the secret.
-        assert!(!has_huge_pages() || mapping_of(&first).has("nh"));
+        assert!(!has_huge_pages() || mapping.has("nh"));
         other.thread().unpark();
         other.join().unwrap();
         let later = Secret::with_capacity(16);
@@ -481,7 +540,14 @@ mod linux {
         assert_eq!(registered, 0);
         // The first secret, made alone: from now on a fork takes the gate, and takes it before
         // it runs the handler above, which was registered earlier.
-        drop(Secret::with_capacity(16));
+        let sample = Secret::with_capacity(16);
+        let secret_memory = mapping_of(&sample).name.starts_with("/secretmem");
+        drop(sample);
+        if !secret_memory {
+            crate::support::skip_role(
+                "This kernel gives no secret memory: the gate is not checked.",
+            );
+        }
         LOCKED.store(true, Ordering::Release);
         let forking = std::thread::spawn(|| {
             // SAFETY: the child ends at once; the parent waits for it and reads its status.

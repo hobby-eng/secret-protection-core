@@ -121,10 +121,14 @@ pub(super) fn on_a_terminal() {
     assert_eq!(worker.call(b"session", 10).unwrap().as_bytes(), b"true");
     let stderr = worker.call(b"stderr", 100).unwrap();
     assert_eq!(stderr.as_str().unwrap(), identity(libc::STDIN_FILENO));
-    // Refused: on Linux by the filter, on macOS by the kernel, as the terminal is not the
-    // worker's own.
+    // Refused by the filter or because this is not the worker's controlling terminal.
     let typed = worker.call(b"type", 10).unwrap();
-    assert_eq!(typed.as_str().unwrap(), libc::EACCES.to_string());
+    let refused: libc::c_int = typed.as_str().unwrap().parse().unwrap();
+    if crate::support::LINUX_SECCOMP || cfg!(target_os = "macos") {
+        assert_eq!(refused, libc::EACCES);
+    } else {
+        assert!(refused > 0, "terminal input was accepted");
+    }
     let mut waiting: libc::c_int = 0;
     // SAFETY: FIONREAD writes the number of bytes waiting into an int that lives for the call.
     let asked = unsafe { libc::ioctl(libc::STDIN_FILENO, libc::FIONREAD, &raw mut waiting) };

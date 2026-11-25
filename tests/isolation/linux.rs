@@ -17,11 +17,17 @@ use std::ptr;
 use secret_protection_core::{Isolation, Secret};
 
 mod roles;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 mod threads;
 
 pub(crate) use roles::*;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) use threads::*;
 
 /// Requests of linux/fsverity.h, linux/fscrypt.h and linux/btrfs.h that change a file or make
@@ -46,7 +52,10 @@ const REFUSED_CALLS: &[libc::c_long] = &[
     libc::SYS_ioprio_set,
     libc::SYS_open_by_handle_at,
     // Linux on riscv64 and loongarch64 has no renameat, and no filter.
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    #[cfg(all(
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
+    ))]
     libc::SYS_renameat,
     libc::SYS_renameat2,
     libc::SYS_unlinkat,
@@ -187,7 +196,10 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
                 });
             });
             calls_are_refused(idle.id());
-            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+            #[cfg(all(
+                any(target_arch = "x86_64", target_arch = "aarch64"),
+                target_endian = "little"
+            ))]
             other_processes_are_out_of_reach(idle.id());
             connecting_is_refused(&unconnected, listener.local_addr().unwrap().port());
             abstract_connecting_is_refused(&unix_unconnected, &name);
@@ -214,9 +226,28 @@ pub(super) fn an_isolated_thread_is_refused_what_the_filter_names() {
     fs::remove_dir(&folder).unwrap();
 }
 
+/// The fallback can confirm the dump limit and may install Landlock without a seccomp filter.
+pub(super) fn a_thread_without_seccomp_reports_its_protections() {
+    let isolation = std::thread::spawn(|| {
+        Isolation::enter_with(secret_protection_core::Options::new().all_threads())
+    })
+    .join()
+    .unwrap();
+    assert!(
+        isolation.no_core_dumps && !isolation.whole_process,
+        "{isolation:?}"
+    );
+    assert!(!isolation.no_new_sockets, "{isolation:?}");
+    assert!(!isolation.no_file_changes, "{isolation:?}");
+    assert!(!isolation.no_new_programs, "{isolation:?}");
+}
+
 /// Installs a filter that allows every call, as the system or a container installs one of its
 /// own before a program starts.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn install_a_foreign_filter() {
     let mut allow = [libc::sock_filter {
         code: 0x06, // BPF_RET | BPF_K
@@ -257,7 +288,10 @@ pub(super) fn install_a_foreign_filter() {
 /// In a thread of its own: a first call without options refuses neither file locks nor
 /// `sendmsg`; a call with them adds one filter that refuses both; further calls, with or
 /// without them, add none and keep them.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn options_add_one_filter_at_most() {
     use secret_protection_core::{Options, Protection};
     std::thread::scope(|scope| {
@@ -351,7 +385,10 @@ pub(super) fn options_add_one_filter_at_most() {
 
 /// With the signal option alone, the fcntl rule refuses owners, F_SETSIG and O_ASYNC, and lets
 /// locks and other flags through, which only the lock option would refuse.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn the_signal_option_alone_refuses_owners_and_async() {
     use secret_protection_core::Options;
     std::thread::scope(|scope| {
@@ -384,7 +421,10 @@ pub(super) fn the_signal_option_alone_refuses_owners_and_async() {
 
 /// Two threads started side by side, neither from the other, each install a filter of their
 /// own, once.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn sibling_threads_get_one_filter_each() {
     let before = super::seccomp_filters();
     std::thread::scope(|scope| {
@@ -402,7 +442,10 @@ pub(super) fn sibling_threads_get_one_filter_each() {
 
 /// Installs a filter that refuses to install another filter through prctl, with EPERM, and
 /// allows every other call.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn install_a_filter_refusing_filters() {
     let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
     let mut program = [
@@ -464,7 +507,10 @@ fn calls_are_refused(idle: u32) {
 
 /// Limits, scheduling and pages of another process are refused; this process's own stay open.
 /// Only where the filter is written, which also has every call checked here.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 fn other_processes_are_out_of_reach(idle: u32) {
     let pid = libc::pid_t::try_from(idle).unwrap();
     // SAFETY: each call reads or writes only the values given, which live for the call; with
@@ -544,7 +590,10 @@ fn the_terminal_takes_no_typed_input(terminal: &OwnedFd) {
 fn connecting_is_refused(socket: &OwnedFd, port: u16) {
     let abi = landlock_abi();
     // The filter refuses connect itself, before Landlock.
-    let filtered = cfg!(any(target_arch = "x86_64", target_arch = "aarch64"));
+    let filtered = cfg!(all(
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
+    ));
     let address = libc::sockaddr_in {
         sin_family: libc::AF_INET as libc::sa_family_t,
         sin_port: port.to_be(),
@@ -588,7 +637,10 @@ fn abstract_connecting_is_refused(socket: &OwnedFd, name: &str) {
         )
     };
     // The filter refuses connect itself, before Landlock's EPERM.
-    let expected = if cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
+    let expected = if cfg!(all(
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
+    )) {
         Some(libc::EACCES)
     } else {
         (abi >= 6).then_some(libc::EPERM)
@@ -732,7 +784,10 @@ pub(super) fn locking_all_memory_is_reported() {
 }
 
 /// Starts this program again in `role` and expects it to end well.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(super) fn role_ends_well(role: &str) {
     let output = super::child(role).wait_with_output().unwrap();
     crate::support::role_ended(role, output.status, &output.stderr);
@@ -838,13 +893,14 @@ fn what_a_secret_command_needs_still_works(terminal: &OwnedFd, secret_memory: bo
 /// What a process of one thread reports on Linux, and the side effects of the empty network.
 pub(super) fn expect_whole_process(isolation: Isolation) {
     crate::support::check_memory_reading(isolation);
-    assert!(
-        isolation.no_core_dumps
-            && isolation.no_new_sockets
-            && isolation.no_file_changes
-            && isolation.no_new_programs,
-        "{isolation:?}"
-    );
+    assert!(isolation.no_core_dumps, "{isolation:?}");
+    for confirmed in [
+        isolation.no_new_sockets,
+        isolation.no_file_changes,
+        isolation.no_new_programs,
+    ] {
+        assert_eq!(confirmed, crate::support::LINUX_SECCOMP, "{isolation:?}");
+    }
     if isolation.empty_network {
         // No ID map is written in the new user namespace.
         // SAFETY: getuid and getgid only read.

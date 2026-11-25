@@ -74,7 +74,10 @@ pub(crate) fn locked_role() {
 /// `fork` inherits the rule with its parent's number: it must not report the protection until
 /// it asks and gets a rule of its own, and a thread that did not ask never reports another
 /// thread's.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn forked_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     let options = Options::new().signals_to_self_only();
@@ -132,7 +135,10 @@ pub(crate) fn forked_role() {
 
 /// The `unmasked` role: the system refuses to block signals, so a handler could fork on the
 /// thread that holds the gate of secret memory. No secret memory is taken then.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn unmasked_role() {
     install_a_filter_answering(libc::SYS_rt_sigprocmask, None, libc::EPERM);
     let secret = Secret::with_capacity(16);
@@ -143,7 +149,10 @@ pub(crate) fn unmasked_role() {
 /// The `policed` role: someone else's policy refuses just what the probes try, a socket, an
 /// io_uring, a program and a file lock, and no filter of this crate's goes in. None of
 /// these reads as confirmed, and a program that requires one stops.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn policed_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     for call in [
@@ -176,7 +185,10 @@ pub(crate) fn policed_role() {
 /// The `undumpable-refused` role: someone else's policy refuses to clear the dumpable flag. The
 /// isolation then enters no user namespace, in which every process of the user would hold the
 /// right to read this one, and confirms neither the core-dump ban nor the empty network.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn undumpable_refused_role() {
     let before = fs::read_link("/proc/self/ns/user").unwrap();
     install_a_filter_answering(
@@ -197,7 +209,10 @@ pub(crate) fn undumpable_refused_role() {
 /// it would read as none. The reading of memory is then unknown, not confirmed. Only a
 /// child is in the new namespace. Where the limit allows a lock of all memory, a grandchild
 /// in a further namespace has the child's number, 1, and must not take its lock for its own.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn own_pids_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     // SAFETY: unshare takes flags only.
@@ -251,7 +266,10 @@ pub(crate) fn own_pids_role() {
 /// The `relayered` role: the kernel refuses the Landlock layer once, here for want of a free
 /// descriptor, and the filter goes in without it. The next call tries the layer again and
 /// records it with one more filter; a third call adds nothing.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn relayered_role() {
     use secret_protection_core::{Outcome, Protection};
     if landlock_abi() < 6 {
@@ -289,7 +307,10 @@ pub(crate) fn relayered_role() {
 /// The `unlayered` role: the kernel knows Landlock, but refuses to apply the layer, as it
 /// does beyond sixteen layers. The filter still goes in; the signal scope, which only the
 /// layer brings, must read as refused, and writing files as refused by the filter.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn unlayered_role() {
     use secret_protection_core::{Outcome, Protection};
     install_a_filter_answering(libc::SYS_landlock_restrict_self, None, libc::EPERM);
@@ -310,7 +331,10 @@ pub(crate) fn unlayered_role() {
 /// for a tracer: the reading of memory is unknown, and a program that requires the protection
 /// stops. The count of threads comes from `/proc/self/status`, which needs no listing, so the
 /// process is still taken for the one thread it is.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn unlisted_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     install_a_filter_answering(libc::SYS_getdents64, None, libc::EACCES);
@@ -329,7 +353,10 @@ pub(crate) fn unlisted_role() {
 /// The `old-marks` role: a filter that answers the mark of this crate's 0.1 line, as one put in
 /// through another dependency of the same program does, is not taken for this version's: the
 /// call puts its own filter in, and the option it asked for holds.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn old_marks_role() {
     use secret_protection_core::{Options, Outcome, Protection};
     // "SPC1" answered with every bit that line's mark had.
@@ -345,7 +372,10 @@ pub(crate) fn old_marks_role() {
 }
 
 /// How many seccomp filters the calling thread holds.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 fn filters() -> Option<u32> {
     fs::read_to_string("/proc/thread-self/status")
         .ok()?
@@ -360,7 +390,10 @@ fn filters() -> Option<u32> {
 /// `unspeculated` it does not say how speculation stands, as AArch64 does for indirect
 /// branches. A refusal reads as refused unless the processor needs no limit, what cannot be
 /// read as unknown, and a program that requires the protection stops.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 pub(crate) fn speculation_role(readable: bool) {
     use secret_protection_core::{Options, Outcome, Protection};
     // PR_GET_SPECULATION_CTRL and PR_SET_SPECULATION_CTRL.
@@ -395,7 +428,10 @@ pub(crate) fn speculation_role(readable: bool) {
 
 /// Installs a filter that answers `call` with `error`, whatever its first argument or only
 /// for `first`, and allows every other call.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+))]
 fn install_a_filter_answering(call: libc::c_long, first: Option<u32>, error: i32) {
     let instruction = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
     let allow = instruction(0x06, 0, 0, libc::SECCOMP_RET_ALLOW);

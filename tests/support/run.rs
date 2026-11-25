@@ -8,6 +8,13 @@ use std::sync::Mutex;
 /// The exit status of a role that cannot make its check on this system.
 pub(crate) const SKIPPED: i32 = 77;
 
+/// Targets that have this crate's Linux seccomp filter.
+pub(crate) const LINUX_SECCOMP: bool = cfg!(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
+));
+
 /// What the check now running could not do here: all of it, or a part.
 enum Mark {
     Whole(String),

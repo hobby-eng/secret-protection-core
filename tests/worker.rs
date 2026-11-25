@@ -44,11 +44,11 @@ static EXIT_GATE: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new(
 /// How long such a worker stays, at most: long past every wait of its parent, so that within a
 /// check it ends only when it is killed.
 const LINGER_SECONDS: u32 = 30;
-/// Inodes of up to 16 FIFOs found at descriptors 3 through 255 before `main`, in words, as
-/// 32-bit ARM has no 64-bit atomics and its inodes are 32-bit.
+/// Inodes of up to 16 FIFOs found at descriptors 3 through 255 before `main`. Two words retain
+/// the full inode even when the target has no 64-bit atomics.
 #[cfg(unix)]
-static PIPES_BEFORE_MAIN: [std::sync::atomic::AtomicUsize; 16] =
-    [const { std::sync::atomic::AtomicUsize::new(0) }; 16];
+static PIPES_BEFORE_MAIN: [[std::sync::atomic::AtomicU32; 2]; 16] =
+    [const { [const { std::sync::atomic::AtomicU32::new(0) }; 2] }; 16];
 
 /// Fills [`PIPES_BEFORE_MAIN`], before `main`, with calls that need nothing set up.
 #[cfg(unix)]
@@ -60,11 +60,11 @@ extern "C" fn record_pipes_before_main() {
         // SAFETY: as above.
         let open = unsafe { libc::fstat(descriptor, &mut status) } == 0;
         let pipe = open && status.st_mode & libc::S_IFMT == libc::S_IFIFO;
-        if let Some(slot) = PIPES_BEFORE_MAIN.get(found).filter(|_| pipe) {
-            slot.store(
-                usize::try_from(status.st_ino).unwrap_or(usize::MAX),
-                Ordering::Relaxed,
-            );
+        if let Some([low, high]) = PIPES_BEFORE_MAIN.get(found).filter(|_| pipe) {
+            #[allow(clippy::useless_conversion, reason = "ino_t can be u32 or u64")]
+            let inode = u64::from(status.st_ino);
+            low.store(inode as u32, Ordering::Relaxed);
+            high.store((inode >> 32) as u32, Ordering::Relaxed);
             found += 1;
         }
     }
@@ -104,8 +104,12 @@ fn answer(request: &[u8]) -> Secret {
         #[cfg(unix)]
         b"pipes before main" => PIPES_BEFORE_MAIN
             .iter()
-            .map(|inode| inode.load(Ordering::Relaxed).to_string())
-            .take_while(|inode| inode != "0")
+            .map(|[low, high]| {
+                u64::from(low.load(Ordering::Relaxed))
+                    | (u64::from(high.load(Ordering::Relaxed)) << 32)
+            })
+            .take_while(|&inode| inode != 0)
+            .map(|inode| inode.to_string())
             .collect::<Vec<_>>()
             .join(","),
         #[cfg(unix)]
@@ -270,47 +274,56 @@ fn main() {
     match std::env::var(ROLE).as_deref() {
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("without-listing") => return linux::without_listing(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("unwaited") => return linux::unwaited(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("separate-table") => return linux::separate_table(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("first-reply") => return linux::first_reply(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("memory-baseline") => return linux::memory_baseline(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("unexamined") => return linux::unexamined(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("without-setsid") => return linux::without_setsid(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("unsignalling") => return linux::unsignalling(),
         #[cfg(all(
             target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
+            any(target_arch = "x86_64", target_arch = "aarch64"),
+            target_endian = "little"
         ))]
         Ok("without-null") => return linux::without_null(),
         Ok("unserved") => return unserved(),
@@ -410,7 +423,8 @@ fn main() {
     );
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     {
         run(
@@ -458,13 +472,12 @@ fn required() -> Vec<Protection> {
     #[cfg(not(target_os = "linux"))]
     required.push(Protection::NoMemoryReading);
     if cfg!(unix) {
-        required.extend([
-            Protection::NoCoreDumps,
-            Protection::NoNewSockets,
-            Protection::NoFileChanges,
-        ]);
+        required.push(Protection::NoCoreDumps);
     }
-    if cfg!(any(target_os = "linux", windows)) {
+    if cfg!(target_os = "macos") || support::LINUX_SECCOMP {
+        required.extend([Protection::NoNewSockets, Protection::NoFileChanges]);
+    }
+    if cfg!(windows) || support::LINUX_SECCOMP {
         required.push(Protection::NoNewPrograms);
     }
     if cfg!(windows) || speculation_can_be_limited() {
@@ -600,8 +613,16 @@ fn a_worker_gets_nothing_but_its_pipes() {
 fn a_worker_applies_its_options() {
     let options = Options::new().refuse_file_locks().refuse_sendmsg();
     let required = [Protection::FileLocksRefused, Protection::SendmsgRefused];
-    let worker = Worker::start(options, &required).unwrap();
-    assert!(worker.isolation().file_locks_refused && worker.isolation().sendmsg_refused);
+    let worker = Worker::start(options, &required);
+    if support::LINUX_SECCOMP {
+        let worker = worker.unwrap();
+        assert!(worker.isolation().file_locks_refused && worker.isolation().sendmsg_refused);
+    } else {
+        let WorkerError::Missing(missing) = worker.unwrap_err() else {
+            panic!("worker did not report its missing seccomp options");
+        };
+        assert_eq!(missing.missing, required);
+    }
     // Without the options neither holds, and the worker says they were not asked for.
     let plain = Worker::start(Options::new(), &[]).unwrap();
     assert!(!plain.isolation().file_locks_refused && !plain.isolation().sendmsg_refused);
@@ -666,7 +687,8 @@ fn a_refused_answer_ends_the_worker() {
     within(Duration::from_secs(20), move || drop(worker));
     #[cfg(all(
         target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+        target_endian = "little"
     ))]
     linux::a_failed_call_ends_the_worker_before_it_is_dropped();
 }
@@ -921,7 +943,8 @@ fn a_worker_starts_from_a_protected_stack() {
 
 #[cfg(all(
     target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    target_endian = "little"
 ))]
 #[path = "worker/linux.rs"]
 mod linux;
