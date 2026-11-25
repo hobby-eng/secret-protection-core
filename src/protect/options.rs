@@ -98,9 +98,10 @@ impl Options {
     /// Linux: for a process that already has other threads when it isolates itself, puts the
     /// Landlock layer from ABI 8 (Linux 7.0), and then the filter, on every thread (TSYNC);
     /// below ABI 8 both stay on the calling thread, and without Landlock the filter goes alone.
-    /// The layer goes to the other threads once per process, and only while none holds a filter
-    /// the caller's does not descend from; it replaces any layer one of them had of its own, so
-    /// the option is for threads that hold none. A call that falls short leaves the other
+    /// The layer's TSYNC is tried once per process, and only while no thread holds a filter the
+    /// caller's does not descend from; a later call may still put the filter alone on every
+    /// thread. The layer replaces any layer one of them had of its own, so the option is for
+    /// threads that hold none. A call that falls short leaves the other
     /// threads more restricted, never less. Without it isolation reaches the calling thread and
     /// the threads it starts afterwards. Android ignores it. Check
     /// [`Isolation::whole_process`] and the reach of each protection (docs/API.md).

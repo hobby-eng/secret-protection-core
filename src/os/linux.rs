@@ -968,6 +968,13 @@ mod seccomp {
     pub(super) fn install(_options: u32, _sync: bool, _needed: bool) -> (Option<u32>, bool) {
         (None, false)
     }
+
+    /// Nothing tells here whether the threads' filters agree, so the layer stays on the
+    /// calling thread.
+    #[cfg(target_os = "linux")]
+    pub(super) fn share_filters() -> bool {
+        false
+    }
 }
 
 #[cfg(target_os = "linux")]
