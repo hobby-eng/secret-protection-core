@@ -16,27 +16,26 @@ All application-facing types and functions are exported from the crate root, `se
 
 ## Add the dependency
 
-This guide follows the source on `main`, version 0.2.0 before its release. The commands in this section install and verify the published 0.1.1, whose own [API guide](https://github.com/hobby-eng/secret-protection-core/blob/v0.1.1/docs/API.md) lists what that version has; the [changelog](../CHANGELOG.md) names what 0.2.0 adds.
+This guide describes version 0.2.0. The [changelog](../CHANGELOG.md) names what changed since 0.1.1, whose own [API guide](https://github.com/hobby-eng/secret-protection-core/blob/v0.1.1/docs/API.md) describes that version.
 
 The crate is published on crates.io. It requires Rust 1.99 or newer and uses the 2024 edition. Its dependencies take compatible version ranges, so a program may resolve newer patch or minor releases than the versions in the repository's `Cargo.lock`, which are the ones the crate is tested with; keep the program's own lockfile.
 
 ```toml
 [dependencies]
-secret-protection-core = "0.1.1"
+secret-protection-core = "0.2.0"
 ```
 
-The signed release tag works as a source too: `secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", tag = "v0.1.1" }`.
+The signed release tag works as a source too: `secret-protection-core = { git = "https://github.com/hobby-eng/secret-protection-core", tag = "v0.2.0" }`.
 
 For a local checkout, use `secret-protection-core = { path = "../secret-protection-core" }` in the same table. Import types and functions with `use secret_protection_core::{...};`.
 
-To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.1.1](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.1.1) The package on crates.io is the same file, so its SHA-256 matches the release's. The source digest is the commit of the signed tag, which `git verify-tag v0.1.1` checks and `git rev-parse 'v0.1.1^{commit}'` prints in a clone.
+To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.2.0](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.2.0) The package on crates.io is the same file, so its SHA-256 matches the release's. The source digest is the commit of the signed tag, which `git verify-tag v0.2.0` checks and `git rev-parse 'v0.2.0^{commit}'` prints in a clone; pass it as `--source-digest`.
 
 ```sh
-gh attestation verify secret-protection-core-0.1.1.crate \
+gh attestation verify secret-protection-core-0.2.0.crate \
   --repo hobby-eng/secret-protection-core \
   --signer-workflow hobby-eng/secret-protection-core/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.1.1 \
-  --source-digest fcca0b234266163ab2d7e0fc8d5aa2a4a0f66940
+  --source-ref refs/tags/v0.2.0
 ```
 
 ## Choose a buffer
