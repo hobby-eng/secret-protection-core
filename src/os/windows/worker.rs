@@ -944,8 +944,8 @@ mod handle_tests {
         let container = super::Container::of(&path)?;
         let (process, thread, id) = container.create(&path, "0,0,none,0", CREATE_SUSPENDED)?;
         let start_up = container.give_start_up_list(&process);
-        let less_privileged = less_privileged(&process);
-        let mitigated = mitigated_from_creation(&process);
+        let attributes = token_attributes(&process);
+        let policies = creation_policies(&process);
         let holds = |object: &std::os::windows::io::OwnedHandle, access| {
             super::super::with_access_list(access, |wanted| {
                 super::super::access_reads_back(object.as_raw_handle().cast(), wanted)
@@ -979,61 +979,122 @@ mod handle_tests {
             "another process of the user could open the worker's memory (opened {opened}, error \
              {error})"
         );
+        // A less privileged AppContainer's token has the attribute WIN://NOALLAPPPKG; the
+        // policies are those the worker would set on itself, each read as one DWORD.
+        let less_privileged = attributes
+            .as_ref()
+            .is_ok_and(|names| names.iter().any(|name| name == "WIN://NOALLAPPPKG"));
+        let wanted = [
+            super::super::NO_EXTENSION_POINTS,
+            super::super::KNOWN_IMAGES,
+            super::super::NO_CHILD_PROCESSES,
+        ];
+        let mitigated = policies
+            .iter()
+            .zip(wanted)
+            .all(|(read, flags)| read.is_some_and(|read| read & flags == flags));
         assert!(
-            start_up.is_ok(),
-            "the worker's token did not take its start-up list: {start_up:?}"
-        );
-        assert!(
-            less_privileged,
-            "the worker is not in a less privileged AppContainer"
-        );
-        assert!(
-            mitigated,
-            "the worker was made without its mitigation policies"
+            start_up.is_ok() && less_privileged && mitigated,
+            "start-up list {start_up:?}; token attributes {attributes:?}; extension-point, \
+             image-load and child-process policies {policies:?}, wanted {wanted:?}"
         );
         Ok(())
     }
 
-    /// Whether the token of the worker `process` is of a less privileged AppContainer. False when
-    /// it cannot be read, so that the caller still ends the worker before it asserts.
-    fn less_privileged(process: &std::os::windows::io::OwnedHandle) -> bool {
+    /// The names of the security attributes of the worker's token, read in the layout the kernel
+    /// returns (TOKEN_SECURITY_ATTRIBUTES_INFORMATION, whose names are counted strings), not that
+    /// of winnt.h's claim structures.
+    fn token_attributes(process: &std::os::windows::io::OwnedHandle) -> io::Result<Vec<String>> {
         use std::os::windows::io::AsRawHandle;
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::Security::{
-            GetTokenInformation, TOKEN_QUERY, TokenIsLessPrivilegedAppContainer,
+            GetTokenInformation, TOKEN_QUERY, TokenSecurityAttributes,
         };
         use windows_sys::Win32::System::Threading::OpenProcessToken;
+        #[repr(C)]
+        struct Counted {
+            length: u16,
+            _maximum: u16,
+            buffer: *const u16,
+        }
+        #[repr(C)]
+        struct Attribute {
+            name: Counted,
+            _value_type: u16,
+            _reserved: u16,
+            _flags: u32,
+            _value_count: u32,
+            _values: *const core::ffi::c_void,
+        }
+        #[repr(C)]
+        struct Information {
+            _version: u16,
+            _reserved: u16,
+            count: u32,
+            first: *const Attribute,
+        }
         let mut token = std::ptr::null_mut();
         // SAFETY: the worker's full process handle; the call writes the token's handle, closed
         // below.
         if unsafe { OpenProcessToken(process.as_raw_handle(), TOKEN_QUERY, &mut token) } == 0 {
-            return false;
+            return Err(io::Error::last_os_error());
         }
-        let (mut value, mut length) = (0_u32, 0);
-        // SAFETY: the call writes at most one DWORD into `value`, and the length it needed.
+        let mut buffer = vec![0_u64; 512];
+        let mut length = 0;
+        // SAFETY: the call writes at most the buffer's length into it, and the length it needed.
         let read = unsafe {
             GetTokenInformation(
                 token,
-                TokenIsLessPrivilegedAppContainer,
-                (&raw mut value).cast(),
-                size_of::<u32>() as u32,
+                TokenSecurityAttributes,
+                buffer.as_mut_ptr().cast(),
+                std::mem::size_of_val(buffer.as_slice()) as u32,
                 &mut length,
             )
         } != 0;
+        let error = io::Error::last_os_error();
         // SAFETY: closes the token's handle opened above, once.
         unsafe { CloseHandle(token) };
-        read && value != 0
+        if !read {
+            return Err(error);
+        }
+        // SAFETY: the call filled the buffer with the attributes and the counted strings of their
+        // names, all inside it.
+        unsafe {
+            let information = &*buffer.as_ptr().cast::<Information>();
+            if information.first.is_null() {
+                return Ok(Vec::new());
+            }
+            let attributes =
+                std::slice::from_raw_parts(information.first, information.count as usize);
+            Ok(attributes
+                .iter()
+                .map(|attribute| {
+                    let name = &attribute.name;
+                    if name.buffer.is_null() {
+                        return String::new();
+                    }
+                    let units =
+                        std::slice::from_raw_parts(name.buffer, usize::from(name.length) / 2);
+                    String::from_utf16_lossy(units)
+                })
+                .collect())
+        }
     }
 
-    /// Whether the worker `process` has, from its creation, the mitigation policies it would set
-    /// on itself: no extension points, images only from known places, no child process.
-    fn mitigated_from_creation(process: &std::os::windows::io::OwnedHandle) -> bool {
+    /// The extension-point, image-load and child-process policies of the worker `process`, each
+    /// as its DWORD of flags, or `None` where it cannot be read.
+    fn creation_policies(process: &std::os::windows::io::OwnedHandle) -> [Option<u32>; 3] {
         use std::os::windows::io::AsRawHandle;
         use windows_sys::Win32::System::Threading::{
-            GetProcessMitigationPolicy, PROCESS_MITIGATION_POLICY, ProcessChildProcessPolicy,
+            GetProcessMitigationPolicy, ProcessChildProcessPolicy,
             ProcessExtensionPointDisablePolicy, ProcessImageLoadPolicy,
         };
-        let has = |policy: PROCESS_MITIGATION_POLICY, flags: u32| {
+        [
+            ProcessExtensionPointDisablePolicy,
+            ProcessImageLoadPolicy,
+            ProcessChildProcessPolicy,
+        ]
+        .map(|policy| {
             let mut read = 0_u32;
             // SAFETY: the policy writes one DWORD; the handle is the worker's full one.
             let got = unsafe {
@@ -1044,13 +1105,8 @@ mod handle_tests {
                     size_of::<u32>(),
                 )
             } != 0;
-            got && read & flags == flags
-        };
-        has(
-            ProcessExtensionPointDisablePolicy,
-            super::super::NO_EXTENSION_POINTS,
-        ) && has(ProcessImageLoadPolicy, super::super::KNOWN_IMAGES)
-            && has(ProcessChildProcessPolicy, super::super::NO_CHILD_PROCESSES)
+            got.then_some(read)
+        })
     }
 
     /// Removes the debug privilege from the token of this test process, as the isolation tests
