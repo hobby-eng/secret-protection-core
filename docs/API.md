@@ -29,13 +29,14 @@ The signed release tag works as a source too: `secret-protection-core = { git = 
 
 For a local checkout, use `secret-protection-core = { path = "../secret-protection-core" }` in the same table. Import types and functions with `use secret_protection_core::{...};`.
 
-To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.2.0](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.2.0) The package on crates.io is the same file, so its SHA-256 matches the release's. The source digest is the commit of the signed tag, which `git verify-tag v0.2.0` checks and `git rev-parse 'v0.2.0^{commit}'` prints in a clone; pass it as `--source-digest`.
+To verify a downloaded release package against the tag, run the following command in the directory containing the file. [Download v0.2.0](https://github.com/hobby-eng/secret-protection-core/releases/tag/v0.2.0) The package on crates.io is the same file, so its SHA-256 matches the release's. The source digest is the commit of the signed tag, which `git verify-tag v0.2.0` checks and `git rev-parse 'v0.2.0^{commit}'` prints in a clone.
 
 ```sh
 gh attestation verify secret-protection-core-0.2.0.crate \
   --repo hobby-eng/secret-protection-core \
   --signer-workflow hobby-eng/secret-protection-core/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.2.0
+  --source-ref refs/tags/v0.2.0 \
+  --source-digest 6d7fdefa21081e13616ca4927d5ff38394452092
 ```
 
 ## Choose a buffer
