@@ -1,0 +1,1759 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-025",
+  "auditNumber": 25,
+  "date": "2026-11-26",
+  "title": "Whole-source pre-release audit of secret-protection-core 0.2.0",
+  "reviewer": {
+    "name": "Codex",
+    "model": null,
+    "reasoningEffort": null
+  },
+  "snapshot": {
+    "commit": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+    "commitComplete": true,
+    "workingTree": {
+      "tree": "cf19bfcf57862f7efc9e3f806c8bdc069a3e6f87",
+      "fingerprintedPaths": 153,
+      "historicalLocalFixtures": "?? docs/audits/AUD-019-harnesses/\n?? docs/audits/AUD-022-harnesses/\n"
+    },
+    "sourceFingerprint": "ecc6c4849048752198047c690752216735f38d5217b0c235d0ca7ba36bf0a24c"
+  },
+  "scope": {
+    "source": "Whole committed source and audit documentation, including unchanged files",
+    "native": "All active targets and optional platform rows",
+    "phase": "Candidate before the tag"
+  },
+  "verdict": "INCOMPLETE",
+  "auditKind": "release",
+  "releasePhase": "candidate",
+  "procedureHashes": {
+    "FULL_AUDIT_GUIDE_V2.md": "a1d9b30c3b6cbe0cb1bb597652993380b06c65b8bedaef5c82ce23fb73933b44",
+    "AUDIT_STANDARD.md": "cb022824fb61bba3a59c5bf138f533aaffb0796f34476a54286a21236685ef4d",
+    "AUDIT_TEMPLATE.md": "6dc3bcf05df0f058ec39eee4b528c8a49b2b1044e5c42a71f0845fb62c504e0d",
+    "audit-report.schema.json": "49360df3a7e8e39657e10270f76f47bee5a1801f8e76941536415f35c0376fe5",
+    "audit-report-rust.schema.json": "9a3c9114d1d4a2aa0eedb874b73186e583de898d712dcdb009b328287f7c3600",
+    "TARGETS.md": "623d3bda9f3cacd3b356e4624baa8096c557d23a27db0f1e84ce2276de8701b4"
+  },
+  "targetMatrix": [
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Ubuntu 24.04 x86-64",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu 24.04 x86-64",
+      "checks": "131, including one partial nested PID test.",
+      "evidence": "CI 139643129841, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Ubuntu 24.04 x86-64",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu 24.04 x86-64",
+      "checks": "7 optimized stack checks.",
+      "evidence": "CI 139643129841, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-unknown-linux-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Ubuntu 24.04 ARM64",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu 24.04 ARM64",
+      "checks": "131, including one partial nested PID test.",
+      "evidence": "CI 139643129800, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-unknown-linux-gnu",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Ubuntu 24.04 ARM64",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu 24.04 ARM64",
+      "checks": "7 optimized stack checks.",
+      "evidence": "CI 139643129800, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "i686-unknown-linux-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Native 32-bit Linux compatibility",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native 32-bit Linux compatibility",
+      "checks": "97 passes, 2 ignored secretmem cases.",
+      "evidence": "CI 139643129621, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "i686-unknown-linux-gnu",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Native 32-bit Linux compatibility",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native 32-bit Linux compatibility",
+      "checks": "7 optimized stack checks.",
+      "evidence": "CI 139643129621, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-darwin",
+      "profile": "test",
+      "features": "default",
+      "environment": "macOS Apple Silicon",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "macOS Apple Silicon",
+      "checks": "74 normal; 22 separately hardened.",
+      "evidence": "CI 139643129848, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-darwin",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "macOS Apple Silicon",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "macOS Apple Silicon",
+      "checks": "4 optimized stack checks.",
+      "evidence": "CI 139643129848, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-darwin",
+      "profile": "hardened test binaries",
+      "features": "default",
+      "environment": "macOS Apple Silicon",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "macOS Apple Silicon",
+      "checks": "8 isolation and 14 worker cases.",
+      "evidence": "CI 139643129848, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-apple-darwin",
+      "profile": "test",
+      "features": "default",
+      "environment": "Intel macOS",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Intel macOS",
+      "checks": "74 normal; 22 separately hardened.",
+      "evidence": "CI 139643129813, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-apple-darwin",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Intel macOS",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Intel macOS",
+      "checks": "4 optimized stack checks.",
+      "evidence": "CI 139643129813, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-apple-darwin",
+      "profile": "hardened test binaries",
+      "features": "default",
+      "environment": "Intel macOS",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Intel macOS",
+      "checks": "8 isolation and 14 worker cases.",
+      "evidence": "CI 139643129813, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-msvc",
+      "profile": "test",
+      "features": "default",
+      "environment": "Native Windows MSVC",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native Windows MSVC",
+      "checks": "57 normal.",
+      "evidence": "CI 139643129919, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-msvc",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Native Windows MSVC",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native Windows MSVC",
+      "checks": "4 optimized stack checks.",
+      "evidence": "CI 139643129919, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Native Windows MinGW",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native Windows MinGW",
+      "checks": "57 normal.",
+      "evidence": "CI 139643129731, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-gnu",
+      "profile": "release stack subset",
+      "features": "default",
+      "environment": "Native Windows MinGW",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Native Windows MinGW",
+      "checks": "4 optimized stack checks.",
+      "evidence": "CI 139643129731, exact e2a78d1."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "workers under restricted test policy",
+      "features": "default",
+      "environment": "Ubuntu Yama scope 0",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu Yama scope 0",
+      "checks": "One pre-spawn refusal case.",
+      "evidence": "Exact CI job 139643129841."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "PTY ioctl trace",
+      "features": "default",
+      "environment": "Ubuntu test PTY and strace",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Ubuntu test PTY and strace",
+      "checks": "Eight PTY cases and request-level regression guard.",
+      "evidence": "Exact CI job 139643129841. Independent local raw ioctl.log."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "wasm32-unknown-unknown",
+      "profile": "fixture release",
+      "features": "default",
+      "environment": "Node 26.13.0 / V8 14.6.202.34-node.40",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Node 26.13.0 / V8 14.6.202.34-node.40",
+      "checks": "18 checks (6 buffers, 4 input and 8 fallbacks). Shared fixture execution.",
+      "evidence": "CI 139643129890. Wasm SHA-256 9ec266478e71240c9f652b698a93c7c5b8c23180715c18b60c56be959dc4722c."
+    },
+    {
+      "package": "secret-protection-core-wasm-checks",
+      "target": "wasm32-unknown-unknown",
+      "profile": "fixture release",
+      "features": "default",
+      "environment": "Node 26.13.0 / V8 14.6.202.34-node.40",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Node 26.13.0 / V8 14.6.202.34-node.40",
+      "checks": "18 checks (6 buffers, 4 input and 8 fallbacks). Shared fixture execution.",
+      "evidence": "CI 139643129890. Wasm SHA-256 9ec266478e71240c9f652b698a93c7c5b8c23180715c18b60c56be959dc4722c."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-linux-android",
+      "profile": "test",
+      "features": "default",
+      "environment": "ARM64 Android app and NDK",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": "ARM64 Android app and NDK",
+      "checks": "Compile-time Clippy. Project records no runtime runner.",
+      "evidence": "A device or appropriate emulator/SDK is needed for those app runtime assertions."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-ios",
+      "profile": "test",
+      "features": "default",
+      "environment": "Signed ARM64 iOS app",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": "Signed ARM64 iOS app",
+      "checks": "Compile-time Clippy. Project records no runtime runner.",
+      "evidence": "A device or appropriate emulator/SDK is needed for those app runtime assertions."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-ios-sim",
+      "profile": "test",
+      "features": "default",
+      "environment": "ARM64 iOS Simulator app",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": "ARM64 iOS Simulator app",
+      "checks": "Compile-time Clippy. Project records no runtime runner.",
+      "evidence": "A device or appropriate emulator/SDK is needed for those app runtime assertions."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "armv5te-unknown-linux-gnueabi",
+      "profile": "test",
+      "features": "default",
+      "environment": "ARMv5 diagnostic runner",
+      "required": false,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": "ARMv5 diagnostic runner",
+      "checks": "Compile-time Clippy. Project records no runtime runner.",
+      "evidence": "A device or appropriate emulator/SDK is needed for those app runtime assertions."
+    },
+    {
+      "package": "secret-protection-core-fuzz / setting",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core-fuzz / report",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core-fuzz / keystrokes",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core-fuzz / frames",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core-fuzz / roster",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core-fuzz / editor",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "short release campaign",
+      "features": "default; cfg(fuzzing)",
+      "environment": "Linux hosted nightly libFuzzer",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "blocked",
+      "runner": "Linux hosted nightly libFuzzer",
+      "checks": "The six named targets lint and their source pathways were reviewed.",
+      "evidence": "No retained 90-second candidate result. Long run is separately scheduled after the tag."
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "ASan test",
+      "features": "default",
+      "environment": "Local Linux x86-64 and pinned nightly",
+      "required": true,
+      "revision": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Local Linux x86-64 and pinned nightly",
+      "checks": "127 reported passes, 0 failed, 3 ignored, 1 filtered.",
+      "evidence": "Four unsupported native lock assertions excluded for ASan interposition. Leak checking disabled."
+    }
+  ],
+  "checks": [
+    {
+      "id": "CHECK-SEC-001",
+      "area": "Threat model and secret ownership",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-SEC-002",
+      "area": "Secret Vault, CSP, sandbox, and transport",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-SEC-003",
+      "area": "Network egress and secret guards",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-SEC-004",
+      "area": "Randomness, encryption, and authentication",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-SEC-005",
+      "area": "Secret lifecycle and exceptional paths",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-SEC-006",
+      "area": "Browser injection, persistence, and sensitive APIs",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-SEC-007",
+      "area": "Read-only guarantees and availability bounds",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "The review completed with Low findings. See AUD-025-API001 and the per-target documentation findings."
+    },
+    {
+      "id": "CHECK-SEC-008",
+      "area": "Grants and mechanisms",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-FUN-001",
+      "area": "BIP39, entropy, and seed interpretation",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-002",
+      "area": "HD derivation and every coin/profile",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-003",
+      "area": "BIP85, BIP38, messages, and Silent Payments",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-004",
+      "area": "Scripts, descriptors, Miniscript, and multisig",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-005",
+      "area": "Transactions, PSBT version context, and commitments",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-006",
+      "area": "Recovery and backup formats",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-FUN-007",
+      "area": "Discovery, providers, proofs, and accounting",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-API-001",
+      "area": "Actual dependency call contracts",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-API-002",
+      "area": "Async state, cancellation, and revisions",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "The review completed with Low findings. See AUD-025-API001 and the per-target documentation findings."
+    },
+    {
+      "id": "CHECK-API-003",
+      "area": "Public export schema and monetary fidelity",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-API-004",
+      "area": "Encoding and import/export interoperability",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-001",
+      "area": "Manifest, flags, and feature composition",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-002",
+      "area": "Matrix depth and runtime sampling",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-003",
+      "area": "Lockfiles, source provenance, and licenses",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-004",
+      "area": "Canonical WASM and Docker bytes",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-BLD-005",
+      "area": "Artifacts, CI, and release workflows",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "blocked",
+      "evidence": "See the explicitly qualified per-site, release-phase, runtime or historical evidence gaps in the report."
+    },
+    {
+      "id": "CHECK-UI-001",
+      "area": "Real files and representative viewports",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "not-applicable",
+      "evidence": "SPC has no wallet format, provider API, browser UI, persistent export or canonical distributed Wasm artifact. Raw Wasm and native input are audited elsewhere."
+    },
+    {
+      "id": "CHECK-UI-002",
+      "area": "Navigation, inputs, and state preservation",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-UI-003",
+      "area": "Secret visibility, help, QR, and accessibility",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "blocked",
+      "evidence": "See the explicitly qualified per-site, release-phase, runtime or historical evidence gaps in the report."
+    },
+    {
+      "id": "CHECK-ARC-001",
+      "area": "Ownership, imports, and composition seams",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-ARC-002",
+      "area": "Dead code, duplication, and false positives",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-ARC-003",
+      "area": "Comments, tests, and production-path fidelity",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-ARC-004",
+      "area": "Workspace coding rules on the whole snapshot",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-DOC-001",
+      "area": "User-facing capability and safety descriptions",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "The review completed with Low findings. See AUD-025-API001 and the per-target documentation findings."
+    },
+    {
+      "id": "CHECK-DOC-002",
+      "area": "Commands, metadata, links, and legal materials",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-DOC-003",
+      "area": "Audit records and evidence consistency",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "blocked",
+      "evidence": "See the explicitly qualified per-site, release-phase, runtime or historical evidence gaps in the report."
+    },
+    {
+      "id": "CHECK-DOC-004",
+      "area": "Claims per target",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "The review completed with Low findings. See AUD-025-API001 and the per-target documentation findings."
+    },
+    {
+      "id": "CHECK-SEC-009",
+      "area": "Rust soundness on every target",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "blocked",
+      "evidence": "See the explicitly qualified per-site, release-phase, runtime or historical evidence gaps in the report."
+    },
+    {
+      "id": "CHECK-SEC-010",
+      "area": "Processes, IPC and the same-user attacker",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-API-005",
+      "area": "Platform fallbacks and boundary inputs",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-006",
+      "area": "Every target linked and run",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "passed",
+      "evidence": "Source and the applicable platform, test and review evidence are in the coverage notes and command records."
+    },
+    {
+      "id": "CHECK-BLD-007",
+      "area": "Dynamic analysis minimum",
+      "scope": "secret-protection-core",
+      "method": "Whole source and applicable runtime or scope inspection",
+      "status": "blocked",
+      "evidence": "See the explicitly qualified per-site, release-phase, runtime or historical evidence gaps in the report."
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-025-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "The optional pidfd launch can follow an expired deadline",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": [
+        "src/os/unix/worker.rs:379",
+        "src/os/unix/child.rs:42",
+        "src/os/unix/child.rs:76",
+        "src/worker.rs:84"
+      ],
+      "reproduction": "Defensive source and contract comparison.",
+      "expected": "Each process-creation attempt is preceded by an absolute deadline check after potentially blocking preparation.",
+      "observed": "Before trying the optional pidfd launcher the code first resolves it with dlsym. glibc serializes lookup with concurrent library changes. The deadline check before the helper precedes that lock. The ordinary posix_spawn fallback has its own check.",
+      "impact": "If lookup takes the remaining budget, the first launch attempt can start after the deadline. Later disposal and collection still apply.",
+      "recommendedFix": "Recheck the existing deadline after symbol resolution and immediately before using the optional launcher.",
+      "requiredVerification": "Exercise deadline exhaustion between an independently controlled symbol-resolution result and the attempted launch.",
+      "relatedFindings": [
+        "AUD-022-API001",
+        "AUD-023-API001"
+      ]
+    },
+    {
+      "id": "AUD-025-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The target matrix still describes Linux-only stack test machinery",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": [
+        "docs/audits/TARGETS.md:15",
+        "docs/audits/TARGETS.md:42",
+        "src/stack.rs:242",
+        ".github/workflows/ci.yml:141"
+      ],
+      "reproduction": "Defensive source and contract comparison.",
+      "expected": "The matrix names each stack probe and its actual release-profile job.",
+      "observed": "The general description says the tests read /proc/self/mem. The macOS and Windows probes read with their native APIs. Their rows also omit the current optimized stack tests.",
+      "impact": "The table gives incorrect per-target evidence and can hide real optimized runs when reconciling CI.",
+      "recommendedFix": "Name each backend probe and include the optimized stack step on Apple and Windows rows.",
+      "requiredVerification": "Check both Apple and both Windows logs and the Linux branch against the revised table.",
+      "relatedFindings": [
+        "AUD-024-BLD003"
+      ]
+    },
+    {
+      "id": "AUD-025-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The API guide overstates the Android io_uring read-back",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": [
+        "docs/API.md:248",
+        "src/os/linux.rs:961",
+        "src/os/linux/seccomp.rs:51"
+      ],
+      "reproduction": "Defensive source and contract comparison.",
+      "expected": "Distinguish installed restrictions from platform-specific runtime probes.",
+      "observed": "The API guide groups Linux and Android together for new socket and io_uring checks. The filter denies the relevant calls on Android, while the explicit io_uring probe is Linux-only to avoid the device policy terminating a test call.",
+      "impact": "Readers can overestimate what runtime verification establishes on Android.",
+      "recommendedFix": "Identify the Android filter rule and Linux-only runtime read-back separately.",
+      "requiredVerification": "Check the API wording against the filter and target cfg of the probe.",
+      "relatedFindings": []
+    },
+    {
+      "id": "AUD-025-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The macOS terminal threat documentation uses an absolute claim",
+      "severity": "low",
+      "status": "open",
+      "releaseBlocking": false,
+      "evidence": [
+        "SECURITY.md:21",
+        "docs/TECHNICAL.md:81",
+        "src/os/apple.rs:83"
+      ],
+      "reproduction": "Defensive source and contract comparison.",
+      "expected": "Describe what the profile relies on and the limits of the terminal evidence.",
+      "observed": "The security policy says the sandbox cannot refuse TIOCSTI on its own. The implementation deliberately relies on controlling-terminal separation and the technical guide records a refusal in the checked scenario.",
+      "impact": "The absolute claim obscures the conditions that the separate worker boundary actually establishes.",
+      "recommendedFix": "State that the protection relies on avoiding a controlling terminal, and qualify the observed refusal by its test conditions.",
+      "requiredVerification": "Read the security and technical descriptions together with the Unix terminal branch and native test setup.",
+      "relatedFindings": [
+        "AUD-024-DOC005"
+      ]
+    }
+  ],
+  "observations": [],
+  "remediation": [
+    {
+      "id": "AUD-025-API001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "Before trying the optional pidfd launcher the code first resolves it with dlsym. glibc serializes lookup with concurrent library changes. The deadline check before the helper precedes that lock. The ordinary posix_spawn fallback has its own check."
+    },
+    {
+      "id": "AUD-025-DOC001",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The general description says the tests read /proc/self/mem. The macOS and Windows probes read with their native APIs. Their rows also omit the current optimized stack tests."
+    },
+    {
+      "id": "AUD-025-DOC002",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The API guide groups Linux and Android together for new socket and io_uring checks. The filter denies the relevant calls on Android, while the explicit io_uring probe is Linux-only to avoid the device policy terminating a test call."
+    },
+    {
+      "id": "AUD-025-DOC003",
+      "status": "open",
+      "fixCommit": null,
+      "verificationCommit": null,
+      "evidence": "The security policy says the sandbox cannot refuse TIOCSTI on its own. The implementation deliberately relies on controlling-terminal separation and the technical guide records a refusal in the checked scenario."
+    }
+  ],
+  "limitations": [
+    "The six short release campaign results for this candidate are missing. The long GitHub campaign is a later tag stage. Local campaigns were left stopped. Tagged provenance and attestation are evaluated during the tagged phase.",
+    "Android, iOS, iOS Simulator and ARMv5 are compile-only in this evidence and have no app/device run. Native host Linux tests cannot supply those platform guarantees.",
+    "On the hosted Linux runners the nested PID namespace subcase is partial. Two i686 secretmem cases are ignored. Real Windows console and the named macOS access-list, mount and special folder probes remain unverified.",
+    "Native optimized stack tests use the Rust test harness. The test report covers the measured wipe paths and does not establish linked panic-abort, hardware erasure or general side-channel resistance.",
+    "Miri was limited to portable operations without native OS interaction. ASan excludes the four native lock assertions that its own lock interceptor changes, and leak checking is disabled. See individual runtime logs.",
+    "Cargo-deny bans and sources and RustSec cached advisories were checked separately. The offline cargo-deny advisory database checkout is missing.",
+    "Cargo careful, Kani and loom are not installed in the workspace toolchain. Native OS authority was checked by source and applicable platform tests.",
+    "Approval review blocked executing the external cargo-semver-checks binary again, despite its registry install record and the offline baseline. AUD-024 retains the earlier default verification; this audit does not claim a fresh exact-candidate run.",
+    "The source was audited with lexical site inventories. The per-site semantic/runtime evidence ledger and re-execution of every earlier conditional case remain incomplete.",
+    "The initial TSan protected-stack test fails its OS lock read-back under a runtime that explicitly ignores mlock. The separate synthetic concurrent probe covers four public stack and buffer allocations with the supported assertions."
+  ],
+  "commandEvidence": [
+    {
+      "id": "archive-rustsec-AUD-002",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f docs/audits/AUD-002-harnesses/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:37.520096+00:00",
+      "toUtc": "2026-11-26T02:07:37.988130+00:00",
+      "logSha256": "fc718a11f1fb3ce99dd9ec0d345fbf15f44cdcfd6ec873ed59e4ce7946bdbdf1"
+    },
+    {
+      "id": "archive-rustsec-AUD-005",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f docs/audits/AUD-005-harnesses/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:37.988363+00:00",
+      "toUtc": "2026-11-26T02:07:38.205189+00:00",
+      "logSha256": "b368f6afe07b2a2eb36e6152d0d723acc8bc5a05ad84aed838503a8caee7bca0"
+    },
+    {
+      "id": "archive-rustsec-AUD-012",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f docs/audits/AUD-012-harnesses/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:38.205457+00:00",
+      "toUtc": "2026-11-26T02:07:38.422403+00:00",
+      "logSha256": "f13e8b54a8ee18e7b5fe3a06c811e3e875a9e69dc954c9b439631ace4f9c4375"
+    },
+    {
+      "id": "archive-rustsec-AUD-019",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f docs/audits/AUD-019-harnesses/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:38.422663+00:00",
+      "toUtc": "2026-11-26T02:07:38.640205+00:00",
+      "logSha256": "1c6bfcb6946acf735c736f4b4cc969765e4deca92e29ae7c6f69258ad62bda35"
+    },
+    {
+      "id": "archive-rustsec-AUD-022",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f docs/audits/AUD-022-harnesses/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:38.640449+00:00",
+      "toUtc": "2026-11-26T02:07:38.858233+00:00",
+      "logSha256": "3572a35e0034597c51b48c9163fac00db0f149d546a63ffce60331774674bcfc"
+    },
+    {
+      "id": "asan-host",
+      "arguments": "run-capped --mem 2G --time 7m -- taskset -c 10,11 cargo +nightly-2026-11-13 test -Zbuild-std --locked --offline --target x86_64-unknown-linux-gnu --no-fail-fast -- --skip work_runs_on_a_protected_stack_and_panics_come_back --skip 'locking all memory is reported as the kernel answered' --skip 'a secret works under every lock limit and says whether it is locked' --skip 'the work area lies on pages of its own, locked where the limit allows'",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:45.886747+00:00",
+      "toUtc": "2026-11-26T02:03:25.296517+00:00",
+      "logSha256": "92f891e740783d90f6c5e9331f99a93717a17e7f91c8c515fc45e9e6d67f4186"
+    },
+    {
+      "id": "cfg-aarch64-apple-darwin",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target aarch64-apple-darwin",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:18.628527+00:00",
+      "toUtc": "2026-11-26T02:01:18.845707+00:00",
+      "logSha256": "adcd4b01da46c1516fd65b93201d2784971bbb6e573402098d5a9234b8121cef"
+    },
+    {
+      "id": "cfg-aarch64-apple-ios-sim",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target aarch64-apple-ios-sim",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:46.247282+00:00",
+      "toUtc": "2026-11-26T02:01:46.413539+00:00",
+      "logSha256": "9ec3ed94b7d6465f4c8c340cc6901cdb290dccec40599750dce9cce0f19fa8f7"
+    },
+    {
+      "id": "cfg-aarch64-apple-ios",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target aarch64-apple-ios",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:39.451734+00:00",
+      "toUtc": "2026-11-26T02:01:44.725583+00:00",
+      "logSha256": "f29afaf5d6a00bf04145b05526402326d0c6ca1268a42b07ac5b3d0c7e4a397b"
+    },
+    {
+      "id": "cfg-aarch64-linux-android",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target aarch64-linux-android",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:37.412319+00:00",
+      "toUtc": "2026-11-26T02:01:37.629446+00:00",
+      "logSha256": "0e955e86c35c6445a12b694d8320a177f4256da4ce95b2a2a12809c8433c3729"
+    },
+    {
+      "id": "cfg-aarch64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target aarch64-unknown-linux-gnu",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:11.209674+00:00",
+      "toUtc": "2026-11-26T02:01:11.375789+00:00",
+      "logSha256": "bd4aec52921ce4d47d2f31784f231cb39f27e8dfdc5e0b0925a433a7e38b3ff7"
+    },
+    {
+      "id": "cfg-armv5te-unknown-linux-gnueabi",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target armv5te-unknown-linux-gnueabi",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:16.239336+00:00",
+      "toUtc": "2026-11-26T02:01:16.406188+00:00",
+      "logSha256": "0dc5a035af32440bb5fd157b5ab20a4a3f7199dfe795ec8ee45df6f91e45867d"
+    },
+    {
+      "id": "cfg-i686-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target i686-unknown-linux-gnu",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:13.848260+00:00",
+      "toUtc": "2026-11-26T02:01:14.016290+00:00",
+      "logSha256": "d92d312480fa6a672d78329ee46363663412537a0c999f2c07b673ced5453203"
+    },
+    {
+      "id": "cfg-wasm32-unknown-unknown",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target wasm32-unknown-unknown",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:48.486932+00:00",
+      "toUtc": "2026-11-26T02:01:48.653756+00:00",
+      "logSha256": "97b895d31fc0f8d305d113f271007e5529e9af06d72d2e0c57a550a6aa962d39"
+    },
+    {
+      "id": "cfg-x86_64-apple-darwin",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target x86_64-apple-darwin",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:20.817424+00:00",
+      "toUtc": "2026-11-26T02:01:26.092174+00:00",
+      "logSha256": "e710f590a0e43f025a8f65b3dc9de11d9245752ddccf0b9137baacf3c0021dbb"
+    },
+    {
+      "id": "cfg-x86_64-pc-windows-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target x86_64-pc-windows-gnu",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:35.273260+00:00",
+      "toUtc": "2026-11-26T02:01:35.489713+00:00",
+      "logSha256": "c536533abb4f28bd3f034a92b8ede7f03f88b233b1fa60a0a3c76a8cd2edb687"
+    },
+    {
+      "id": "cfg-x86_64-pc-windows-msvc",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target x86_64-pc-windows-msvc",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:28.113197+00:00",
+      "toUtc": "2026-11-26T02:01:33.443996+00:00",
+      "logSha256": "dd8e35cb73a8761ddb7839fe1c7843828ce406f18c46f54b5ce0347098e2416d"
+    },
+    {
+      "id": "cfg-x86_64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- rustc --print cfg --target x86_64-unknown-linux-gnu",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:08.668351+00:00",
+      "toUtc": "2026-11-26T02:01:08.835130+00:00",
+      "logSha256": "de83cfea3c26b77e5109d1fbb7cb65187d45b7020ff6a2de1456242eadea656a"
+    },
+    {
+      "id": "clippy-aarch64-apple-darwin",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target aarch64-apple-darwin -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:18.846024+00:00",
+      "toUtc": "2026-11-26T02:01:20.817105+00:00",
+      "logSha256": "23497d07339b4884fee6a68b6b371968d19fdd9684c3ed6119e9ad1378cbdd2d"
+    },
+    {
+      "id": "clippy-aarch64-apple-ios-sim",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target aarch64-apple-ios-sim -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:46.413809+00:00",
+      "toUtc": "2026-11-26T02:01:48.486711+00:00",
+      "logSha256": "6d60e4614108dea3e61d6e51139e6d0c058943eca02c14004b456ed6db277b2c"
+    },
+    {
+      "id": "clippy-aarch64-apple-ios",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target aarch64-apple-ios -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:44.725844+00:00",
+      "toUtc": "2026-11-26T02:01:46.247049+00:00",
+      "logSha256": "94d0b99af4462d0ba9be34ff918fea5866107abaf5a6abfbd965f13f5f500f96"
+    },
+    {
+      "id": "clippy-aarch64-linux-android",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target aarch64-linux-android -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:37.629660+00:00",
+      "toUtc": "2026-11-26T02:01:39.451474+00:00",
+      "logSha256": "efc1a49745d65216604a8ae004b627e0c36263c74caeb3c4d23ddecc983ddd4d"
+    },
+    {
+      "id": "clippy-aarch64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target aarch64-unknown-linux-gnu -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:11.376048+00:00",
+      "toUtc": "2026-11-26T02:01:13.847865+00:00",
+      "logSha256": "66c1da10d58015ce79985c3e0614d4bcec358a1a6e36ab0f6cd65fb019daffee"
+    },
+    {
+      "id": "clippy-advisory",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12 cargo clippy --locked --offline --lib -- -W clippy::arithmetic_side_effects -W clippy::cast_possible_truncation -W clippy::cast_sign_loss -W clippy::cast_possible_wrap -W clippy::indexing_slicing -W clippy::string_slice -W clippy::mem_forget -W clippy::multiple_unsafe_ops_per_block -W unsafe_op_in_unsafe_fn",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:29.787835+00:00",
+      "toUtc": "2026-11-26T02:07:37.519834+00:00",
+      "logSha256": "9647ca587bdcbebad51af6abc909ebfa68b6dce8473441c57c59d20629ec03b4"
+    },
+    {
+      "id": "clippy-armv5te-unknown-linux-gnueabi",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target armv5te-unknown-linux-gnueabi -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:16.406501+00:00",
+      "toUtc": "2026-11-26T02:01:18.628207+00:00",
+      "logSha256": "c6891a15a7934cdcbb6f4f0d98f8a5d4391ef49c3eb0b9d9435016449a5954e9"
+    },
+    {
+      "id": "clippy-i686-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target i686-unknown-linux-gnu -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:14.016603+00:00",
+      "toUtc": "2026-11-26T02:01:16.239069+00:00",
+      "logSha256": "0663a3b7e511af567154c00506709210567791dc072ff36c983105d5eab70d24"
+    },
+    {
+      "id": "clippy-wasm32-unknown-unknown",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target wasm32-unknown-unknown -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:48.654002+00:00",
+      "toUtc": "2026-11-26T02:01:54.881948+00:00",
+      "logSha256": "b809a9857d546312916f56dc4d1f2965a454fded66eac66ab6901f32803845c1"
+    },
+    {
+      "id": "clippy-x86_64-apple-darwin",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target x86_64-apple-darwin -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:26.092475+00:00",
+      "toUtc": "2026-11-26T02:01:28.112566+00:00",
+      "logSha256": "c250109ba34fbef9476b45ee1498d89eafa9ba0ca601974121b5c779f9e38ccb"
+    },
+    {
+      "id": "clippy-x86_64-pc-windows-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-gnu -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:35.489944+00:00",
+      "toUtc": "2026-11-26T02:01:37.412108+00:00",
+      "logSha256": "4876fc753dd9bc833ef2340c32948e4cc1beca6d8079fcc1f8268a4c9807288f"
+    },
+    {
+      "id": "clippy-x86_64-pc-windows-msvc",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target x86_64-pc-windows-msvc -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:33.444851+00:00",
+      "toUtc": "2026-11-26T02:01:35.272971+00:00",
+      "logSha256": "efc1a49745d65216604a8ae004b627e0c36263c74caeb3c4d23ddecc983ddd4d"
+    },
+    {
+      "id": "clippy-x86_64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --all-targets --target x86_64-unknown-linux-gnu -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:08.835375+00:00",
+      "toUtc": "2026-11-26T02:01:11.209424+00:00",
+      "logSha256": "f0f20c3472497a3486f7615ca792e4a16982ab372e69bd5cd503f9cd3186464f"
+    },
+    {
+      "id": "deny-advisories",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo deny --locked --offline check advisories",
+      "exitCode": 1,
+      "fromUtc": "2026-11-26T02:07:38.858442+00:00",
+      "toUtc": "2026-11-26T02:07:39.175945+00:00",
+      "logSha256": "942d4096efb54f4b99bc37126a1f076997e7a9690f15d2af3a54286e40ca4c75"
+    },
+    {
+      "id": "deny-fuzz",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo deny --locked --offline --manifest-path fuzz/Cargo.toml check bans sources",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:07.480299+00:00",
+      "toUtc": "2026-11-26T02:01:07.797398+00:00",
+      "logSha256": "588ca759a50521c9755dd07ed8da0038badaa84440f4fb4ed38a7eb7e2258c6d"
+    },
+    {
+      "id": "deny-root",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo deny --locked --offline check bans sources",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:06.728423+00:00",
+      "toUtc": "2026-11-26T02:01:06.995605+00:00",
+      "logSha256": "3c5fb1c40f4883dc753547048107897dbcdb2d0f8310654f26042a1681cade90"
+    },
+    {
+      "id": "deny-wasm",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo deny --locked --offline --manifest-path wasm/Cargo.toml check bans sources",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:08.232964+00:00",
+      "toUtc": "2026-11-26T02:01:08.501536+00:00",
+      "logSha256": "f8a293ed7a39f5a3446fc248b07a28bd59370b151026feff9168bcd8fd4b8640"
+    },
+    {
+      "id": "dprint",
+      "arguments": "run-capped --mem 2G --time 15m -- dprint check",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:08.501770+00:00",
+      "toUtc": "2026-11-26T02:01:08.668098+00:00",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "fmt-fuzz",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo fmt --check --manifest-path fuzz/Cargo.toml",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:06.995934+00:00",
+      "toUtc": "2026-11-26T02:01:07.212863+00:00",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "fmt-root",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo fmt --check",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:05.892043+00:00",
+      "toUtc": "2026-11-26T02:01:06.260142+00:00",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "fmt-wasm",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo fmt --check --manifest-path wasm/Cargo.toml",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:07.797707+00:00",
+      "toUtc": "2026-11-26T02:01:08.015019+00:00",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "fuzz-cfg-wasm32-unknown-unknown",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --target wasm32-unknown-unknown --lib -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:33.653464+00:00",
+      "toUtc": "2026-11-26T02:02:34.122280+00:00",
+      "logSha256": "b79eafea34848dd3122a827417f90680012d0bae1f3602c29b5861bbfb49514c"
+    },
+    {
+      "id": "fuzz-cfg-x86_64-pc-windows-gnu",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --target x86_64-pc-windows-gnu --lib -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:24.425044+00:00",
+      "toUtc": "2026-11-26T02:02:33.653142+00:00",
+      "logSha256": "9918fec0e4f503ba72d70485456a9cf6c6a8adf04b9b1400fbad8a7dd2af7ec4"
+    },
+    {
+      "id": "fuzz-cfg-x86_64-pc-windows-msvc",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --target x86_64-pc-windows-msvc --lib -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:54.882214+00:00",
+      "toUtc": "2026-11-26T02:02:24.424731+00:00",
+      "logSha256": "9ca5079916d68b107419a460f07fe2e843f11b07c7a2a84aa187d1c55675f587"
+    },
+    {
+      "id": "fuzz-harness-clippy",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --manifest-path fuzz/Cargo.toml --bins -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:34.122917+00:00",
+      "toUtc": "2026-11-26T02:02:35.097048+00:00",
+      "logSha256": "a3c42d3583c3ed7217af9df800e6b3c4cac5d44c607c1a4391a5a99ed3a37152"
+    },
+    {
+      "id": "host-release",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 10,11 cargo test --locked --offline --release --no-fail-fast",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:35.290942+00:00",
+      "toUtc": "2026-11-26T02:02:23.004592+00:00",
+      "logSha256": "0f21aa7cc7d3dc8558fe629f55e561eba7b8e3bd31e4d9b464cee136cbb7b06c"
+    },
+    {
+      "id": "host-test",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 10,11 cargo test --locked --offline --no-fail-fast",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:00:59.267914+00:00",
+      "toUtc": "2026-11-26T02:01:35.073026+00:00",
+      "logSha256": "f687ebdae183bc9135c031f0ab8d76527adb428b7494bc97de7fe50252eaa120"
+    },
+    {
+      "id": "miri-i686-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 6m -- taskset -c 10,11 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target i686-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:04:12.612098+00:00",
+      "toUtc": "2026-11-26T02:05:03.781419+00:00",
+      "logSha256": "72b0cfbe7054fa947a7624ba6292c81ff1db237aee9eacda9842db73bb9c269e"
+    },
+    {
+      "id": "miri-s390x-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 6m -- taskset -c 10,11 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target s390x-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:05:03.782302+00:00",
+      "toUtc": "2026-11-26T02:05:42.946315+00:00",
+      "logSha256": "bb034b2c2607898d71f9a1e5f8c12d1332f3d71df4f2f802661495bf3bbc9d7b"
+    },
+    {
+      "id": "miri-strict-i686-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target i686-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:34.587151+00:00",
+      "toUtc": "2026-11-26T02:07:45.873358+00:00",
+      "logSha256": "bc5a4320cce1a04f2f8e7fc4c1900027836e6edaca3882b4979e0e694e4455ae"
+    },
+    {
+      "id": "miri-strict-s390x-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target s390x-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:08:08.015500+00:00",
+      "toUtc": "2026-11-26T02:08:21.247479+00:00",
+      "logSha256": "dc80b8abed257e24cccd3aefa91ae3f5b952b5a4f6cce33b0c72095e65470a5f"
+    },
+    {
+      "id": "miri-strict-x86_64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target x86_64-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:14.924888+00:00",
+      "toUtc": "2026-11-26T02:07:23.200658+00:00",
+      "logSha256": "7c2aa239c1d665906223819b7a03167bcdcdb2d0b04704b49522f989397d9e35"
+    },
+    {
+      "id": "miri-tree-i686-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target i686-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:45.873579+00:00",
+      "toUtc": "2026-11-26T02:08:08.015285+00:00",
+      "logSha256": "0b60638232a74c13d0e2b5735440bfd1ca8069446d0050f134a790346fa8dbf0"
+    },
+    {
+      "id": "miri-tree-s390x-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target s390x-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:08:21.247779+00:00",
+      "toUtc": "2026-11-26T02:08:43.287889+00:00",
+      "logSha256": "e33e72203f40840af13c9f2fa7264aa479e5ef784d7d1fc68691d48fa95d64f0"
+    },
+    {
+      "id": "miri-tree-x86_64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target x86_64-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:07:23.202011+00:00",
+      "toUtc": "2026-11-26T02:07:34.586807+00:00",
+      "logSha256": "bdd98f302d02364857b1bf58d9fa6b3245a09c61bb6c622b666a0d1a8fd68ffb"
+    },
+    {
+      "id": "miri-x86_64-unknown-linux-gnu",
+      "arguments": "run-capped --mem 2G --time 6m -- taskset -c 10,11 cargo +nightly-2026-11-13 miri test --locked --offline --lib --target x86_64-unknown-linux-gnu -- worker::tests::a_setting worker::tests::a_report_of_other worker::tests::only_complete worker::tests::whole_process worker::tests::a_required_thread worker::tests::a_refused_start protect::options os::tests::a_reservation os::tests::unwritten_bytes input::tests::utf8 input::tests::utf16 input::tests::the_count input::tests::keystrokes_cross os::unix::worker::tests",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:03:25.297269+00:00",
+      "toUtc": "2026-11-26T02:04:12.611650+00:00",
+      "logSha256": "3600e3f3ff97cf80b3468a639c10a885b4cd05d8c4864516a945c8ec0e048eed"
+    },
+    {
+      "id": "msrv",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 10,11 cargo +1.99.0 build --locked --offline --lib",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:23.004997+00:00",
+      "toUtc": "2026-11-26T02:02:32.532759+00:00",
+      "logSha256": "992029fb2d6a6fac8ce13537a12645dc8d21aa8324e8acb330d9aa44d05ec81f"
+    },
+    {
+      "id": "package-final-list",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo package --locked --offline --list",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:08:20.749729+00:00",
+      "toUtc": "2026-11-26T02:08:20.967893+00:00",
+      "logSha256": "12ff2cc2ea32e2e0872c274b8125f01c00454bdbe98b106135287ab9b0ceda04"
+    },
+    {
+      "id": "package-final-repeat",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12 cargo package --locked --offline",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:08:30.008778+00:00",
+      "toUtc": "2026-11-26T02:08:30.526937+00:00",
+      "logSha256": "d3f30717bacf435c444c4b146f9e97790797e27e4e15370aae5cac2cc7bc7ece"
+    },
+    {
+      "id": "package-final",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12 cargo package --locked --offline",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:08:20.968194+00:00",
+      "toUtc": "2026-11-26T02:08:29.994319+00:00",
+      "logSha256": "534f1fe73451829d370a009a8c993362b1106f66fb8326e108ae84604eed29e1"
+    },
+    {
+      "id": "package-list",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo package --locked --offline --list --allow-dirty",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:32.533018+00:00",
+      "toUtc": "2026-11-26T02:02:32.749682+00:00",
+      "logSha256": "12ff2cc2ea32e2e0872c274b8125f01c00454bdbe98b106135287ab9b0ceda04"
+    },
+    {
+      "id": "rustsec-fuzz",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f fuzz/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:07.213120+00:00",
+      "toUtc": "2026-11-26T02:01:07.479981+00:00",
+      "logSha256": "a5835a5f6feeddccbe7df4f097a23f08ecf632255b57354cdd2f02eeae723cd3"
+    },
+    {
+      "id": "rustsec-root",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:06.260455+00:00",
+      "toUtc": "2026-11-26T02:01:06.728117+00:00",
+      "logSha256": "db7989cf3afa0dffd750514212d23b1ab172619ab92da3baa55374763962eb18"
+    },
+    {
+      "id": "rustsec-wasm",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo audit --no-fetch -f wasm/Cargo.lock",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:08.015368+00:00",
+      "toUtc": "2026-11-26T02:01:08.232658+00:00",
+      "logSha256": "04cf7141c949b483dbf2e28bac6f9c27bcd50c81f2324e931f8fa65430b5197c"
+    },
+    {
+      "id": "terminal-ioctl",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 10,11 bash $WORKSPACE/tmp/spc-aud-025/trace.sh",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:01:35.073355+00:00",
+      "toUtc": "2026-11-26T02:01:35.290643+00:00",
+      "logSha256": "2773aad5a743f23570bc86a6c929f29b893edd0c446d2f8e1c6c2eed06d8824a"
+    },
+    {
+      "id": "tsan-portable-positive",
+      "arguments": "run-capped --mem 2G --time 4m -- taskset -c 10,11 cargo +nightly-2026-11-13 run -Zbuild-std --locked --offline --target x86_64-unknown-linux-gnu --manifest-path $WORKSPACE/tmp/spc-aud-025/thread-probe/Cargo.toml",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:11:47.399734+00:00",
+      "toUtc": "2026-11-26T02:12:26.864525+00:00",
+      "logSha256": "4f944672355da04ef4d2e693e36f40f45f63ab6bbcd3925cc3b3b458fa6fef91"
+    },
+    {
+      "id": "tsan-probe-lock",
+      "arguments": "run-capped --mem 2G --time 15m -- cargo generate-lockfile --offline --manifest-path $WORKSPACE/tmp/spc-aud-025/thread-probe/Cargo.toml",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:11:47.130680+00:00",
+      "toUtc": "2026-11-26T02:11:47.399170+00:00",
+      "logSha256": "b539ca5102c8787bf82a1c9b554c16b3dda9b64ccd34b0220f509b70f32b9684"
+    },
+    {
+      "id": "tsan-thread-and-stack",
+      "arguments": "run-capped --mem 2G --time 5m -- taskset -c 10 cargo +nightly-2026-11-13 test -Zbuild-std --locked --offline --target x86_64-unknown-linux-gnu --lib -- stack::tests::work_runs_on_a_protected_stack os::tests::unwritten_bytes",
+      "exitCode": 101,
+      "fromUtc": "2026-11-26T02:09:04.234798+00:00",
+      "toUtc": "2026-11-26T02:10:40.294622+00:00",
+      "logSha256": "a2e1edeb6c83ab97728ee89d1838fa212fb87b93fa140e5feda238ba08d8eecd"
+    },
+    {
+      "id": "tsan-verbose-lock",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 10 $WORKSPACE/tmp/spc-aud-025/tsan/x86_64-unknown-linux-gnu/debug/build/secret-protection-core/1c5502afe7f719a7/out/secret_protection_core-1c5502afe7f719a7 stack::tests::work_runs_on_a_protected_stack",
+      "exitCode": 101,
+      "fromUtc": "2026-11-26T02:11:46.913199+00:00",
+      "toUtc": "2026-11-26T02:11:47.130428+00:00",
+      "logSha256": "b0ab335ae8bcc95315bb14320cca622a5ed72eea75e1468dd1907d10086be7dc"
+    },
+    {
+      "id": "wasm-build",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo build --release --locked --offline --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:35.570813+00:00",
+      "toUtc": "2026-11-26T02:02:36.542466+00:00",
+      "logSha256": "532639b1ec2e3688e3ecf414220c049416277a0e0c43e82dd555bd25f1a6ffa9"
+    },
+    {
+      "id": "wasm-checks-clippy",
+      "arguments": "run-capped --mem 2G --time 15m -- taskset -c 12,13 cargo clippy --locked --offline --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown -- -D warnings",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:35.097663+00:00",
+      "toUtc": "2026-11-26T02:02:35.570129+00:00",
+      "logSha256": "599e4de30abaf5314e6659611780a5f479a1272bd9166e52097af724e465a2b0"
+    },
+    {
+      "id": "wasm-node",
+      "arguments": "run-capped --mem 2G --time 15m -- node wasm/run.mjs $WORKSPACE/tmp/spc-aud-023/lints/wasm32-unknown-unknown/release/secret_protection_core_wasm_checks.wasm",
+      "exitCode": 0,
+      "fromUtc": "2026-11-26T02:02:36.542691+00:00",
+      "toUtc": "2026-11-26T02:02:36.759946+00:00",
+      "logSha256": "731798fbf881729571338bcb54b8d15fc4288d55c395ab079ea285d4f69340f2"
+    }
+  ],
+  "packageEvidence": {
+    "candidate": "e2a78d195515c8a6a5a685cc7c89047b43e84b89",
+    "vcs": {
+      "git": {
+        "sha1": "e2a78d195515c8a6a5a685cc7c89047b43e84b89"
+      },
+      "path_in_vcs": ""
+    },
+    "sha256": "9df37952d0ece1073744a40d4a927ac010c0f52e7297ac2a171db221ce6ffddd",
+    "size": 712311,
+    "repeatSha256": "9df37952d0ece1073744a40d4a927ac010c0f52e7297ac2a171db221ce6ffddd",
+    "identical": true
+  },
+  "historicalEvidence": {
+    "exactCI": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984",
+    "ciJobs": [
+      {
+        "job": "linux-32",
+        "id": 139643129621,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129621",
+        "logSha256": "516fdac5775a7bb725a4665d3720dacf0a7bc950c0497a43f2d90d537314acf5"
+      },
+      {
+        "job": "native (windows-latest, x86_64-pc-windows-gnu)",
+        "id": 139643129731,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129731",
+        "logSha256": "36142db21b976e3f1c5ad2a3d22dce06fc2c738b6a50431e6304c0f98a5f02e9"
+      },
+      {
+        "job": "native (ubuntu-24.04-arm)",
+        "id": 139643129800,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129800",
+        "logSha256": "0fa9c96829d616efd03a4ec9d4a02f608c5ab3a64826d2752f1f2d59cdfb27f3"
+      },
+      {
+        "job": "native (macos-15-intel)",
+        "id": 139643129813,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129813",
+        "logSha256": "7a4b8c266dd47f17f9c6745d81cba1f0edd0b8a14943f7046873ac9cb626df55"
+      },
+      {
+        "job": "checks",
+        "id": 139643129841,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129841",
+        "logSha256": "e33061792585d1c5ede336ded35eb9cd44c0a09b3c0013be37fc52208926b196"
+      },
+      {
+        "job": "native (macos-latest)",
+        "id": 139643129848,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129848",
+        "logSha256": "5137c98b43cbf6fa46a8e6ce8047430f947df271adf1c34d8a30ef72b138f1bf"
+      },
+      {
+        "job": "wasm",
+        "id": 139643129890,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129890",
+        "logSha256": "538346fa28532d38191d1b2ff9f19f47691ce142acae8c136b41108a23973229"
+      },
+      {
+        "job": "native (windows-latest)",
+        "id": 139643129919,
+        "url": "https://github.com/hobby-eng/secret-protection-core/actions/runs/45740231984/job/139643129919",
+        "logSha256": "14acb10c3cf9175ac86c3a0715162adbae8c30e37a3e2ac691893fbd0c0f6d74"
+      }
+    ],
+    "runtimeCounts": {
+      "139643129621": {
+        "name": "linux-32",
+        "counts": {
+          "Run the tests": {
+            "passed": 97,
+            "failed": 0,
+            "ignored": 2,
+            "partial": 0
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129731": {
+        "name": "native (windows-latest, x86_64-pc-windows-gnu)",
+        "counts": {
+          "Run the tests": {
+            "passed": 57,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129800": {
+        "name": "native (ubuntu-24.04-arm)",
+        "counts": {
+          "Run the tests": {
+            "passed": 131,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 1
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129813": {
+        "name": "native (macos-15-intel)",
+        "counts": {
+          "Run the tests": {
+            "passed": 74,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the isolation and worker tests under the hardened runtime": {
+            "passed": 22,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129841": {
+        "name": "checks",
+        "counts": {
+          "Run the tests": {
+            "passed": 131,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 1
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Check that no terminal change waits for output": {
+            "passed": 8,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the worker tests with Yama's ptrace_scope at 0": {
+            "passed": 1,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129848": {
+        "name": "native (macos-latest)",
+        "counts": {
+          "Run the tests": {
+            "passed": 74,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the isolation and worker tests under the hardened runtime": {
+            "passed": 22,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      },
+      "139643129890": {
+        "name": "wasm",
+        "counts": {},
+        "wasm": [
+          "buffers: 6 of 6 checks passed",
+          "input: 4 of 4 checks passed",
+          "fallbacks: 8 of 8 checks passed"
+        ]
+      },
+      "139643129919": {
+        "name": "native (windows-latest)",
+        "counts": {
+          "Run the tests": {
+            "passed": 57,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          },
+          "Run the stack-clearing tests in the release profile": {
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "partial": 0
+          }
+        },
+        "wasm": []
+      }
+    },
+    "priorRecord": "AUD-024",
+    "priorStatusCounts": {
+      "verified": 29,
+      "fixed": 18
+    }
+  }
+}
