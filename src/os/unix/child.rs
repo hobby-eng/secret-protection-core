@@ -29,6 +29,7 @@ pub(super) fn launch(
     _shared_table: bool,
     deadline: Option<std::time::Instant>,
 ) -> io::Result<Child> {
+    let late = || deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline);
     #[cfg(target_os = "linux")]
     if _shared_table {
         type PidfdSpawn = unsafe extern "C" fn(
@@ -41,6 +42,10 @@ pub(super) fn launch(
         ) -> libc::c_int;
         // SAFETY: this is the optional glibc pidfd_spawn symbol, available since 2.39.
         let symbol = unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"pidfd_spawn".as_ptr()) };
+        // The lookup may wait on the loader's lock: the deadline is read after it.
+        if late() {
+            return Err(super::worker::late());
+        }
         if !symbol.is_null() {
             // SAFETY: the named symbol has this ABI; all spawn inputs are initialized,
             // NUL-terminated where applicable, and remain live throughout the call.
@@ -74,7 +79,7 @@ pub(super) fn launch(
         }
     }
     // The pidfd attempt took its time: the deadline is read again before the fallback.
-    if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+    if late() {
         return Err(super::worker::late());
     }
     let mut pid = 0;
@@ -189,10 +194,22 @@ mod tests {
         assert!(Child::Descriptor(Arc::new(fd)).terminate());
     }
 
-    /// The launch reads the deadline again before posix_spawn, the fallback from pidfd_spawn: one
-    /// already past starts nothing.
+    /// The launch reads the deadline again after looking up pidfd_spawn, which may wait on the
+    /// loader's lock, and before posix_spawn, the fallback: one already past starts nothing, with
+    /// a descriptor table of its own or the parent's.
     #[test]
-    fn a_fallback_launch_past_its_deadline_starts_nothing() {
+    fn no_launch_starts_past_its_deadline() {
+        for shared_table in [false, true] {
+            assert_eq!(
+                launch_past_its_deadline(shared_table),
+                Some(io::ErrorKind::TimedOut),
+                "shared table {shared_table}"
+            );
+        }
+    }
+
+    /// What a launch of /bin/true whose deadline has passed fails with.
+    fn launch_past_its_deadline(shared_table: bool) -> Option<io::ErrorKind> {
         let mut actions = std::mem::MaybeUninit::uninit();
         let mut attributes = std::mem::MaybeUninit::uninit();
         // SAFETY: each init sets up its value in the space given; both are destroyed below.
@@ -210,7 +227,7 @@ mod tests {
             &attributes,
             &arguments,
             &environment,
-            false,
+            shared_table,
             past,
         );
         // SAFETY: both were set up above and are used no more.
@@ -218,9 +235,6 @@ mod tests {
             libc::posix_spawn_file_actions_destroy(actions.as_mut_ptr());
             libc::posix_spawnattr_destroy(attributes.as_mut_ptr());
         }
-        assert_eq!(
-            refused.err().map(|error| error.kind()),
-            Some(io::ErrorKind::TimedOut)
-        );
+        refused.err().map(|error| error.kind())
     }
 }
