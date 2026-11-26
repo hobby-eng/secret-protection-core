@@ -1,0 +1,3419 @@
+{
+  "schemaVersion": 1,
+  "auditId": "AUD-024",
+  "auditNumber": 24,
+  "date": "2026-11-26",
+  "title": "Consolidated record of AUD-022 to AUD-024, with AUD-021: pre-release audits of secret-protection-core 0.2.0",
+  "reviewer": {
+    "name": "Consolidated from Codex (AUD-021 to AUD-023) and Claude (AUD-024)",
+    "model": null,
+    "reasoningEffort": null,
+    "phases": [
+      {
+        "phase": "AUD-021",
+        "reviewer": "Codex, a coordinator and three read-only reviewers; model and effort unknown",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "AUD-022",
+        "reviewer": "Codex; model and effort unknown",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "AUD-023",
+        "reviewer": "Codex and three scoped reviewers; model and effort unknown",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "AUD-024",
+        "reviewer": "Claude: three source readers (portable; Unix and Linux; Apple and Windows) and the command runs of its evidence folder; one note names the model family Opus 5.5; exact identifier and effort not retained",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "Delta review of ebfb348, 51cf835 and 1a90855 (CORE-53)",
+        "reviewer": "An independent reviewer",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "Delta review of f5e8fc2 (CORE-53)",
+        "reviewer": "An independent reviewer",
+        "model": null,
+        "reasoningEffort": null
+      },
+      {
+        "phase": "Consolidation",
+        "reviewer": "Claude",
+        "model": "claude-opus-5-5",
+        "reasoningEffort": null
+      }
+    ]
+  },
+  "snapshot": {
+    "commit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+    "commitComplete": true,
+    "workingTree": {
+      "baseline": "At d54e1db only audit documents differed from the commit (working-tree.txt).",
+      "sourceAuditSnapshots": {
+        "AUD-021": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+        "AUD-022": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+        "AUD-023": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "AUD-024": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      },
+      "remediationCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+        "6a1c83b00a30aac4dfba32dae0290699d06fa594",
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+        "f5e8fc239c77207416509e89750b0b550c133ff4"
+      ],
+      "verificationCommit": "f5e8fc239c77207416509e89750b0b550c133ff4",
+      "earlierVerificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "atFinalization": "The source is that of f5e8fc2; only docs/audits/HISTORY.md and docs/audits/README.md were modified, and audit files were untracked."
+    },
+    "sourceFingerprint": "6aa15c3de186c89fd8cc5bf89a8e6811670757623822a13b4f8222bcfa7e9b2b"
+  },
+  "sourceAudits": [
+    {
+      "auditId": "AUD-021",
+      "reviewer": "Codex, a coordinator and three read-only reviewers; model and effort unknown",
+      "snapshot": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "verdict": "FAIL",
+      "findings": 9,
+      "details": "Its own report, docs/audits/AUD-021-2026-11-25.md; evidence docs/audits/AUD-021-evidence/"
+    },
+    {
+      "auditId": "AUD-022",
+      "reviewer": "Codex; model and effort unknown",
+      "snapshot": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "verdict": "FAIL (release, candidate)",
+      "findings": 10,
+      "details": "This record; evidence docs/audits/AUD-022-evidence/"
+    },
+    {
+      "auditId": "AUD-023",
+      "reviewer": "Codex and three scoped reviewers; model and effort unknown",
+      "snapshot": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "verdict": "FAIL (release, candidate)",
+      "findings": 8,
+      "details": "This record; evidence docs/audits/AUD-023-evidence/"
+    },
+    {
+      "auditId": "AUD-024",
+      "reviewer": "Claude: three source readers (portable; Unix and Linux; Apple and Windows) and the command runs of its evidence folder; one note names the model family Opus 5.5; exact identifier and effort not retained",
+      "snapshot": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "verdict": "This record",
+      "findings": 23,
+      "details": "This record; reader notes and evidence docs/audits/AUD-024-evidence/"
+    }
+  ],
+  "scope": {
+    "package": "secret-protection-core 0.2.0, with its fuzz and wasm checks crates",
+    "audits": "AUD-021 as its report states; AUD-022 and AUD-023 as their findings here record; AUD-024: every file of src/, tests/, fuzz/ and wasm/ read whole by three readers, the workflows, README.md, SECURITY.md, docs/API.md, docs/TECHNICAL.md and docs/audits/TARGETS.md",
+    "deltaReview": "An independent CORE-53 reviewer read the change after the baseline: ebfb348, 51cf835 and 1a90855, including the new unsafe FFI (csops, the stack-test FFI, the Windows creation attributes and the test FFI). It was a review of the change, not a full audit. It made 4 findings. Three were fixed before the push: the layout of a test structure, the job nesting, and the documentation of with_cleared_stack for foreign exceptions. CI settled the fourth, whether OpenThreadToken works through a handle with THREAD_QUERY_LIMITED_INFORMATION: the Windows worker tests that require LowIntegrity passed. A second CORE-53 reviewer read the change of f5e8fc2 and made three low findings, all applied before the commit: a wider pattern for the waiting calls, the search of the source for macOS, and the Linux row of TARGETS.md.",
+    "excluded": "Upstream crates beyond the calls into them (landlock 0.4.8 read for its write table only)."
+  },
+  "procedureHashes": {
+    "FULL_AUDIT_GUIDE_V2.md": "a1d9b30c3b6cbe0cb1bb597652993380b06c65b8bedaef5c82ce23fb73933b44",
+    "AUDIT_STANDARD.md": "cb022824fb61bba3a59c5bf138f533aaffb0796f34476a54286a21236685ef4d",
+    "AUDIT_TEMPLATE.md": "6dc3bcf05df0f058ec39eee4b528c8a49b2b1044e5c42a71f0845fb62c504e0d",
+    "audit-report.schema.json": "49360df3a7e8e39657e10270f76f47bee5a1801f8e76941536415f35c0376fe5",
+    "audit-report-rust.schema.json": "9a3c9114d1d4a2aa0eedb874b73186e583de898d712dcdb009b328287f7c3600",
+    "TARGETS.md": "623d3bda9f3cacd3b356e4624baa8096c557d23a27db0f1e84ce2276de8701b4",
+    "TARGETS.md at d54e1db": "7505af95f21102ffdfe633f584e68658dc5936a56590ccd04a4e75fef9e71a07"
+  },
+  "verdict": "INCOMPLETE",
+  "auditKind": "release",
+  "releasePhase": "candidate",
+  "releaseDecision": {
+    "verdict": "INCOMPLETE",
+    "reason": "Every finding of the four audits is fixed, and CI passed every job at f5e8fc2 (run 45739586059). PASS is not given here: the local AUD-024 checks ran at d54e1db, the release-phase checks run at the tag, and 18 fixes, one of them release-blocking, are shown only by a reading of the diff or by tests that would pass without them. AUD-025, an independent re-audit at the final commit, decides PASS.",
+    "remaining": [
+      {
+        "item": "AUD-025",
+        "what": "An independent re-audit at the final commit decides PASS."
+      },
+      {
+        "item": "Release-phase checks",
+        "what": "At the tag: release.yml's 90-second run of each fuzz target, then the package's exact bytes and its attestation against the workflow, tag and commit (CHECK-BLD-005)."
+      },
+      {
+        "item": "Local checks at the final commit",
+        "what": "The AUD-024 runs of Miri, AddressSanitizer, fuzzing, cargo audit and deny, semver-checks, cargo package --list and the minimum Rust version are of d54e1db; so are Clippy for aarch64-unknown-linux-gnu and x86_64-pc-windows-msvc, which CI does not lint. A --cfg fuzzing build for Windows and wasm32 has not run."
+      },
+      {
+        "item": "Fixed, not verified",
+        "what": "18 entries are shown only by a reading or by tests that pass without the fix; one blocks the release: AUD-022-BLD002, which waits for the 90-second fuzz runs at the tag."
+      }
+    ],
+    "fixedReleaseBlocking": [
+      "AUD-022-BLD002"
+    ]
+  },
+  "targetMatrix": [
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Linux 7.0.0-44 x86-64, Yama 1 (local); Ubuntu 24.04 (CI)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native, local and CI checks job",
+      "checks": "129 checks reported ok locally; CI checks job 162 ok lines (release stack subset and Yama 0 rerun included), 1 partial (second PID namespace refused)",
+      "evidence": "clippy-host.log, test-host-debug.log, ci-checks.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 139 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 147 test lines, none failed; Yama 0 and strace steps included"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "release",
+      "features": "default",
+      "environment": "Linux 7.0.0-44 x86-64 (local); Ubuntu 24.04 (CI, stack subset)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "129 checks reported ok locally; CI ran the 7 stack tests in release",
+      "evidence": "test-host-release.log, ci-checks.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 139 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 147 test lines, none failed"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "test at MSRV 1.99.0",
+      "features": "default",
+      "environment": "Linux 7.0.0-44 x86-64 (local)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native, local",
+      "checks": "build of all targets, then 129 checks reported ok",
+      "evidence": "msrv-1.99.0-build.log, msrv-1.99.0-test.log",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "test, nightly-2026-11-13 with AddressSanitizer",
+      "features": "default",
+      "environment": "Linux 7.0.0-44 x86-64 (local)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native, local",
+      "checks": "No sanitizer error. 125 checks passed; 4 lock assertions cannot hold under the tool, which makes mlock and mlockall no-ops (asan-mlock-probe.log), so the command exited 101: a tool limit, not a failure",
+      "evidence": "asan-host.log, asan-mlock-probe.log",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-unknown-linux-gnu",
+      "profile": "test; release stack subset",
+      "features": "default",
+      "environment": "Ubuntu 24.04 ARM64 (CI)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native, GitHub ubuntu-24.04-arm",
+      "checks": "136 ok lines, 1 partial (second PID namespace refused); Clippy local only, CI does not lint this target",
+      "evidence": "clippy-aarch64-unknown-linux-gnu.log, ci-native_ubuntu-24.04-arm_.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 138 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 138 test lines, none failed"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "i686-unknown-linux-gnu",
+      "profile": "test; release stack subset",
+      "features": "default",
+      "environment": "Ubuntu 24.04 x86-64 with the 32-bit C library (CI)",
+      "required": false,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native i686 on x86-64",
+      "checks": "101 ok, 2 ignored (no secret memory on that kernel); no seccomp filter on this target",
+      "evidence": "clippy-i686-unknown-linux-gnu.log, ci-linux-32.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 106 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 106 test lines, none failed"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "armv5te-unknown-linux-gnueabi",
+      "profile": "Clippy only",
+      "features": "default",
+      "environment": "none",
+      "required": false,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": null,
+      "checks": "Lints the Linux code without the filter; test target only",
+      "evidence": "clippy-armv5te-unknown-linux-gnueabi.log",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-darwin",
+      "profile": "test",
+      "features": "default",
+      "environment": "macOS on Apple silicon (CI macos-latest)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "70 ok lines, none skipped",
+      "evidence": "clippy-aarch64-apple-darwin.log, ci-native_macos-latest_.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 100 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 100 test lines, none failed; hardened-runtime step included"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-darwin",
+      "profile": "release (stack tests)",
+      "features": "default",
+      "environment": "macOS on Apple silicon (CI macos-latest)",
+      "required": true,
+      "revision": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "4 stack-clearing tests in release (stack::clearing)",
+      "evidence": "GitHub run 45736641331 (logs on GitHub only)",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-apple-darwin",
+      "profile": "test",
+      "features": "default",
+      "environment": "Intel macOS (CI macos-15-intel)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "70 ok lines, none skipped",
+      "evidence": "clippy-x86_64-apple-darwin.log, ci-native_macos-15-intel_.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 100 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 100 test lines, none failed; hardened-runtime step included"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-apple-darwin",
+      "profile": "release (stack tests)",
+      "features": "default",
+      "environment": "Intel macOS (CI macos-15-intel)",
+      "required": true,
+      "revision": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "4 stack-clearing tests in release (stack::clearing)",
+      "evidence": "GitHub run 45736641331 (logs on GitHub only)",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-msvc",
+      "profile": "test",
+      "features": "default",
+      "environment": "Windows Server, MSVC (CI windows-latest)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "53 ok lines; no real console on the runner; Clippy local only, CI does not lint this target",
+      "evidence": "clippy-x86_64-pc-windows-msvc.log, ci-native_windows-latest_.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 61 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 61 test lines, none failed"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-msvc",
+      "profile": "release (stack tests)",
+      "features": "default",
+      "environment": "Windows Server, MSVC (CI windows-latest)",
+      "required": true,
+      "revision": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "4 stack-clearing tests in release (stack::clearing)",
+      "evidence": "GitHub run 45736641331 (logs on GitHub only)",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-gnu",
+      "profile": "test",
+      "features": "default",
+      "environment": "Windows Server, MinGW (CI windows-latest)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "53 ok lines; no real console on the runner",
+      "evidence": "clippy-x86_64-pc-windows-gnu.log, ci-native_windows-latest_x86_64-pc-windows-gnu_.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: passed on attempt 2; attempt 1 failed only in the post-checkout step",
+        "1a90855": "Run 45736641331 at 1a90855: job passed, 61 test lines, none failed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 61 test lines, none failed"
+      }
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "x86_64-pc-windows-gnu",
+      "profile": "release (stack tests)",
+      "features": "default",
+      "environment": "Windows Server, MinGW (CI windows-latest)",
+      "required": true,
+      "revision": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "native",
+      "checks": "4 stack-clearing tests in release (stack::clearing)",
+      "evidence": "GitHub run 45736641331 (logs on GitHub only)",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-linux-android",
+      "profile": "Clippy only",
+      "features": "default",
+      "environment": "none: no runner",
+      "required": false,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": null,
+      "checks": "Built and linted only, as the README says",
+      "evidence": "clippy-aarch64-linux-android.log",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-ios",
+      "profile": "Clippy only",
+      "features": "default",
+      "environment": "none: no runner",
+      "required": false,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": null,
+      "checks": "Built and linted only, as the README says",
+      "evidence": "clippy-aarch64-apple-ios.log",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "aarch64-apple-ios-sim",
+      "profile": "Clippy only",
+      "features": "default",
+      "environment": "none: no runner",
+      "required": false,
+      "revision": "f5e8fc239c77207416509e89750b0b550c133ff4",
+      "clippy": "passed",
+      "link": "not-run",
+      "run": "not-run",
+      "runner": null,
+      "checks": "Built and linted, for apps tested in the simulator on Apple silicon; no runner tests it yet, as the README says",
+      "evidence": "GitHub run 45739586059, the checks job's step 'Lint the host and every target' (the host and 9 targets)",
+      "laterRuns": {}
+    },
+    {
+      "package": "secret-protection-core",
+      "target": "wasm32-unknown-unknown",
+      "profile": "release, checks module in Node",
+      "features": "default",
+      "environment": "Node 26.13.0, V8 14.6 (local and CI)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "passed",
+      "runner": "Node 26.13.0",
+      "checks": "18 of 18 checks: 6 buffers, 4 input, 8 fallbacks",
+      "evidence": "clippy-wasm32-unknown-unknown.log, clippy-wasm-checks.log, wasm-build.log, wasm-node.log, ci-wasm.log",
+      "laterRuns": {
+        "ebfb348": "Run 45730851428 at ebfb348: job passed",
+        "1a90855": "Run 45736641331 at 1a90855: job passed",
+        "f5e8fc2": "Run 45739586059 at f5e8fc2: job passed, 18 checks"
+      }
+    },
+    {
+      "package": "secret-protection-core-fuzz (setting, report, keystrokes, frames, roster, editor)",
+      "target": "x86_64-unknown-linux-gnu",
+      "profile": "cargo-fuzz 0.13.2, nightly-2026-11-13, ASan",
+      "features": "cfg(fuzzing)",
+      "environment": "Linux 7.0.0-44 x86-64 (local)",
+      "required": true,
+      "revision": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "clippy": "passed",
+      "link": "passed",
+      "run": "not-run",
+      "runner": null,
+      "checks": "30 s each locally (the ordinary budget), no crash, 0.29 to 8.6 million runs a target; corpora minimized. The required 90 s run is release.yml's, at the tag",
+      "evidence": "clippy-fuzz.log, fuzz-*.log, fuzz-cmin-*.log",
+      "laterRuns": {}
+    }
+  ],
+  "checks": [
+    {
+      "check": "Formatting: cargo fmt (root, fuzz, wasm) and dprint",
+      "outcome": "passed",
+      "counts": "4 commands",
+      "evidence": "In docs/audits/AUD-024-evidence/: fmt-root.log, fmt-fuzz.log, fmt-wasm.log, dprint.log"
+    },
+    {
+      "check": "Clippy -D warnings on the host and 10 targets, the fuzz crate and the wasm checks crate",
+      "outcome": "passed",
+      "counts": "13 commands, exit 0",
+      "evidence": "In docs/audits/AUD-024-evidence/: clippy-*.log"
+    },
+    {
+      "check": "cargo test, debug and release, host",
+      "outcome": "passed",
+      "counts": "129 checks each",
+      "evidence": "In docs/audits/AUD-024-evidence/: test-host-debug.log, test-host-release.log"
+    },
+    {
+      "check": "Build and test at the declared minimum Rust 1.99.0",
+      "outcome": "passed",
+      "counts": "129 checks",
+      "evidence": "In docs/audits/AUD-024-evidence/: msrv-1.99.0-build.log, msrv-1.99.0-test.log"
+    },
+    {
+      "check": "Miri nightly-2026-11-13 on 15 portable tests: host (two runs, named strict and tree borrows), i686, s390x",
+      "outcome": "passed",
+      "counts": "15 passed, 46 filtered, each run; the Miri flags are not in the command records",
+      "evidence": "In docs/audits/AUD-024-evidence/: miri-host-strict.log, miri-host-tree.log, miri-i686-unknown-linux-gnu.log, miri-s390x-unknown-linux-gnu.log"
+    },
+    {
+      "check": "Miri on wasm32-unknown-unknown",
+      "outcome": "not-run",
+      "counts": "exit 0 but no test count printed, so it proves nothing",
+      "evidence": "In docs/audits/AUD-024-evidence/: miri-wasm32.log"
+    },
+    {
+      "check": "Miri on wasm32-wasip1",
+      "outcome": "blocked",
+      "counts": "Miri does not support WASI args_sizes_get",
+      "evidence": "In docs/audits/AUD-024-evidence/: miri-wasip1.log"
+    },
+    {
+      "check": "AddressSanitizer, Linux x86-64 suite",
+      "outcome": "passed",
+      "counts": "no sanitizer error; 125 passed; 4 lock assertions impossible under the tool's mlock no-op (tool limit; exit 101)",
+      "evidence": "In docs/audits/AUD-024-evidence/: asan-host.log, asan-mlock-probe.log"
+    },
+    {
+      "check": "cargo fuzz run, 30 s per target, then cargo fuzz cmin",
+      "outcome": "passed",
+      "counts": "6 targets, no crash, no artifact",
+      "evidence": "In docs/audits/AUD-024-evidence/: fuzz-*.log, fuzz-cmin-*.log, fuzz-fetch.log"
+    },
+    {
+      "check": "cargo audit on Cargo.lock, fuzz/Cargo.lock, wasm/Cargo.lock",
+      "outcome": "passed",
+      "counts": "15, 25 and 16 crates; 1,568 advisories loaded",
+      "evidence": "In docs/audits/AUD-024-evidence/: audit-*.log"
+    },
+    {
+      "check": "cargo deny bans and sources on the three manifests",
+      "outcome": "passed",
+      "counts": "bans ok, sources ok",
+      "evidence": "In docs/audits/AUD-024-evidence/: deny-root.log, deny-fuzz.log, deny-wasm.log"
+    },
+    {
+      "check": "cargo semver-checks against 0.1.1",
+      "outcome": "passed",
+      "counts": "0.1 to 0.2 is a major change; as a minor change 1 of 202 checks fails: OpenChannels became non_exhaustive, which CHANGELOG lists",
+      "evidence": "In docs/audits/AUD-024-evidence/: semver-default.log, semver-as-minor.log"
+    },
+    {
+      "check": "cargo package --list",
+      "outcome": "passed",
+      "counts": "file list retained",
+      "evidence": "In docs/audits/AUD-024-evidence/: package-list.log"
+    },
+    {
+      "check": "Relative links in 37 documents at d54e1db",
+      "outcome": "passed",
+      "counts": "575 links, 2 broken: AUD-001's links to a file later split, explained in HISTORY.md",
+      "evidence": "In docs/audits/AUD-024-evidence/: doc-links.log"
+    },
+    {
+      "check": "Run 45722811012 at d54e1db",
+      "outcome": "passed",
+      "counts": "8 jobs: checks, Linux ARM64, i686, macOS ARM64 and Intel, Windows MSVC and GNU, wasm",
+      "evidence": "In docs/audits/AUD-024-evidence/: ci-jobs.tsv, ci-*.log"
+    },
+    {
+      "check": "Run 45730851428 at ebfb348",
+      "outcome": "passed",
+      "counts": "8 jobs; attempt 1 failed only in the Windows GNU post-checkout step",
+      "evidence": "GitHub run 45730851428"
+    },
+    {
+      "check": "Run 45736084902 at 51cf835",
+      "outcome": "failed",
+      "counts": "only handle_tests::a_worker_is_made_with_its_access_lists, on both Windows toolchains; tests/worker.rs, which requires NoMemoryReading, LowIntegrity and DesktopRestricted on Windows, passed. 1a90855 corrected the test",
+      "evidence": "GitHub run 45736084902"
+    },
+    {
+      "check": "Run 45736641331 at 1a90855",
+      "outcome": "passed",
+      "counts": "8 jobs, no test failed: checks 139 test lines, linux-32 106, ARM64 138, macOS ARM64 and Intel 100 each, Windows MSVC and GNU 61 each, wasm 18 checks",
+      "evidence": "GitHub run 45736641331"
+    },
+    {
+      "check": "No terminal change waits for output (CI step, f5e8fc2)",
+      "outcome": "passed",
+      "counts": "8 terminal tests under strace; a TCFLSH present; no TCSADRAIN, TCSAFLUSH or tcdrain, termios2 forms included; no such call in src for macOS. It fails on d54e1db",
+      "evidence": "GitHub run 45739586059"
+    },
+    {
+      "check": "Run 45739586059 at f5e8fc2",
+      "outcome": "passed",
+      "counts": "8 jobs, no test failed: checks 147 test lines, linux-32 106, ARM64 138, macOS ARM64 and Intel 100 each, Windows MSVC and GNU 61 each, wasm 18 checks; the lint step covers the host and 9 targets, the iOS simulator included",
+      "evidence": "GitHub run 45739586059"
+    }
+  ],
+  "grants": [
+    {
+      "location": "src/worker.rs",
+      "grant": "Worker setting variable SECRET_PROTECTION_CORE_WORKER",
+      "purpose": "Tells the child its role and options; on Windows the pipe name and nonce",
+      "admits": "It stays in the worker's environment; on Linux /proc/PID/environ of a dumpable worker is readable by the user's processes until isolation (the Unix value holds option bits only)",
+      "narrowestForm": "Remove the variable when serve starts",
+      "whyNoNarrower": null,
+      "order": "Readable from exec until isolation on Linux",
+      "findingId": null
+    },
+    {
+      "location": "src/worker.rs read_answer",
+      "grant": "Reply limit `most` on the parent",
+      "purpose": "Bound a worker's answer",
+      "admits": "A worker makes the parent reserve up to `most`, or end the process",
+      "narrowestForm": "Reserve as bytes arrive, with a fallible allocation",
+      "whyNoNarrower": "Not taken: documented instead in ebfb348",
+      "order": null,
+      "findingId": "AUD-024-SEC001"
+    },
+    {
+      "location": "src/worker.rs admit",
+      "grant": "Startup report and admission",
+      "purpose": "Admit only a clean worker isolated as required",
+      "admits": "It trusts the worker's own words",
+      "narrowestForm": null,
+      "whyNoNarrower": "No kernel attestation exists; SECURITY.md states the trust. Since ebfb348 no Linux worker starts where another process of the user may attach",
+      "order": "Linux: exec to isolation",
+      "findingId": "AUD-023-SEC001"
+    },
+    {
+      "location": "src/os.rs",
+      "grant": "Pages Send and Sync; Region handle",
+      "purpose": "Move buffers between threads; open and close pages",
+      "admits": "A Region can change page protections from a shared or stale handle",
+      "narrowestForm": "unsafe fn, or a Region borrowed from &mut Pages",
+      "whyNoNarrower": "Not taken: comment corrected in ebfb348",
+      "order": null,
+      "findingId": "AUD-024-ARC001"
+    },
+    {
+      "location": "src/protect/folder.rs",
+      "grant": "WritableFolder descriptor (O_PATH on Linux)",
+      "purpose": "Grant a folder by descriptor",
+      "admits": "Nothing beyond what the program holds; macOS grants by path (documented)",
+      "narrowestForm": null,
+      "whyNoNarrower": "Already narrow",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux.rs",
+      "grant": "Cleared dumpable flag and core limit 0",
+      "purpose": "No core file, no attach",
+      "admits": "It does not refuse holders of CAP_SYS_PTRACE in the user namespace the program started in",
+      "narrowestForm": "Read the start namespace and report Unknown outside the first (ebfb348)",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": "AUD-024-SEC002"
+    },
+    {
+      "location": "src/os/linux.rs",
+      "grant": "New user, network and IPC namespaces",
+      "purpose": "Empty network, own IPC",
+      "admits": "Every process of the user holds CAP_SYS_PTRACE over the new namespace; only the cleared flag protects",
+      "narrowestForm": null,
+      "whyNoNarrower": "None narrower; the flag is read back before entering",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "Read-only open of any path",
+      "purpose": "Reading files",
+      "admits": "Opens /proc/PID/mem, /proc/PID/fd and /proc/PID/environ of processes the kernel lets it reach",
+      "narrowestForm": null,
+      "whyNoNarrower": "No practical filter rule; documented in ebfb348",
+      "order": null,
+      "findingId": "AUD-024-SEC004"
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "Every prctl except the mark, PR_SET_DUMPABLE and PR_SET_PTRACER",
+      "purpose": "What the runtime needs",
+      "admits": "PR_SCHED_CORE on other processes",
+      "narrowestForm": "Refuse PR_SCHED_CORE (ebfb348)",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": "AUD-024-SEC004"
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "sendto only without an address; sendmsg unless refuse_sendmsg",
+      "purpose": "Connected sockets",
+      "admits": "Addressed datagrams through sendmsg on sockets opened before",
+      "narrowestForm": "The refuse_sendmsg option",
+      "whyNoNarrower": "Documented in ebfb348",
+      "order": null,
+      "findingId": "AUD-024-SEC004"
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "Nine terminal ioctls, and TCFLSH with TCIFLUSH since ebfb348",
+      "purpose": "Hidden input",
+      "admits": "Settings of any terminal the process holds",
+      "narrowestForm": null,
+      "whyNoNarrower": "Needed for hidden input; documented",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "write, ftruncate, sendfile, splice and copy_file_range on descriptors held",
+      "purpose": "Existing channels",
+      "admits": "Changes files opened for writing before isolation",
+      "narrowestForm": null,
+      "whyNoNarrower": "Documented",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux/seccomp.rs",
+      "grant": "Signals to any process unless signals_to_self_only",
+      "purpose": "Programs that signal others",
+      "admits": "Any signal to processes of the user",
+      "narrowestForm": "The signals_to_self_only option",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux/landlock_layer.rs",
+      "grant": "Landlock write rights, TCP bind and connect, abstract-socket and signal scopes, best effort",
+      "purpose": "Refuse file and network changes",
+      "admits": "Reading and executing are not handled",
+      "narrowestForm": null,
+      "whyNoNarrower": "Correct for each ABI; outcomes read back",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/linux.rs",
+      "grant": "TSYNC with Options::all_threads",
+      "purpose": "Reach other threads",
+      "admits": "Replaces their own Landlock layers",
+      "narrowestForm": null,
+      "whyNoNarrower": "Documented",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/unix/worker.rs",
+      "grant": "Unix launch: environment = setting; descriptors 0 and 1 are socket pairs (Linux) or pipes (macOS); 2 is /dev/null or the terminal; close from 3",
+      "purpose": "Private channel",
+      "admits": "The parent's session and controlling terminal until serve calls setsid; the unused direction of each socket",
+      "narrowestForm": "POSIX_SPAWN_SETSID; shutdown of unused directions",
+      "whyNoNarrower": "Not taken; recorded as observations",
+      "order": "exec to setsid",
+      "findingId": null
+    },
+    {
+      "location": "src/os/unix/worker.rs",
+      "grant": "Private-table launcher thread (close_range with UNSHARE and CLOEXEC)",
+      "purpose": "No inherited descriptors on old glibc",
+      "admits": "A copy of every parent descriptor until the thread exits",
+      "narrowestForm": null,
+      "whyNoNarrower": "Already narrow",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/unix/worker.rs",
+      "grant": "Worker descriptors 0 and 1",
+      "purpose": "Protocol",
+      "admits": "Reachable while another process may attach: the start-up window and user-owned namespaces",
+      "narrowestForm": "No worker start where another process may attach (ebfb348)",
+      "whyNoNarrower": null,
+      "order": "exec to isolation",
+      "findingId": "AUD-022-SEC001"
+    },
+    {
+      "location": "src/os/apple.rs",
+      "grant": "Sandbox file-read* except terminal devices",
+      "purpose": "The program keeps reading its inputs and libraries",
+      "admits": "Every file the user can read, which a compromised process can send through a kept channel",
+      "narrowestForm": null,
+      "whyNoNarrower": "A library cannot know the program's paths; SECURITY.md does not state what it allows",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/apple.rs",
+      "grant": "Own terminal by path: read, data writes, all ioctls",
+      "purpose": "Prompt and hidden input",
+      "admits": "Any bytes and settings changes; TIOCSTI through a controlling terminal",
+      "narrowestForm": "An ioctl-command filter (hypothesis)",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": "AUD-024-DOC005"
+    },
+    {
+      "location": "src/os/apple.rs",
+      "grant": "sysctl-read, all",
+      "purpose": "System libraries read hw.* and kern.*",
+      "admits": "Every sysctl, other processes' arguments and environment included",
+      "narrowestForm": "A named list or prefixes",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/apple.rs",
+      "grant": "PT_DENY_ATTACH, and since 51cf835 the code signature read with csops",
+      "purpose": "Refuse debuggers",
+      "admits": "PT_DENY_ATTACH alone does not stop task_for_pid",
+      "narrowestForm": "NoMemoryReading Confirmed only under the hardened runtime without get-task-allow (51cf835)",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": "AUD-024-SEC007"
+    },
+    {
+      "location": "src/os/apple.rs",
+      "grant": "Folder grants: create, write data and unlink beneath each folder",
+      "purpose": "Program outputs",
+      "admits": "Rewriting files others put there; case-insensitive siblings (documented)",
+      "narrowestForm": null,
+      "whyNoNarrower": "Narrow as documented; no file-link, so hard links stay refused",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/windows.rs",
+      "grant": "Process access list D:P(A;;0x100001;;;OW) since ebfb348 (0x101001 before)",
+      "purpose": "Owner may wait and end the process",
+      "admits": "Before ebfb348, PROCESS_QUERY_LIMITED_INFORMATION opened the token",
+      "narrowestForm": "Drop that right (ebfb348)",
+      "whyNoNarrower": null,
+      "order": null,
+      "findingId": "AUD-024-SEC005"
+    },
+    {
+      "location": "src/os/windows.rs",
+      "grant": "Token object's own access list, unchanged",
+      "purpose": "Set by Windows at creation",
+      "admits": "Any process of the user that holds a handle with the right to open the token may change its default list",
+      "narrowestForm": null,
+      "whyNoNarrower": "The process list no longer gives that right; a protected token list was not added",
+      "order": null,
+      "findingId": "AUD-024-SEC005"
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "Start-up default list D:P(A;;0x120800;;;OW)(A;;0x120800;;;<package SID>), set by the parent on the suspended worker (51cf835)",
+      "purpose": "Close the threads Windows starts before the census, and let the census read them back",
+      "admits": "The worker's own package reads, waits on and queries its threads",
+      "narrowestForm": null,
+      "whyNoNarrower": "The census needs the package entry to read the lists back",
+      "order": "none since 51cf835: the worker runs only once the list reads back",
+      "findingId": "AUD-024-SEC006"
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "Less privileged AppContainer: ALL_APPLICATION_PACKAGES opt-out, no capabilities (51cf835)",
+      "purpose": "No network, little file access",
+      "admits": "Files, registry keys and brokers granted to ALL RESTRICTED APPLICATION PACKAGES (S-1-15-2-2), which CI grants on the program folder; a persistent profile folder",
+      "narrowestForm": null,
+      "whyNoNarrower": "The program and its libraries must be readable and runnable by that group",
+      "order": null,
+      "findingId": "AUD-024-SEC008"
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "Creation attributes: mitigation policy (extension points off; images neither remote nor low-label; System32 first) and the child-process restriction (51cf835)",
+      "purpose": "No planted libraries, no children",
+      "admits": "None beyond the policies",
+      "narrowestForm": null,
+      "whyNoNarrower": "Set at creation",
+      "order": "none",
+      "findingId": "AUD-024-SEC008"
+    },
+    {
+      "location": "src/os/windows.rs",
+      "grant": "Job with UI limits, made by the worker itself before its census",
+      "purpose": "Desktop limits, one process",
+      "admits": "The worker's start-up code runs before the job",
+      "narrowestForm": null,
+      "whyNoNarrower": "Windows does not nest a job with UI limits, so one given at creation would fail the start of a launcher that runs in any job",
+      "order": "Creation to the worker's job",
+      "findingId": "AUD-024-SEC008"
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "DETACHED_PROCESS since 51cf835 (CREATE_NO_WINDOW before)",
+      "purpose": "No console",
+      "admits": "None: the worker has no console",
+      "narrowestForm": null,
+      "whyNoNarrower": "Already narrow",
+      "order": null,
+      "findingId": "AUD-024-DOC004"
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "Named pipe: one instance, first-instance flag, remote clients rejected, user and package SID entries; client PID and 128-bit nonce",
+      "purpose": "The worker connects to its launcher",
+      "admits": "Any process of the user may connect first; repeated contention stops a start (AUD-009-SEC003, accepted)",
+      "narrowestForm": null,
+      "whyNoNarrower": "The user entry is needed by the AppContainer check",
+      "order": null,
+      "findingId": null
+    },
+    {
+      "location": "src/os/windows/worker.rs",
+      "grant": "Parent's full handles from CreateProcessW, held while the worker is suspended",
+      "purpose": "Set the start-up list, then resume or end the worker",
+      "admits": "Held until resume, then exchanged for wait and terminate rights (tested)",
+      "narrowestForm": null,
+      "whyNoNarrower": "Already narrow",
+      "order": null,
+      "findingId": null
+    }
+  ],
+  "unsafeLedger": {
+    "baseline": "At d54e1db, from the three AUD-024 reader notes",
+    "portable": "27 production sites, 2 test blocks and 3 #[unsafe(no_mangle)] attributes; every block has a SAFETY comment; the Sync comment was inaccurate (AUD-024-ARC001)",
+    "unixLinux": "112 production blocks and 16 in tests, all with SAFETY comments; extern blocks, extern fn definitions and two link_section attributes listed; no assumption fails on a target that compiles it",
+    "appleWindows": "171 sites; every block has a SAFETY comment; three declarations have none, as the lint does not cover them; signatures checked by hand",
+    "afterBaseline": "An independent CORE-53 reviewer read the change after the baseline: ebfb348, 51cf835 and 1a90855, including the new unsafe FFI (csops, the stack-test FFI, the Windows creation attributes and the test FFI). It was a review of the change, not a full audit. It made 4 findings. Three were fixed before the push: the layout of a test structure, the job nesting, and the documentation of with_cleared_stack for foreign exceptions. CI settled the fourth, whether OpenThreadToken works through a handle with THREAD_QUERY_LIMITED_INFORMATION: the Windows worker tests that require LowIntegrity passed. A second CORE-53 reviewer read the change of f5e8fc2 and made three low findings, all applied before the commit: a wider pattern for the waiting calls, the search of the source for macOS, and the Linux row of TARGETS.md."
+  },
+  "findings": [
+    {
+      "id": "AUD-021-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Another process of the user could reopen a Linux worker's pipes through /proc/PID/fd and read or change requests, answers and the startup report.",
+      "severity": "high",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [
+        "AUD-022-SEC001"
+      ],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Run 45704549498 at 6a1c83b: the parent's socket ends refuse reopening (ENXIO) on Linux x86-64, ARM64 and i686",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "Another process of the user could reopen a Linux worker's pipes through /proc/PID/fd and read or change requests, answers and the startup report.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A native memory reservation could exceed isize::MAX with its guard pages, breaking Rust's slice limit on 32-bit systems.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Run 45704549498 at 6a1c83b: bound unit test and an oversized work area on Linux x86-64, ARM64 and i686, macOS and Windows",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "A native memory reservation could exceed isize::MAX with its guard pages, breaking Rust's slice limit on 32-bit systems.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "From exec until its isolation a Linux worker is dumpable, so another process of the user could take its channel while it starts.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "src/os/unix/worker.rs:335",
+        "src/os/unix/child.rs:23",
+        "src/os/unix.rs:287",
+        "src/worker.rs:352",
+        "src/os/linux.rs:263",
+        "SECURITY.md:19",
+        "docs/TECHNICAL.md:110"
+      ],
+      "evidenceBasis": "AUD-022 source review",
+      "relatedFindings": [
+        "AUD-021-SEC001",
+        "AUD-023-SEC001",
+        "AUD-024-SEC002"
+      ],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: 'no worker starts while any process of the user may attach', in the checks job's step with Yama's ptrace_scope at 0",
+      "note": "d54e1db only downgraded NoMemoryReading; ebfb348 starts no worker where another process of the user may attach.",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "Protect a worker channel to the degree promised for a protected parent, through startup and admission.",
+      "observed": "From exec until its isolation a Linux worker is dumpable, so another process of the user could take its channel while it starts.",
+      "impact": "On affected Linux host policies, confidentiality and integrity of later worker traffic cannot be promised even if the parent was already protected. The prerequisite and short window limit exposure. The isolation guarantee makes this a release blocker.",
+      "recommendedFix": "Done in d54e1db and ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Where the Linux start-up window was open (Yama 0), the parent downgraded only NoMemoryReading and still trusted the rest of a report another process could have written, then sent requests.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [
+        "AUD-024-SEC003 (UL-2)"
+      ],
+      "sourceAudit": "AUD-023 and AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/worker.rs:119",
+        "src/worker.rs:133",
+        "src/worker.rs:149",
+        "src/os/linux.rs:831",
+        "README.md:45",
+        "docs/API.md:310"
+      ],
+      "evidenceBasis": "AUD-023 source review; reasoned in the AUD-024 notes (UL-2)",
+      "relatedFindings": [
+        "AUD-022-SEC001",
+        "AUD-024-SEC002"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: 'no worker starts while any process of the user may attach', in the checks job's step with Yama's ptrace_scope at 0",
+      "note": null,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "The parent fails admission when it cannot confirm the startup report and each required worker protection.",
+      "observed": "Where the Linux start-up window was open (Yama 0), the parent downgraded only NoMemoryReading and still trusted the rest of a report another process could have written, then sent requests.",
+      "impact": "A caller requiring egress or file restrictions can still receive a worker as admitted when those claims came through a channel whose integrity was unverified. The strict NoMemoryReading regression passes under the permissive policy, and the other admission claims remain exposed.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC001",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "A worker's announced reply length makes the parent reserve up to `most` bytes before any arrive, and end the process when the system refuses.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-01",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/worker.rs:254-270",
+        "src/protect.rs:155-163",
+        "src/os/unix.rs:29-49",
+        "src/os/windows.rs:91-92"
+      ],
+      "evidenceBasis": "reproduced with a hostile-worker probe",
+      "relatedFindings": [
+        "AUD-023-API002"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: Worker::call documents `most` as the memory a worker may make the parent take",
+      "note": "Fixed in the documentation only: the parent still reserves before the bytes arrive.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-01): reproduced with a hostile-worker probe",
+      "expected": "Sizes an attacker controls go through a fallible reservation (CHECK-API-005), and the bound of call_within holds on every path.",
+      "observed": "A worker's announced reply length makes the parent reserve up to `most` bytes before any arrive, and end the process when the system refuses.",
+      "impact": "A broken or compromised worker makes the parent commit up to `most` bytes (527 MB measured for 512 MiB announced and 7 bytes sent), or ends it with SIGABRT when the reservation is refused, skipping every Drop. Needs a large `most`.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC002",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "In a user namespace its user owns, Linux reported NoMemoryReading Confirmed while any process of the user could attach, read memory and take the worker's channel.",
+      "severity": "high",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "AUD-024 rule: a high or medium SEC finding blocks the release.",
+      "legacyId": "UL-1",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/linux.rs:323-345",
+        "src/os/linux.rs:817-819",
+        "src/os/linux.rs:831-838",
+        "src/worker.rs:119-134"
+      ],
+      "evidenceBasis": "reproduced with unshare -U on Linux 7.0",
+      "relatedFindings": [
+        "AUD-022-SEC001",
+        "AUD-023-SEC001"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: 'a program started in a user namespace reads its memory unknown and starts no worker' on Linux x86-64, ARM64 and i686",
+      "note": "AUD-023-SEC001 mentions user-namespace authority in its evidence but not this outcome.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-unix-linux.md",
+      "reproduction": "AUD-024 reader notes (UL-1): reproduced with unshare -U on Linux 7.0",
+      "expected": "A protection reported Confirmed holds against new access by another process of the same user (src/protect.rs:264, SECURITY.md:19).",
+      "observed": "In a user namespace its user owns, Linux reported NoMemoryReading Confirmed while any process of the user could attach, read memory and take the worker's channel.",
+      "impact": "In a user namespace the user owns, with the PID namespace shared, any process of the user read a work area, took the worker's descriptors and returned a forged reply through call_within (synthetic probe on Linux 7.0).",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC004",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The Linux filter allowed prctl(PR_SCHED_CORE) on other processes and read-only opens of /proc/PID/mem, while the docs said calls acting on other processes were limited.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "UL-3",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/linux/seccomp.rs:417-435",
+        "src/os/linux/seccomp.rs:450-477",
+        "docs/TECHNICAL.md:55",
+        "docs/TECHNICAL.md:63"
+      ],
+      "evidenceBasis": "reproduced at the kernel level, without the crate's filter",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: 'an isolated thread is refused what the filter names and keeps what it needs', which now lists PR_SCHED_CORE (Linux x86-64 and ARM64)",
+      "note": "The /proc reads stay open as far as the kernel allows them; docs/TECHNICAL.md now says so.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-unix-linux.md",
+      "reproduction": "AUD-024 reader notes (UL-3): reproduced at the kernel level, without the crate's filter",
+      "expected": "The filter and its description agree on what acts on other processes.",
+      "observed": "The Linux filter allowed prctl(PR_SCHED_CORE) on other processes and read-only opens of /proc/PID/mem, while the docs said calls acting on other processes were limited.",
+      "impact": "An isolated process could change another process's core-scheduling cookie, and read the memory of processes the kernel lets it attach to through /proc/PID/mem.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC005",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows: the process access list granted PROCESS_QUERY_LIMITED_INFORMATION, through which another process of the user could open the token and widen the default list of threads started later.",
+      "severity": "high",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "AUD-024 rule: a high or medium SEC finding blocks the release.",
+      "legacyId": "AW-1",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows.rs:269-273",
+        "src/os/windows.rs:323-341",
+        "src/os/windows.rs:693-731",
+        "src/os/windows/worker.rs:529-532"
+      ],
+      "evidenceBasis": "reasoned from Microsoft documentation; not reproduced on Windows",
+      "relatedFindings": [
+        "AUD-024-SEC006"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: 'a process of one thread is isolated as a whole' on Windows MSVC and GNU, whose outside check asserts that right refused",
+      "note": "The token object's own access list is unchanged; the fix closes the route through the process handle.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-1): reasoned from Microsoft documentation; not reproduced on Windows",
+      "expected": "NoMemoryReading holds for threads started after isolation (README.md:8, src/protect.rs:264, docs/TECHNICAL.md:89).",
+      "observed": "Windows: the process access list granted PROCESS_QUERY_LIMITED_INFORMATION, through which another process of the user could open the token and widen the default list of threads started later.",
+      "impact": "If the reasoning holds: any process of the user could read secrets from, and run code in, a worker or isolated process that reports NoMemoryReading Confirmed.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC006",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "Windows: threads the system starts in the worker before its census kept the token's default list, so another process of the user could open one and keep the handle.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "AUD-024 rule: a high or medium SEC finding blocks the release.",
+      "legacyId": "AW-2",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows/worker.rs:504-512",
+        "src/os/windows/worker.rs:514-584",
+        "src/os/windows.rs:345-346",
+        "docs/TECHNICAL.md:121"
+      ],
+      "evidenceBasis": "reasoned from Windows loader behaviour; not reproduced",
+      "relatedFindings": [
+        "AUD-024-SEC005"
+      ],
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: handle_tests::a_worker_is_made_with_its_access_lists on Windows MSVC and GNU, which reads back the start-up default list; the worker tests that require NoMemoryReading, LowIntegrity and DesktopRestricted passed",
+      "note": "The worker is created suspended; the parent sets its token's default list to D:P(A;;0x120800;;;OW)(A;;0x120800;;;<package SID>), reads it back, then resumes it, or ends it on failure. The census accepts a thread whose list reads back as that start-up list.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-2): reasoned from Windows loader behaviour; not reproduced",
+      "expected": "No process of the user can open the worker for memory access before it isolates itself (docs/TECHNICAL.md:121).",
+      "observed": "Windows: threads the system starts in the worker before its census kept the token's default list, so another process of the user could open one and keep the handle.",
+      "impact": "A handle with THREAD_SET_CONTEXT taken before isolation lets another process take the worker over; the later access list does not revoke it. Needs such a thread and a race at start.",
+      "recommendedFix": "Done in 51cf835 and 1a90855.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC007",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "macOS reported NoMemoryReading Confirmed from PT_DENY_ATTACH, which does not stop task_for_pid.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "AUD-024 rule: a high or medium SEC finding blocks the release.",
+      "legacyId": "AW-3",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/apple.rs:23",
+        "src/os/apple.rs:32",
+        "src/os/apple.rs:152-170",
+        "src/os/apple.rs:594",
+        "tests/worker.rs:512-513"
+      ],
+      "evidenceBasis": "reasoned from XNU and Apple documentation; not reproduced",
+      "relatedFindings": [],
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: the step 'Run the isolation and worker tests under the hardened runtime' on both macOS jobs",
+      "note": "Confirmed now only when csops reports the hardened runtime without get-task-allow; otherwise Unknown.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-3): reasoned from XNU and Apple documentation; not reproduced",
+      "expected": "NoMemoryReading Confirmed means new access to the memory is refused (src/protect.rs:264).",
+      "observed": "macOS reported NoMemoryReading Confirmed from PT_DENY_ATTACH, which does not stop task_for_pid.",
+      "impact": "Where developer tools are turned on, a tool of the same user with the debugger entitlement reads a program without the hardened runtime while the report says Confirmed.",
+      "recommendedFix": "Done in 51cf835.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-SEC008",
+      "category": "SEC",
+      "kind": "finding",
+      "title": "The Windows worker ran in a full AppContainer instead of a less privileged one, and set its mitigation policies after its start-up code instead of at creation.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-6",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows/worker.rs:634-682",
+        "src/os/windows.rs:296-322"
+      ],
+      "evidenceBasis": "reasoned",
+      "relatedFindings": [],
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: handle_tests::a_worker_is_made_with_its_access_lists on Windows MSVC and GNU, which asserts WIN://NOALLAPPPKG and the extension-point, image-load and child-process policies from creation",
+      "note": "The job is not given at creation, as Windows does not nest a job with UI limits; the worker still makes its own job before its census.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-6): reasoned",
+      "expected": "What closes access comes before any step that runs code (CORE-55).",
+      "observed": "The Windows worker ran in a full AppContainer instead of a less privileged one, and set its mitigation policies after its start-up code instead of at creation.",
+      "impact": "The worker could read what all application packages may, and its start-up code ran before its policies.",
+      "recommendedFix": "Done in 51cf835 and 1a90855.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "The Unix terminal drain could read past its documented 64 KiB budget.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Run 45704549498 at 6a1c83b: drain test with 999, 1,000 and 1,001 bytes on Linux and macOS",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "The Unix terminal drain could read past its documented 64 KiB budget.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "Keys typed between the last drain and the restore of the terminal settings were not dropped.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "src/os/unix/terminal.rs:172",
+        "src/os/unix/terminal.rs:204",
+        "src/os/unix/terminal.rs:319",
+        "docs/API.md:428",
+        "docs/TECHNICAL.md:143"
+      ],
+      "evidenceBasis": "AUD-022 source review",
+      "relatedFindings": [
+        "AUD-023-FUN001",
+        "AUD-023-DOC002"
+      ],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "In part: Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output. The restore is the only caller of the flush, so the step fails without it",
+      "note": "ebfb348 narrows the gap to the moment between tcflush and the restore and documents that a key typed then goes to the next reader. Left: no test shows that a key typed after the last drain is dropped, and the gap between the two calls stays, as documented.",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "The documented queue handoff places the cutoff at the restoration of terminal settings.",
+      "observed": "Keys typed between the last drain and the restore of the terminal settings were not dropped.",
+      "impact": "The next reader can receive pending input from that interval. The bounded-drain regression remains valid for bytes observed while draining.",
+      "recommendedFix": "Done in d54e1db and ebfb348.",
+      "requiredVerification": "A test that types a key after the last drain and finds it dropped."
+    },
+    {
+      "id": "AUD-022-FUN002",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "The count of keys past a full line could overflow on 32-bit systems.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "src/input.rs:327",
+        "docs/audits/TARGETS.md:13"
+      ],
+      "evidenceBasis": "AUD-022 source review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Run 45722811012 at d54e1db: boundary unit test",
+      "note": null,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "A rejected overlong entry keeps returning a bounded rejection independently of pointer width and overflow-check policy.",
+      "observed": "The count of keys past a full line could overflow on 32-bit systems.",
+      "impact": "The input volume is extreme and i686 is a diagnostic target. The bound is still incomplete, and wraparound can make the excess disappear.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-FUN001",
+      "category": "FUN",
+      "kind": "finding",
+      "title": "The Linux terminal restore used TCSAFLUSH, which first waits for pending output, so hidden input could stay on and the reading lock held.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-023",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/unix/terminal.rs:175",
+        "src/os/unix/terminal.rs:187",
+        "src/input.rs:197",
+        "src/input.rs:211",
+        "docs/API.md:428",
+        "docs/TECHNICAL.md:143"
+      ],
+      "evidenceBasis": "AUD-023 source review",
+      "relatedFindings": [
+        "AUD-022-FUN001",
+        "AUD-024-BLD004"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output",
+      "note": "Shown by the calls traced on Linux and, for macOS, by a search of the source; the step fails on d54e1db, whose TCSAFLUSH strace names TCSETSF2.",
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "Restore the terminal before output can keep the device in hidden mode.",
+      "observed": "The Linux terminal restore used TCSAFLUSH, which first waits for pending output, so hidden input could stay on and the reading lock held.",
+      "impact": "Hidden mode and subsequent hidden reads can remain blocked beyond the original input operation. Ordinary pseudo-terminal test success does not establish this case.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "A timed worker start read the clock and trapped on WebAssembly instead of answering Unsupported.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Probe of AUD-019 built for wasm32 at fb4c84b, run in Node 26.13 (recorded by 645c33f)",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "A timed worker start read the clock and trapped on WebAssembly instead of answering Unsupported.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "A Unix exchange could return a transport error after its deadline instead of TimedOut.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Run 45704549498 at 6a1c83b: unit test of early and late errors and answers",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "A Unix exchange could return a transport error after its deadline instead of TimedOut.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "A fallback Unix launcher could start a worker after its deadline.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "src/worker.rs:75",
+        "src/os/unix/worker.rs:356",
+        "src/os/unix/worker.rs:382"
+      ],
+      "evidenceBasis": "AUD-022 source review",
+      "relatedFindings": [
+        "AUD-023-API001",
+        "AUD-024-BLD004"
+      ],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: os::unix::worker::launch_tests::a_launch_past_its_deadline_starts_nothing (checks and linux-32 jobs)",
+      "note": "d54e1db fixed the private launcher; the posix_spawn fallback followed in ebfb348 (AUD-023-API001).",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "On Unix, start_within promises that no launch happens once its absolute deadline has passed.",
+      "observed": "A fallback Unix launcher could start a worker after its deadline.",
+      "impact": "A child can start after TimedOut has been reported on this fallback path. The result is abandoned and the transport is closed by the existing cancellation logic.",
+      "recommendedFix": "Done in d54e1db and ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-API001",
+      "category": "API",
+      "kind": "finding",
+      "title": "After the optional pidfd launcher, the posix_spawn fallback could start a worker past its deadline.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-023",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/worker.rs:74",
+        "src/os/unix/worker.rs:379",
+        "src/os/unix/child.rs:23",
+        "src/os/unix/child.rs:65",
+        "src/os/unix/child.rs:77"
+      ],
+      "evidenceBasis": "AUD-023 source review",
+      "relatedFindings": [
+        "AUD-022-API001"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: os::unix::child::tests::a_fallback_launch_past_its_deadline_starts_nothing (checks and linux-32 jobs)",
+      "note": "The direct test came in 51cf835.",
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "Check the deadline before each Unix process creation attempt.",
+      "observed": "After the optional pidfd launcher, the posix_spawn fallback could start a worker past its deadline.",
+      "impact": "Cancellation can time out while a fallback process creation is still about to be attempted. Late result disposal remains present.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-API002",
+      "category": "API",
+      "kind": "finding",
+      "title": "On 32-bit systems a permitted frame length could exceed what a Secret can reserve, ending the process.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-023",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/worker.rs:254",
+        "src/worker.rs:465",
+        "src/protect.rs:143",
+        "src/os.rs:165"
+      ],
+      "evidenceBasis": "AUD-023 i686 diagnostic run",
+      "relatedFindings": [
+        "AUD-024-SEC001"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: worker::tests::an_answer_past_what_a_secret_holds_is_refused in the linux-32 job",
+      "note": null,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "RUST-17 requires rejecting a frame length beyond the target allocation bound before constructing its buffer.",
+      "observed": "On 32-bit systems a permitted frame length could exceed what a Secret can reserve, ending the process.",
+      "impact": "An unusually large configured limit can turn an unrepresentable frame into process termination. The reservation check still prevents invalid slice construction. The current supported native targets are 64-bit.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The release could be packaged without running the tests on Windows GNU and WebAssembly, which have runners.",
+      "severity": "medium",
+      "status": "verified",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        ".github/workflows/ci.yml:72",
+        ".github/workflows/release.yml:16",
+        ".github/workflows/release.yml:45",
+        "README.md:62",
+        "docs/audits/TARGETS.md:18"
+      ],
+      "evidenceBasis": "AUD-022 workflow review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Run 45722811012 at d54e1db: Windows GNU and wasm jobs passed",
+      "note": "Android and iOS remain built and linted only, as the README says.",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "RUST-16 requires applicable CI runs on supported targets. The release workflow and pre-tag gate must account for every required target.",
+      "observed": "The release could be packaged without running the tests on Windows GNU and WebAssembly, which have runners.",
+      "impact": "A target-specific runtime error can pass the release workflow. The previous Wasm worker clock regression illustrates this coverage failure.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The fuzz targets left out request and answer frames, the clean-start byte, the Windows roster and channel grammar, and the line editor.",
+      "severity": "medium",
+      "status": "fixed",
+      "releaseBlocking": true,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "fuzz/Cargo.toml:14",
+        "src/worker.rs:226",
+        "src/worker.rs:277",
+        "src/worker.rs:318",
+        "src/worker.rs:387",
+        "src/input.rs:297",
+        "src/os/unix/terminal.rs:144",
+        "src/os/windows/console.rs:107",
+        "src/os/windows/worker.rs:717"
+      ],
+      "evidenceBasis": "AUD-022 harness review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "AUD-024 reading: every named reader is reached (notes-portable.md); 30-second local run of each target at d54e1db without a crash (fuzz-*.log)",
+      "note": "The 90-second release run of each target happens at the tag.",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "RUST-18 covers each decoder, frame and length reader and editor that handles untrusted bytes.",
+      "observed": "The fuzz targets left out request and answer frames, the clean-start byte, the Windows roster and channel grammar, and the line editor.",
+      "impact": "Passing all existing campaigns cannot establish the required parser coverage. These paths sit at process and terminal boundaries.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "release.yml's 90-second run of each target on the candidate."
+    },
+    {
+      "id": "AUD-023-BLD001",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "A build with --cfg fuzzing, which fuzzers pass to every crate, did not compile on Windows or WebAssembly.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [
+        "AUD-024-BLD001 (P-02)"
+      ],
+      "sourceAudit": "AUD-023 and AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/fuzzing.rs:79",
+        "src/input.rs:348",
+        "fuzz/Cargo.toml:14"
+      ],
+      "evidenceBasis": "reproduced by the AUD-024 reader (cargo check per target)",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Not shown: CI builds --cfg fuzzing on the Linux host only",
+      "note": "AUD-023 named Windows only; P-02 found WebAssembly too.",
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "The portable editor adapter builds on the native configurations it declares support for.",
+      "observed": "A build with --cfg fuzzing, which fuzzers pass to every crate, did not compile on Windows or WebAssembly.",
+      "impact": "A Windows diagnostic build of the library with cfg(fuzzing) fails at the editor adapter and cannot be used to verify other platform paths.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "cargo check --lib with --cfg fuzzing for the Windows and wasm32 targets."
+    },
+    {
+      "id": "AUD-023-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The long fuzz workflow let a superseded run continue.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-023",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        ".github/workflows/fuzz.yml:8",
+        ".github/workflows/fuzz.yml:14"
+      ],
+      "evidenceBasis": "AUD-023 workflow review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: concurrency group in fuzz.yml",
+      "note": null,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "CI-03 requires cancellable superseded runs and an explicit workflow concurrency group.",
+      "observed": "The long fuzz workflow let a superseded run continue.",
+      "impact": "Duplicate campaign cost and evidence for obsolete runs can grow.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-BLD002",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The SecretLine Debug test checked an empty line only, so it could not fail on a leak.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-05",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/input.rs:459-463"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: input::tests::keystrokes_build_and_take_back_a_line on every native job",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-05): source reading",
+      "expected": "A Debug test of a type that holds a secret checks text with content in it (CHECK-SEC-009).",
+      "observed": "The SecretLine Debug test checked an empty line only, so it could not fail on a leak.",
+      "impact": "A SecretLine Debug that printed its text would have passed.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-BLD003",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Stack clearing was tested on Linux only, although macOS and Windows are supported.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-06",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/stack.rs:156-157",
+        ".github/workflows/ci.yml"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verifiedWhere": "Run 45736641331 at 1a90855: the stack::clearing tests, in debug and in release, on macOS ARM64 and Intel and on Windows MSVC and GNU",
+      "note": "The fix also makes with_cleared catch a panic, clear, then resume it, as MSVC runs unwinding drops below the panicking frames.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-06): source reading",
+      "expected": "Every supported target runs the stack-clearing tests (RUST-16).",
+      "observed": "Stack clearing was tested on Linux only, although macOS and Windows are supported.",
+      "impact": "The frame layouts of MSVC, MinGW and Apple ARM64 were not tested; the fix found that MSVC runs unwinding drops below the frames that panicked.",
+      "recommendedFix": "Done in 51cf835.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-BLD004",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "The fixes of AUD-022-API001 and AUD-022-FUN001 had no test that fails without them.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "UL-4",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/unix/worker.rs:379-381",
+        "src/os/unix/terminal.rs:179-187"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [
+        "AUD-022-API001",
+        "AUD-022-FUN001"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "f5e8fc239c77207416509e89750b0b550c133ff4"
+      ],
+      "verifiedWhere": "Launch: Run 45736641331 at 1a90855, both launch-deadline tests. Terminal: Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output; it fails without the restore's flush and with TCSAFLUSH",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-unix-linux.md",
+      "reproduction": "AUD-024 reader notes (UL-4): source reading",
+      "expected": "A fix is seen failing first (CORE-33).",
+      "observed": "The fixes of AUD-022-API001 and AUD-022-FUN001 had no test that fails without them.",
+      "impact": "Removing either fix would have passed CI.",
+      "recommendedFix": "Done in ebfb348 and 51cf835 and f5e8fc2.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-BLD005",
+      "category": "BLD",
+      "kind": "finding",
+      "title": "Some tests could not fail where it matters: the Yama expectation copied the production predicate, and the all-threads role printed ok below Landlock ABI 8.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "UL-5",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "tests/support/run.rs:121-126",
+        "tests/worker.rs:357-375",
+        "tests/worker.rs:507-514",
+        "tests/isolation/linux/threads.rs:42-61"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: the role marks ABI below 8 as not checked; the user-namespace role checks the predicate from outside",
+      "note": "tests/support/run.rs still copies the production predicates (Yama, first user namespace) without a deliberate-copy note.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-unix-linux.md",
+      "reproduction": "AUD-024 reader notes (UL-5): source reading",
+      "expected": "A check can fail where it matters, and a part it cannot check is marked so (17.4).",
+      "observed": "Some tests could not fail where it matters: the Yama expectation copied the production predicate, and the all-threads role printed ok below Landlock ABI 8.",
+      "impact": "No test could catch a wrong Yama predicate (AUD-024-SEC002 was one), and CI showed thread synchronization as checked where it was not.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-ARC001",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "On targets where no worker starts, the test printed a pass without calling any start function.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "tests/worker.rs:339",
+        "docs/audits/TARGETS.md:19"
+      ],
+      "evidenceBasis": "AUD-022 test review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Run 45722811012 at d54e1db: the wasm job's 8 fallback checks call every start",
+      "note": "The corrected test runs only on targets without a worker, and no Android or iOS runner exists.",
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "A passing runtime case asserts the behavior or records a skip with its reason.",
+      "observed": "On targets where no worker starts, the test printed a pass without calling any start function.",
+      "impact": "An eventual mobile run of this test file can overstate coverage of the public fallback.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-ARC001",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "Region::allow and Pages::wipe_any are safe functions whose soundness rests on their callers, and the Sync safety comment was inaccurate.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-07",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os.rs:134-144",
+        "src/os.rs:244-252",
+        "src/os.rs:268-277",
+        "src/os/unix.rs:136-152",
+        "src/os/windows.rs:193-210"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: the Sync safety comment of src/os.rs",
+      "note": "Fixed in the comment only: both functions remain safe with a caller condition, which every caller keeps today.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-07): source reading",
+      "expected": "Safe code cannot break the invariants unsafe code relies on (CHECK-SEC-009).",
+      "observed": "Region::allow and Pages::wipe_any are safe functions whose soundness rests on their callers, and the Sync safety comment was inaccurate.",
+      "impact": "None today: every caller keeps the conditions. A future caller could cause undefined behaviour from safe code.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-ARC002",
+      "category": "ARC",
+      "kind": "finding",
+      "title": "The lint table of the wasm checks crate was partial without a stated reason.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-08",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "wasm/Cargo.toml:14-21"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: wasm/Cargo.toml",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-08): source reading",
+      "expected": "A crate's lint table is complete or says why not (RUST-01).",
+      "observed": "The lint table of the wasm checks crate was partial without a stated reason.",
+      "impact": "Maintenance only.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The Windows thread-identity text named an API the code does not use.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Text read against the code at 4d7d039",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "The Windows thread-identity text named an API the code does not use.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The development API guide mixed the 0.1.1 and 0.2.0 versions.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Text read at 4d7d039",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "The development API guide mixed the 0.1.1 and 0.2.0 versions.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "Folder-write summaries left out conditions the implementation requires.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Text read against the code at 4d7d039",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "Folder-write summaries left out conditions the implementation requires.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-021-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The packaged notices linked to a lockfile the package leaves out.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-021 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-021",
+      "reviewedCommit": "5cea35fe4e32e8ed4b68243a58c12435a9cd5669",
+      "affected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "evidenceBasis": "AUD-021 report",
+      "relatedFindings": [],
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verifiedWhere": "Text read at 4d7d039",
+      "note": null,
+      "evidence": "docs/audits/AUD-021-2026-11-25.md",
+      "reproduction": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "expected": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "observed": "The packaged notices linked to a lockfile the package leaves out.",
+      "impact": "As docs/audits/AUD-021-2026-11-25.md records.",
+      "recommendedFix": "Done in 4d7d039.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The target notes said WebAssembly shares the native stack tests.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "docs/audits/TARGETS.md:13",
+        "src/stack.rs:143"
+      ],
+      "evidenceBasis": "AUD-022 document review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Text read at d54e1db",
+      "note": null,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "The target notes identify which stack paths a diagnostic target actually exercises.",
+      "observed": "The target notes said WebAssembly shares the native stack tests.",
+      "impact": "The inaccurate notes can lead to crediting a native stack check to the Wasm backend.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The API guide applied the Unix 64 KiB input-queue limit to Windows.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "docs/API.md:428",
+        "src/os/windows/console.rs:67",
+        "src/os/windows/console.rs:149",
+        "src/os/unix/terminal.rs:204"
+      ],
+      "evidenceBasis": "AUD-022 document review",
+      "relatedFindings": [
+        "AUD-023-DOC002"
+      ],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Text read at d54e1db",
+      "note": null,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "The public guide states each terminal backend’s queue policy and refusal conditions.",
+      "observed": "The API guide applied the Unix 64 KiB input-queue limit to Windows.",
+      "impact": "A Windows caller can infer the wrong amount and error behavior of discarded input.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-022-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The Intel macOS runner was described as GitHub's last one.",
+      "severity": "low",
+      "status": "verified",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-022 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-022",
+      "reviewedCommit": "2c312c6b1aea9e66b26ae4fdaa4b25e331d4539c",
+      "affected": [
+        "docs/audits/TARGETS.md:16",
+        "docs/audits/TARGETS.md:53",
+        ".github/workflows/ci.yml:91"
+      ],
+      "evidenceBasis": "AUD-022 document review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verifiedWhere": "Text read at d54e1db; Intel job in Run 45722811012 at d54e1db",
+      "note": null,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review and contract comparison.",
+      "expected": "The target notes distinguish the configured CI label and the platform options documented by GitHub.",
+      "observed": "The Intel macOS runner was described as GitHub's last one.",
+      "impact": "The audit matrix can imply Intel runtime becomes unavailable when the configured runner retires.",
+      "recommendedFix": "Done in d54e1db.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The API guide listed 4 of the 11 functions of the fuzzing module.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [
+        "AUD-024-DOC002 (P-04)"
+      ],
+      "sourceAudit": "AUD-023 and AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "docs/API.md:15",
+        "docs/API.md:485",
+        "src/fuzzing.rs:66"
+      ],
+      "evidenceBasis": "AUD-023 and AUD-024 document review",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: the fuzz-build section of docs/API.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "The reproducible diagnostic interface documents its current callable adapters and what they cover.",
+      "observed": "The API guide listed 4 of the 11 functions of the fuzzing module.",
+      "impact": "A reviewer can miss current fuzz coverage and will find an incomplete reference for the adapter module.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-023-DOC002",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The Windows console text promised that keys typed after Enter go before echo resumes, while flush and restore are two calls.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "As AUD-023 recorded it.",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-023",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows/console.rs:130",
+        "src/os/windows/console.rs:135",
+        "docs/API.md:428",
+        "docs/TECHNICAL.md:143"
+      ],
+      "evidenceBasis": "AUD-023 source review",
+      "relatedFindings": [
+        "AUD-022-FUN001",
+        "AUD-022-DOC002"
+      ],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: console.rs and docs/TECHNICAL.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Defensive source review and contract comparison.",
+      "expected": "The Windows description reflects when the input queue is flushed and when echo is restored.",
+      "observed": "The Windows console text promised that keys typed after Enter go before echo resumes, while flush and restore are two calls.",
+      "impact": "A caller can assume the console queue has a stronger handoff boundary than Windows supplies here.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC001",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The stated reason WebAssembly clears no stack was false for rustc's layout, where the stack comes first and a clearing would trap.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-03",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/stack.rs:140-144",
+        "docs/API.md:386",
+        "docs/TECHNICAL.md:98",
+        "CHANGELOG.md:38"
+      ],
+      "evidenceBasis": "reproduced with a wasm probe in Node",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: src/stack.rs, docs/API.md, docs/TECHNICAL.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-03): reproduced with a wasm probe in Node",
+      "expected": "The documents give the true reason WebAssembly overwrites nothing.",
+      "observed": "The stated reason WebAssembly clears no stack was false for rustc's layout, where the stack comes first and a clearing would trap.",
+      "impact": "Readers were told a clearing would overwrite other data; in rustc's layout it would trap. Secrets left on the WebAssembly stack stay in linear memory, as documented.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC003",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "StackError::Size was described without the sizes past isize::MAX, which give System(OutOfMemory).",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "P-09",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "docs/API.md:380",
+        "src/stack.rs:35-36"
+      ],
+      "evidenceBasis": "reproduced with a probe",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: src/stack.rs rustdoc and docs/API.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-portable.md",
+      "reproduction": "AUD-024 reader notes (P-09): reproduced with a probe",
+      "expected": "The error documentation names every case that gives it.",
+      "observed": "StackError::Size was described without the sizes past isize::MAX, which give System(OutOfMemory).",
+      "impact": "A caller could match the wrong variant for sizes past isize::MAX; both errors are safe.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC004",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The docs said a Windows worker has no console, while CREATE_NO_WINDOW gave it a hidden one.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-4",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows/worker.rs:565",
+        "src/os/windows/worker.rs:697",
+        "src/os/windows/console.rs:3",
+        "SECURITY.md:21",
+        "docs/API.md:430"
+      ],
+      "evidenceBasis": "reasoned; not reproduced",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verifiedWhere": "51cf835 diff: the worker starts with DETACHED_PROCESS, so it has no console, as the documents say",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-4): reasoned; not reproduced",
+      "expected": "The documents say what console a worker has.",
+      "observed": "The docs said a Windows worker has no console, while CREATE_NO_WINDOW gave it a hidden one.",
+      "impact": "read_hidden_line in a Windows worker would wait on a console nobody can type into instead of failing with NotFound.",
+      "recommendedFix": "Done in ebfb348 and 51cf835.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC005",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "'The sandbox cannot tell one ioctl from another' was contradicted by macOS CI, which refused TIOCSTI with EPERM.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-5",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/apple.rs:73-76",
+        "docs/TECHNICAL.md:81",
+        "tests/worker/unix.rs:124-133"
+      ],
+      "evidenceBasis": "CI evidence at d54e1db",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: src/os/apple.rs and docs/TECHNICAL.md",
+      "note": "No test makes TIOCSTI through a controlling terminal of an isolated macOS process.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-5): CI evidence at d54e1db",
+      "expected": "Comments and guides agree with what CI observes.",
+      "observed": "'The sandbox cannot tell one ioctl from another' was contradicted by macOS CI, which refused TIOCSTI with EPERM.",
+      "impact": "The documented residual (TIOCSTI through a controlling terminal) rests on a premise CI contradicts and that no test makes.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC006",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The Windows AppContainer profile and folder of each program path stay after the worker ends, which no document said.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-7",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/windows/worker.rs:25-27",
+        "src/os/windows/worker.rs:467-502"
+      ],
+      "evidenceBasis": "reasoned",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: docs/TECHNICAL.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-7): reasoned",
+      "expected": "The documents say what a worker leaves behind.",
+      "observed": "The Windows AppContainer profile and folder of each program path stay after the worker ends, which no document said.",
+      "impact": "What a worker writes in its folder stays, readable by the user's processes; each program path adds a profile.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC007",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "macOS and iOS confirm NoCoreDumps while their crash reports keep the crashed thread's registers, which no document said.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-8",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "src/os/apple.rs:15-19",
+        "docs/TECHNICAL.md:79"
+      ],
+      "evidenceBasis": "reasoned",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: the NoCoreDumps row of docs/API.md",
+      "note": null,
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-8): reasoned",
+      "expected": "The documents say what crash data still leaves the process.",
+      "observed": "macOS and iOS confirm NoCoreDumps while their crash reports keep the crashed thread's registers, which no document said.",
+      "impact": "A caller could believe no crash data leaves a macOS or iOS process.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    },
+    {
+      "id": "AUD-024-DOC008",
+      "category": "DOC",
+      "kind": "finding",
+      "title": "The README's 'Windows' and 'iOS' rows named more targets than are built.",
+      "severity": "low",
+      "status": "fixed",
+      "releaseBlocking": false,
+      "releaseBlockingReason": "AUD-024 rule: low findings and non-SEC findings do not block.",
+      "legacyId": "AW-9",
+      "alsoRecordedAs": [],
+      "sourceAudit": "AUD-024",
+      "reviewedCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "affected": [
+        "README.md:58-59"
+      ],
+      "evidenceBasis": "source reading",
+      "relatedFindings": [],
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verifiedWhere": "ebfb348 diff: README rows 'iOS (device)' and 'Windows (x86-64)'",
+      "note": "Since f5e8fc2 CI lints the iOS simulator too, and the README names the device and the simulator.",
+      "evidence": "docs/audits/AUD-024-evidence/notes-apple-windows.md",
+      "reproduction": "AUD-024 reader notes (AW-9): source reading",
+      "expected": "Support claims name only what is built and tested (17.3).",
+      "observed": "The README's 'Windows' and 'iOS' rows named more targets than are built.",
+      "impact": "The README claimed more targets than are built.",
+      "recommendedFix": "Done in ebfb348.",
+      "requiredVerification": "None left beyond the recorded verification."
+    }
+  ],
+  "observations": [
+    {
+      "id": "AUD-022-API002",
+      "category": "API",
+      "kind": "observation",
+      "title": "A readiness check precedes a blocking Unix stream write.",
+      "severity": "info",
+      "status": null,
+      "releaseBlocking": false,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review.",
+      "expected": null,
+      "observed": "A readiness check precedes a blocking Unix stream write.",
+      "impact": "No defect established.",
+      "recommendedFix": null,
+      "requiredVerification": null
+    },
+    {
+      "id": "AUD-022-SEC002",
+      "category": "SEC",
+      "kind": "observation",
+      "title": "Both directions of each Linux worker socket stay open; the AUD-024 reader found no other process that reaches them.",
+      "severity": "info",
+      "status": null,
+      "releaseBlocking": false,
+      "evidence": "docs/audits/AUD-022-evidence/",
+      "reproduction": "Source review.",
+      "expected": null,
+      "observed": "Both directions of each Linux worker socket stay open; the AUD-024 reader found no other process that reaches them.",
+      "impact": "No defect established.",
+      "recommendedFix": null,
+      "requiredVerification": null
+    },
+    {
+      "id": "AUD-023-API003",
+      "category": "API",
+      "kind": "observation",
+      "title": "Unix readiness and stream-write guarantees differ.",
+      "severity": "info",
+      "status": null,
+      "releaseBlocking": false,
+      "evidence": "docs/audits/AUD-023-evidence/",
+      "reproduction": "Source review.",
+      "expected": null,
+      "observed": "Unix readiness and stream-write guarantees differ.",
+      "impact": "No defect established.",
+      "recommendedFix": null,
+      "requiredVerification": null
+    }
+  ],
+  "informationalNotes": [
+    "src/protect.rs `refusing` fell back to the unrefused report on an unreachable error; ebfb348 removed the function.",
+    "src/worker.rs:289 multiplies the roster count unchecked; safe with the only limit in use (65,536), not with a limit of 2^30 or more on 32-bit.",
+    "fuzz/fuzz_targets/roster.rs copies MAX_THREADS without a deliberate-copy note.",
+    "src/protect.rs said 'volatile writes' where zeroize uses memset and a barrier; ebfb348 corrected it. The release assembly of the wipes was read on x86-64 only.",
+    "KeystrokeBytes is built on the stack and copied by each move; only its last place is wiped (Keystroke itself is documented as unwiped).",
+    "On the 32-bit test targets, folder.rs binds the non-LFS stat and readdir calls: inode numbers of 2^32 or more fail closed with EOVERFLOW.",
+    "A Linux worker keeps the parent's session and controlling terminal from exec until serve calls setsid; POSIX_SPAWN_SETSID would remove that start-up window.",
+    "Hypothesis not run: with SIGPIPE at its default, a worker that ends while the parent writes would kill the parent instead of returning BrokenPipe.",
+    "On non-pty terminals Linux TCSETSF waits for output between its flush and its set (from kernel source, not run); this is the class of AUD-023-FUN001.",
+    "The macOS sandbox allows every sysctl read, including other processes' arguments and environment, and SECURITY.md does not say what file-read* lets a compromised process read and send."
+  ],
+  "remediation": [
+    {
+      "id": "AUD-021-SEC001",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "6a1c83b00a30aac4dfba32dae0290699d06fa594",
+      "evidence": "Run 45704549498 at 6a1c83b: the parent's socket ends refuse reopening (ENXIO) on Linux x86-64, ARM64 and i686"
+    },
+    {
+      "id": "AUD-021-SEC002",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "6a1c83b00a30aac4dfba32dae0290699d06fa594",
+      "evidence": "Run 45704549498 at 6a1c83b: bound unit test and an oversized work area on Linux x86-64, ARM64 and i686, macOS and Windows"
+    },
+    {
+      "id": "AUD-022-SEC001",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: 'no worker starts while any process of the user may attach', in the checks job's step with Yama's ptrace_scope at 0"
+    },
+    {
+      "id": "AUD-023-SEC001",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: 'no worker starts while any process of the user may attach', in the checks job's step with Yama's ptrace_scope at 0"
+    },
+    {
+      "id": "AUD-024-SEC001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: Worker::call documents `most` as the memory a worker may make the parent take"
+    },
+    {
+      "id": "AUD-024-SEC002",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: 'a program started in a user namespace reads its memory unknown and starts no worker' on Linux x86-64, ARM64 and i686"
+    },
+    {
+      "id": "AUD-024-SEC004",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: 'an isolated thread is refused what the filter names and keeps what it needs', which now lists PR_SCHED_CORE (Linux x86-64 and ARM64)"
+    },
+    {
+      "id": "AUD-024-SEC005",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: 'a process of one thread is isolated as a whole' on Windows MSVC and GNU, whose outside check asserts that right refused"
+    },
+    {
+      "id": "AUD-024-SEC006",
+      "status": "verified",
+      "fixCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: handle_tests::a_worker_is_made_with_its_access_lists on Windows MSVC and GNU, which reads back the start-up default list; the worker tests that require NoMemoryReading, LowIntegrity and DesktopRestricted passed"
+    },
+    {
+      "id": "AUD-024-SEC007",
+      "status": "verified",
+      "fixCommit": "51cf8353382d02d4ae5fca425d84255198fb8da9",
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: the step 'Run the isolation and worker tests under the hardened runtime' on both macOS jobs"
+    },
+    {
+      "id": "AUD-024-SEC008",
+      "status": "verified",
+      "fixCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: handle_tests::a_worker_is_made_with_its_access_lists on Windows MSVC and GNU, which asserts WIN://NOALLAPPPKG and the extension-point, image-load and child-process policies from creation"
+    },
+    {
+      "id": "AUD-021-FUN001",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "6a1c83b00a30aac4dfba32dae0290699d06fa594",
+      "evidence": "Run 45704549498 at 6a1c83b: drain test with 999, 1,000 and 1,001 bytes on Linux and macOS"
+    },
+    {
+      "id": "AUD-022-FUN001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "In part: Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output. The restore is the only caller of the flush, so the step fails without it"
+    },
+    {
+      "id": "AUD-022-FUN002",
+      "status": "verified",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "evidence": "Run 45722811012 at d54e1db: boundary unit test"
+    },
+    {
+      "id": "AUD-023-FUN001",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "f5e8fc239c77207416509e89750b0b550c133ff4",
+      "evidence": "Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output"
+    },
+    {
+      "id": "AUD-021-API001",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "fb4c84ba66a999e57f2ef5170cf87c16e550ee05",
+      "evidence": "Probe of AUD-019 built for wasm32 at fb4c84b, run in Node 26.13 (recorded by 645c33f)"
+    },
+    {
+      "id": "AUD-021-API002",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "6a1c83b00a30aac4dfba32dae0290699d06fa594",
+      "evidence": "Run 45704549498 at 6a1c83b: unit test of early and late errors and answers"
+    },
+    {
+      "id": "AUD-022-API001",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: os::unix::worker::launch_tests::a_launch_past_its_deadline_starts_nothing (checks and linux-32 jobs)"
+    },
+    {
+      "id": "AUD-023-API001",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: os::unix::child::tests::a_fallback_launch_past_its_deadline_starts_nothing (checks and linux-32 jobs)"
+    },
+    {
+      "id": "AUD-023-API002",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: worker::tests::an_answer_past_what_a_secret_holds_is_refused in the linux-32 job"
+    },
+    {
+      "id": "AUD-022-BLD001",
+      "status": "verified",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "evidence": "Run 45722811012 at d54e1db: Windows GNU and wasm jobs passed"
+    },
+    {
+      "id": "AUD-022-BLD002",
+      "status": "fixed",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": null,
+      "evidence": "AUD-024 reading: every named reader is reached (notes-portable.md); 30-second local run of each target at d54e1db without a crash (fuzz-*.log)"
+    },
+    {
+      "id": "AUD-023-BLD001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "Not shown: CI builds --cfg fuzzing on the Linux host only"
+    },
+    {
+      "id": "AUD-023-BLD002",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: concurrency group in fuzz.yml"
+    },
+    {
+      "id": "AUD-024-BLD002",
+      "status": "verified",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: input::tests::keystrokes_build_and_take_back_a_line on every native job"
+    },
+    {
+      "id": "AUD-024-BLD003",
+      "status": "verified",
+      "fixCommit": "51cf8353382d02d4ae5fca425d84255198fb8da9",
+      "fixCommits": [
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verificationCommit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+      "evidence": "Run 45736641331 at 1a90855: the stack::clearing tests, in debug and in release, on macOS ARM64 and Intel and on Windows MSVC and GNU"
+    },
+    {
+      "id": "AUD-024-BLD004",
+      "status": "verified",
+      "fixCommit": "f5e8fc239c77207416509e89750b0b550c133ff4",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+        "51cf8353382d02d4ae5fca425d84255198fb8da9",
+        "f5e8fc239c77207416509e89750b0b550c133ff4"
+      ],
+      "verificationCommit": "f5e8fc239c77207416509e89750b0b550c133ff4",
+      "evidence": "Launch: Run 45736641331 at 1a90855, both launch-deadline tests. Terminal: Run 45739586059 at f5e8fc2: the checks job's step 'Check that no terminal change waits for output', which runs the 8 terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output; it fails without the restore's flush and with TCSAFLUSH"
+    },
+    {
+      "id": "AUD-024-BLD005",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: the role marks ABI below 8 as not checked; the user-namespace role checks the predicate from outside"
+    },
+    {
+      "id": "AUD-022-ARC001",
+      "status": "fixed",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": null,
+      "evidence": "Run 45722811012 at d54e1db: the wasm job's 8 fallback checks call every start"
+    },
+    {
+      "id": "AUD-024-ARC001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: the Sync safety comment of src/os.rs"
+    },
+    {
+      "id": "AUD-024-ARC002",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: wasm/Cargo.toml"
+    },
+    {
+      "id": "AUD-021-DOC001",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "evidence": "Text read against the code at 4d7d039"
+    },
+    {
+      "id": "AUD-021-DOC002",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "evidence": "Text read at 4d7d039"
+    },
+    {
+      "id": "AUD-021-DOC003",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "evidence": "Text read against the code at 4d7d039"
+    },
+    {
+      "id": "AUD-021-DOC004",
+      "status": "verified",
+      "fixCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "fixCommits": [
+        "4d7d03995baa09d4604be0636c8abe5f50ebd863"
+      ],
+      "verificationCommit": "4d7d03995baa09d4604be0636c8abe5f50ebd863",
+      "evidence": "Text read at 4d7d039"
+    },
+    {
+      "id": "AUD-022-DOC001",
+      "status": "verified",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "evidence": "Text read at d54e1db"
+    },
+    {
+      "id": "AUD-022-DOC002",
+      "status": "verified",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "evidence": "Text read at d54e1db"
+    },
+    {
+      "id": "AUD-022-DOC003",
+      "status": "verified",
+      "fixCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "fixCommits": [
+        "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898"
+      ],
+      "verificationCommit": "d54e1db7a2df2c054e69aef6b7e4d1fd8e56e898",
+      "evidence": "Text read at d54e1db; Intel job in Run 45722811012 at d54e1db"
+    },
+    {
+      "id": "AUD-023-DOC001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: the fuzz-build section of docs/API.md"
+    },
+    {
+      "id": "AUD-023-DOC002",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: console.rs and docs/TECHNICAL.md"
+    },
+    {
+      "id": "AUD-024-DOC001",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: src/stack.rs, docs/API.md, docs/TECHNICAL.md"
+    },
+    {
+      "id": "AUD-024-DOC003",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: src/stack.rs rustdoc and docs/API.md"
+    },
+    {
+      "id": "AUD-024-DOC004",
+      "status": "fixed",
+      "fixCommit": "51cf8353382d02d4ae5fca425d84255198fb8da9",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+        "51cf8353382d02d4ae5fca425d84255198fb8da9"
+      ],
+      "verificationCommit": null,
+      "evidence": "51cf835 diff: the worker starts with DETACHED_PROCESS, so it has no console, as the documents say"
+    },
+    {
+      "id": "AUD-024-DOC005",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: src/os/apple.rs and docs/TECHNICAL.md"
+    },
+    {
+      "id": "AUD-024-DOC006",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: docs/TECHNICAL.md"
+    },
+    {
+      "id": "AUD-024-DOC007",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: the NoCoreDumps row of docs/API.md"
+    },
+    {
+      "id": "AUD-024-DOC008",
+      "status": "fixed",
+      "fixCommit": "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5",
+      "fixCommits": [
+        "ebfb348573af2a47e4cd3d57601ccd2f208fe0b5"
+      ],
+      "verificationCommit": null,
+      "evidence": "ebfb348 diff: README rows 'iOS (device)' and 'Windows (x86-64)'"
+    }
+  ],
+  "fixCommits": [
+    {
+      "commit": "4d7d039",
+      "date": "2026-11-25",
+      "changes": "Linux worker channel as two socket pairs; every native reservation bounded by isize::MAX; no clock read where no worker can start; a late Unix exchange is TimedOut; the drain keeps its budget; four documentation fixes; CI runs the i686 tests.",
+      "findings": "All nine AUD-021 findings",
+      "check": "Run 45704549498 at 6a1c83b, all five jobs; WebAssembly probe at fb4c84b"
+    },
+    {
+      "commit": "6a1c83b",
+      "date": "2026-11-25",
+      "changes": "The stack test searches at every byte, as i686 aligns a u64 to 4 bytes.",
+      "findings": "Test fix found by the first i686 run",
+      "check": "Run 45704549498 at 6a1c83b"
+    },
+    {
+      "commit": "fb4c84b, 645c33f",
+      "date": "2026-11-25",
+      "changes": "Record AUD-021, its fixes and the WebAssembly check of AUD-021-API001.",
+      "findings": "AUD-021",
+      "check": "Records only"
+    },
+    {
+      "commit": "d54e1db",
+      "date": "2026-11-25",
+      "changes": "Yama read before a Linux launch; CI jobs for Windows GNU and WebAssembly; shared readers and three new fuzz targets, 90 s in release.yml and 30 min in fuzz.yml; deadline recheck in the private launcher; TCSAFLUSH restore; checked key counter; unsupported-target test; three documentation fixes.",
+      "findings": "All ten AUD-022 findings (SEC001 and FUN001 in part)",
+      "check": "Run 45722811012 at d54e1db, eight jobs; then AUD-023 and the AUD-024 baseline at this commit"
+    },
+    {
+      "commit": "ebfb348",
+      "date": "2026-11-26",
+      "changes": "No Linux worker where Yama is 0 or missing or in a user-owned namespace; NoMemoryReading Unknown there; tcflush before the restore, the filter allows TCFLSH with TCIFLUSH and refuses PR_SCHED_CORE; Windows process list without PROCESS_QUERY_LIMITED_INFORMATION; deadline read before the posix_spawn fallback; frame limit; cfg(fuzzing) gates; fuzz.yml concurrency; new tests; documentation.",
+      "findings": "AUD-022-SEC001, -FUN001 and -API001 completed; all eight AUD-023 findings; AUD-024 P-01 to P-09 except P-06, UL-1 to UL-5, AW-1, AW-4, AW-5, AW-7, AW-8, AW-9",
+      "check": "Run 45730851428 at ebfb348, eight jobs"
+    },
+    {
+      "commit": "51cf835",
+      "date": "2026-11-26",
+      "changes": "macOS NoMemoryReading confirmed only under the hardened runtime without get-task-allow (csops), with a CI step that signs and runs the isolation and worker tests; the Windows worker created suspended, its token's start-up default list set and read back, then resumed or ended; a less privileged AppContainer without a console (DETACHED_PROCESS) and with its extension-point, image-load and child-process policies from creation; with_cleared catches a panic, clears, then resumes it; stack tests on Linux, macOS and Windows and in release on every native job; a direct test of the deadline check in child.rs launch.",
+      "findings": "AW-2, AW-3, AW-6, P-06; AW-4 (console); AUD-023-API001 (test)",
+      "check": "Run 45736084902: failed only the Windows unit test a_worker_is_made_with_its_access_lists, on both toolchains"
+    },
+    {
+      "commit": "1a90855",
+      "date": "2026-11-26",
+      "changes": "Corrects that unit test: it reads the token's security attributes and asserts WIN://NOALLAPPPKG, the start-up default list, and the extension-point, image-load and child-process policies from creation.",
+      "findings": "AW-2, AW-6",
+      "check": "Run 45736641331 at 1a90855, all eight jobs"
+    },
+    {
+      "commit": "f5e8fc2",
+      "date": "2026-11-26",
+      "changes": "aarch64-apple-ios-sim joins the targets of rust-toolchain.toml, so CI lints it; the README and TARGETS.md name the simulator as built and linted. A CI step runs the terminal tests under strace, requires a TCFLSH and fails on any ioctl that waits for output, and, for macOS, on such a call in src.",
+      "findings": "AUD-023-FUN001; AUD-024-BLD004 (terminal half); AUD-022-FUN001 in part",
+      "check": "Run 45739586059 at f5e8fc2, all eight jobs"
+    }
+  ],
+  "finalVerification": {
+    "ciRun": 45739586059,
+    "commit": "f5e8fc239c77207416509e89750b0b550c133ff4",
+    "conclusion": "success",
+    "jobs": 8
+  },
+  "earlierVerification": {
+    "ciRun": 45736641331,
+    "commit": "1a9085531b09ca8cfa3ef3afa1aded74370ddc2f",
+    "conclusion": "success",
+    "jobs": 8
+  },
+  "labelMap": [
+    {
+      "label": "P-01",
+      "id": "AUD-024-SEC001",
+      "mergedInto": null
+    },
+    {
+      "label": "P-02",
+      "id": "AUD-024-BLD001",
+      "mergedInto": "AUD-023-BLD001"
+    },
+    {
+      "label": "P-03",
+      "id": "AUD-024-DOC001",
+      "mergedInto": null
+    },
+    {
+      "label": "P-04",
+      "id": "AUD-024-DOC002",
+      "mergedInto": "AUD-023-DOC001"
+    },
+    {
+      "label": "P-05",
+      "id": "AUD-024-BLD002",
+      "mergedInto": null
+    },
+    {
+      "label": "P-06",
+      "id": "AUD-024-BLD003",
+      "mergedInto": null
+    },
+    {
+      "label": "P-07",
+      "id": "AUD-024-ARC001",
+      "mergedInto": null
+    },
+    {
+      "label": "P-08",
+      "id": "AUD-024-ARC002",
+      "mergedInto": null
+    },
+    {
+      "label": "P-09",
+      "id": "AUD-024-DOC003",
+      "mergedInto": null
+    },
+    {
+      "label": "UL-1",
+      "id": "AUD-024-SEC002",
+      "mergedInto": null
+    },
+    {
+      "label": "UL-2",
+      "id": "AUD-024-SEC003",
+      "mergedInto": "AUD-023-SEC001"
+    },
+    {
+      "label": "UL-3",
+      "id": "AUD-024-SEC004",
+      "mergedInto": null
+    },
+    {
+      "label": "UL-4",
+      "id": "AUD-024-BLD004",
+      "mergedInto": null
+    },
+    {
+      "label": "UL-5",
+      "id": "AUD-024-BLD005",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-1",
+      "id": "AUD-024-SEC005",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-2",
+      "id": "AUD-024-SEC006",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-3",
+      "id": "AUD-024-SEC007",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-4",
+      "id": "AUD-024-DOC004",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-5",
+      "id": "AUD-024-DOC005",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-6",
+      "id": "AUD-024-SEC008",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-7",
+      "id": "AUD-024-DOC006",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-8",
+      "id": "AUD-024-DOC007",
+      "mergedInto": null
+    },
+    {
+      "label": "AW-9",
+      "id": "AUD-024-DOC008",
+      "mergedInto": null
+    }
+  ],
+  "statusCounts": {
+    "verified": 29,
+    "fixed": 18
+  },
+  "disagreements": [
+    "AUD-024-SEC001 (P-01) and AUD-024-ARC001 (P-07) are closed by documentation or a comment; the behaviour they describe is unchanged.",
+    "AUD-024-SEC005 to AUD-024-SEC007 and AUD-024-DOC004 (AW-1 to AW-4) rest on reasoning from vendor documentation. No native run reproduced the attacks: the CI tests show the narrower settings in force. AW-1 keeps the reader's High.",
+    "AUD-023-BLD001 names Windows; P-02 also found WebAssembly. One entry covers both.",
+    "Check counts differ by method: AUD-023 counted 69 checks on macOS at d54e1db; the same log has 70 ok lines.",
+    "Not shown by any check: that a key typed after the last drain is dropped (AUD-022-FUN001), and a --cfg fuzzing build on Windows and wasm32.",
+    "The AUD-024 reader notes set no release-blocking flags; this record applies one rule: a high or medium SEC finding blocks."
+  ],
+  "evidenceFiles": {
+    "folder": "docs/audits/AUD-024-evidence/",
+    "fromAuditEvidence": [
+      "asan-host.command.json",
+      "asan-host.log",
+      "asan-mlock-probe.command.json",
+      "asan-mlock-probe.log",
+      "audit-Cargo_lock.command.json",
+      "audit-Cargo_lock.log",
+      "audit-fuzz_Cargo_lock.command.json",
+      "audit-fuzz_Cargo_lock.log",
+      "audit-wasm_Cargo_lock.command.json",
+      "audit-wasm_Cargo_lock.log",
+      "ci-checks.log",
+      "ci-jobs.tsv",
+      "ci-linux-32.log",
+      "ci-native_macos-15-intel_.log",
+      "ci-native_macos-latest_.log",
+      "ci-native_ubuntu-24.04-arm_.log",
+      "ci-native_windows-latest_.log",
+      "ci-native_windows-latest_x86_64-pc-windows-gnu_.log",
+      "ci-wasm.log",
+      "clippy-aarch64-apple-darwin.command.json",
+      "clippy-aarch64-apple-darwin.log",
+      "clippy-aarch64-apple-ios.command.json",
+      "clippy-aarch64-apple-ios.log",
+      "clippy-aarch64-linux-android.command.json",
+      "clippy-aarch64-linux-android.log",
+      "clippy-aarch64-unknown-linux-gnu.command.json",
+      "clippy-aarch64-unknown-linux-gnu.log",
+      "clippy-armv5te-unknown-linux-gnueabi.command.json",
+      "clippy-armv5te-unknown-linux-gnueabi.log",
+      "clippy-fuzz.command.json",
+      "clippy-fuzz.log",
+      "clippy-host.command.json",
+      "clippy-host.log",
+      "clippy-i686-unknown-linux-gnu.command.json",
+      "clippy-i686-unknown-linux-gnu.log",
+      "clippy-wasm-checks.command.json",
+      "clippy-wasm-checks.log",
+      "clippy-wasm32-unknown-unknown.command.json",
+      "clippy-wasm32-unknown-unknown.log",
+      "clippy-x86_64-apple-darwin.command.json",
+      "clippy-x86_64-apple-darwin.log",
+      "clippy-x86_64-pc-windows-gnu.command.json",
+      "clippy-x86_64-pc-windows-gnu.log",
+      "clippy-x86_64-pc-windows-msvc.command.json",
+      "clippy-x86_64-pc-windows-msvc.log",
+      "deny-fuzz.command.json",
+      "deny-fuzz.log",
+      "deny-root.command.json",
+      "deny-root.log",
+      "deny-wasm.command.json",
+      "deny-wasm.log",
+      "doc-links.command.json",
+      "doc-links.log",
+      "dprint.command.json",
+      "dprint.log",
+      "environment.log",
+      "fmt-fuzz.command.json",
+      "fmt-fuzz.log",
+      "fmt-root.command.json",
+      "fmt-root.log",
+      "fmt-wasm.command.json",
+      "fmt-wasm.log",
+      "fuzz-cmin-editor.command.json",
+      "fuzz-cmin-editor.log",
+      "fuzz-cmin-frames.command.json",
+      "fuzz-cmin-frames.log",
+      "fuzz-cmin-keystrokes.command.json",
+      "fuzz-cmin-keystrokes.log",
+      "fuzz-cmin-report.command.json",
+      "fuzz-cmin-report.log",
+      "fuzz-cmin-roster.command.json",
+      "fuzz-cmin-roster.log",
+      "fuzz-cmin-setting.command.json",
+      "fuzz-cmin-setting.log",
+      "fuzz-editor.command.json",
+      "fuzz-editor.log",
+      "fuzz-fetch.command.json",
+      "fuzz-fetch.log",
+      "fuzz-frames.command.json",
+      "fuzz-frames.log",
+      "fuzz-keystrokes.command.json",
+      "fuzz-keystrokes.log",
+      "fuzz-report.command.json",
+      "fuzz-report.log",
+      "fuzz-roster.command.json",
+      "fuzz-roster.log",
+      "fuzz-setting.command.json",
+      "fuzz-setting.log",
+      "miri-host-strict.command.json",
+      "miri-host-strict.log",
+      "miri-host-tree.command.json",
+      "miri-host-tree.log",
+      "miri-i686-unknown-linux-gnu.command.json",
+      "miri-i686-unknown-linux-gnu.log",
+      "miri-s390x-unknown-linux-gnu.command.json",
+      "miri-s390x-unknown-linux-gnu.log",
+      "miri-wasip1.command.json",
+      "miri-wasip1.log",
+      "miri-wasm32.command.json",
+      "miri-wasm32.log",
+      "msrv-1.99.0-build.command.json",
+      "msrv-1.99.0-build.log",
+      "msrv-1.99.0-test.command.json",
+      "msrv-1.99.0-test.log",
+      "package-list.command.json",
+      "package-list.log",
+      "procedure-hashes.txt",
+      "rustc-cfg.log",
+      "semver-as-minor.command.json",
+      "semver-as-minor.log",
+      "semver-default.command.json",
+      "semver-default.log",
+      "source-manifest.digest",
+      "source-manifest.sha256",
+      "start-utc.txt",
+      "test-host-debug.command.json",
+      "test-host-debug.log",
+      "test-host-release.command.json",
+      "test-host-release.log",
+      "wasm-build.command.json",
+      "wasm-build.log",
+      "wasm-node.command.json",
+      "wasm-node.log",
+      "working-tree-diff.txt",
+      "working-tree.txt"
+    ],
+    "fromReaderNotes": {
+      "notes-portable.md": "notes/portable/review.md",
+      "notes-unix-linux.md": "notes/unix-linux/review.md",
+      "notes-apple-windows.md": "notes/apple-windows/review.md"
+    }
+  },
+  "limitations": [
+    "This record consolidates four audits of three snapshots (5cea35f, 2c312c6, d54e1db) and the fixes after them. Each finding keeps the snapshot of the audit that found it; results of one snapshot are not credited to another.",
+    "AUD-022 and AUD-023 have no reports of their own: this record carries their findings. Their evidence, like that of every audit, stays in local folders that .gitignore leaves out.",
+    "The AUD-024 local evidence is of d54e1db. Later commits are covered by CI (runs 45730851428 and 45736641331) and by a review of the change, not by a full audit.",
+    "No macOS, iOS, Android or Windows machine was used by AUD-024: the Apple and Windows findings are reasoned from the code and vendor documentation and checked only through CI.",
+    "Android and iOS have no runner; their rows are Clippy only.",
+    "A real Windows console, macOS access lists, volumes that ignore owners, a taken macOS probe name and a repeated macOS grant stay untested (TARGETS.md permanent gaps).",
+    "No long fuzz campaign ran; fuzz.yml's 30-minute runs start with the tag.",
+    "This is a record of tested coverage, not a certification that no defect remains."
+  ]
+}

@@ -227,6 +227,44 @@ Each ID below belongs to its original report. The status is the latest finding-s
 | AUD-021-DOC002 | ✅ verified | `4d7d039` | `4d7d039` | The API guide says that it follows 0.2.0 before its release and links the guide of the published 0.1.1. [AUD-021](AUD-021-2026-11-25.md) |
 | AUD-021-DOC003 | ✅ verified | `4d7d039` | `4d7d039` | The README and the API guide say that a grant holds where `FolderWrites` is confirmed, and that descriptors opened before isolation stay usable. [AUD-021](AUD-021-2026-11-25.md) |
 | AUD-021-DOC004 | ✅ verified | `4d7d039` | `4d7d039` | The notices link the fuzz lockfile in the repository and say that the package leaves it out. [AUD-021](AUD-021-2026-11-25.md) |
+| AUD-022-API001 | ✅ verified | `d54e1db`, `ebfb348` | `1a90855` | A fallback Unix launcher could start a worker after its deadline. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-ARC001 | fixed · verification pending | `d54e1db` | — | On targets where no worker starts, the test printed a pass without calling any start function. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-BLD001 | ✅ verified | `d54e1db` | `d54e1db` | The release could be packaged without running the tests on Windows GNU and WebAssembly, which have runners. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-BLD002 | fixed · verification pending | `d54e1db` | — | The fuzz targets left out request and answer frames, the clean-start byte, the Windows roster and channel grammar, and the line editor. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-DOC001 | ✅ verified | `d54e1db` | `d54e1db` | The target notes said WebAssembly shares the native stack tests. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-DOC002 | ✅ verified | `d54e1db` | `d54e1db` | The API guide applied the Unix 64 KiB input-queue limit to Windows. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-DOC003 | ✅ verified | `d54e1db` | `d54e1db` | The Intel macOS runner was described as GitHub's last one. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-FUN001 | fixed · verification pending | `d54e1db`, `ebfb348` | — | Keys typed between the last drain and the restore of the terminal settings were not dropped. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-FUN002 | ✅ verified | `d54e1db` | `d54e1db` | The count of keys past a full line could overflow on 32-bit systems. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-022-SEC001 | ✅ verified | `d54e1db`, `ebfb348` | `1a90855` | From exec until its isolation a Linux worker is dumpable, so another process of the user could take its channel while it starts. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-API001 | ✅ verified | `ebfb348` | `1a90855` | After the optional pidfd launcher, the posix_spawn fallback could start a worker past its deadline. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-API002 | ✅ verified | `ebfb348` | `1a90855` | On 32-bit systems a permitted frame length could exceed what a Secret can reserve, ending the process. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-BLD001 | fixed · verification pending | `ebfb348` | — | A build with --cfg fuzzing, which fuzzers pass to every crate, did not compile on Windows or WebAssembly. Also recorded as AUD-024-BLD001 (P-02). [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-BLD002 | fixed · verification pending | `ebfb348` | — | The long fuzz workflow let a superseded run continue. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-DOC001 | fixed · verification pending | `ebfb348` | — | The API guide listed 4 of the 11 functions of the fuzzing module. Also recorded as AUD-024-DOC002 (P-04). [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-DOC002 | fixed · verification pending | `ebfb348` | — | The Windows console text promised that keys typed after Enter go before echo resumes, while flush and restore are two calls. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-FUN001 | ✅ verified | `ebfb348` | `f5e8fc2` | The Linux terminal restore used TCSAFLUSH, which first waits for pending output, so hidden input could stay on and the reading lock held. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-023-SEC001 | ✅ verified | `ebfb348` | `1a90855` | Where the Linux start-up window was open (Yama 0), the parent downgraded only NoMemoryReading and still trusted the rest of a report another process could have written, then sent requests. Also recorded as AUD-024-SEC003 (UL-2). [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-ARC001 | fixed · verification pending | `ebfb348` | — | Region::allow and Pages::wipe_any are safe functions whose soundness rests on their callers, and the Sync safety comment was inaccurate. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-ARC002 | fixed · verification pending | `ebfb348` | — | The lint table of the wasm checks crate was partial without a stated reason. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-BLD002 | ✅ verified | `ebfb348` | `1a90855` | The SecretLine Debug test checked an empty line only, so it could not fail on a leak. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-BLD003 | ✅ verified | `51cf835` | `1a90855` | Stack clearing was tested on Linux only, although macOS and Windows are supported. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-BLD004 | ✅ verified | `ebfb348`, `51cf835`, `f5e8fc2` | `f5e8fc2` | The fixes of AUD-022-API001 and AUD-022-FUN001 had no test that fails without them. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-BLD005 | fixed · verification pending | `ebfb348` | — | Some tests could not fail where it matters: the Yama expectation copied the production predicate, and the all-threads role printed ok below Landlock ABI 8. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC001 | fixed · verification pending | `ebfb348` | — | The stated reason WebAssembly clears no stack was false for rustc's layout, where the stack comes first and a clearing would trap. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC003 | fixed · verification pending | `ebfb348` | — | StackError::Size was described without the sizes past isize::MAX, which give System(OutOfMemory). [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC004 | fixed · verification pending | `ebfb348`, `51cf835` | — | The docs said a Windows worker has no console, while CREATE_NO_WINDOW gave it a hidden one. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC005 | fixed · verification pending | `ebfb348` | — | 'The sandbox cannot tell one ioctl from another' was contradicted by macOS CI, which refused TIOCSTI with EPERM. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC006 | fixed · verification pending | `ebfb348` | — | The Windows AppContainer profile and folder of each program path stay after the worker ends, which no document said. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC007 | fixed · verification pending | `ebfb348` | — | macOS and iOS confirm NoCoreDumps while their crash reports keep the crashed thread's registers, which no document said. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-DOC008 | fixed · verification pending | `ebfb348` | — | The README's 'Windows' and 'iOS' rows named more targets than are built. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC001 | fixed · verification pending | `ebfb348` | — | A worker's announced reply length makes the parent reserve up to `most` bytes before any arrive, and end the process when the system refuses. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC002 | ✅ verified | `ebfb348` | `1a90855` | In a user namespace its user owns, Linux reported NoMemoryReading Confirmed while any process of the user could attach, read memory and take the worker's channel. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC004 | ✅ verified | `ebfb348` | `1a90855` | The Linux filter allowed prctl(PR_SCHED_CORE) on other processes and read-only opens of /proc/PID/mem, while the docs said calls acting on other processes were limited. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC005 | ✅ verified | `ebfb348` | `1a90855` | Windows: the process access list granted PROCESS_QUERY_LIMITED_INFORMATION, through which another process of the user could open the token and widen the default list of threads started later. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC006 | ✅ verified | `51cf835`, `1a90855` | `1a90855` | Windows: threads the system starts in the worker before its census kept the token's default list, so another process of the user could open one and keep the handle. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC007 | ✅ verified | `51cf835` | `1a90855` | macOS reported NoMemoryReading Confirmed from PT_DENY_ATTACH, which does not stop task_for_pid. [AUD-024](AUD-024-2026-11-26.md) |
+| AUD-024-SEC008 | ✅ verified | `51cf835`, `1a90855` | `1a90855` | The Windows worker ran in a full AppContainer instead of a less privileged one, and set its mitigation policies after its start-up code instead of at creation. [AUD-024](AUD-024-2026-11-26.md) |
 
 ## Native verification after AUD-015
 
