@@ -716,7 +716,7 @@ fn expect_whole_process(isolation: Isolation) {
     #[cfg(target_os = "macos")]
     assert!(
         isolation.no_core_dumps
-            && isolation.no_memory_reading
+            && isolation.no_memory_reading == support::hardened()
             && isolation.no_new_sockets
             && isolation.no_file_changes,
         "{isolation:?}"

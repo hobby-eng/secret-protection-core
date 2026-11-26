@@ -188,4 +188,39 @@ mod tests {
         let fd = unsafe { OwnedFd::from_raw_fd(libc::c_int::try_from(pidfd).unwrap()) };
         assert!(Child::Descriptor(Arc::new(fd)).terminate());
     }
+
+    /// The launch reads the deadline again before posix_spawn, the fallback from pidfd_spawn: one
+    /// already past starts nothing.
+    #[test]
+    fn a_fallback_launch_past_its_deadline_starts_nothing() {
+        let mut actions = std::mem::MaybeUninit::uninit();
+        let mut attributes = std::mem::MaybeUninit::uninit();
+        // SAFETY: each init sets up its value in the space given; both are destroyed below.
+        unsafe {
+            assert_eq!(libc::posix_spawn_file_actions_init(actions.as_mut_ptr()), 0);
+            assert_eq!(libc::posix_spawnattr_init(attributes.as_mut_ptr()), 0);
+        }
+        let program = c"/bin/true";
+        let arguments = [program.as_ptr(), std::ptr::null()];
+        let environment = [std::ptr::null()];
+        let past = Some(std::time::Instant::now());
+        let refused = launch(
+            program,
+            &actions,
+            &attributes,
+            &arguments,
+            &environment,
+            false,
+            past,
+        );
+        // SAFETY: both were set up above and are used no more.
+        unsafe {
+            libc::posix_spawn_file_actions_destroy(actions.as_mut_ptr());
+            libc::posix_spawnattr_destroy(attributes.as_mut_ptr());
+        }
+        assert_eq!(
+            refused.err().map(|error| error.kind()),
+            Some(io::ErrorKind::TimedOut)
+        );
+    }
 }

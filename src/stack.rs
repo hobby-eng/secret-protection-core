@@ -84,38 +84,31 @@ pub const CLEARED_STACK_BYTES: usize = 128 * 1024;
 /// Runs `work` in a frame of its own, then overwrites [`CLEARED_STACK_BYTES`] of the calling
 /// thread's stack below the caller's frame, where `work` and what it called kept their locals:
 /// copies that moves leave behind, and the state of dependencies that never wipe it, such as hash
-/// and block buffers; also when `work` panics and unwinds. Best effort: how deep `work` wrote is
+/// and block buffers; also when `work` panics, as the panic is caught and resumed after the
+/// clearing. A foreign exception is caught as `catch_unwind` catches one: the program aborts, or
+/// it goes on as a panic. Best effort: how deep `work` wrote is
 /// not measured, and the thread needs that much free stack. What `work` captures and returns
 /// passes through frames above, which stay as they are, and so do registers, heap copies and
 /// other threads' stacks. WebAssembly overwrites nothing (docs/API.md).
 #[inline(never)]
 pub fn with_cleared_stack<T>(work: impl FnOnce() -> T) -> T {
-    let _cleared = Cleared::<CLEARED_STACK_BYTES>;
-    below_cushion(work)
+    with_cleared::<CLEARED_STACK_BYTES, T>(work)
 }
 
 /// As [`with_cleared_stack`], with `BYTES` overwritten: for shallow work on a thread that may
-/// have less stack to spare.
-#[cfg(any(unix, windows))]
+/// have less stack to spare. A panic is caught, and raised again once the stack is cleared: the
+/// MSVC toolchain runs the drops of an unwinding panic below the frames that panicked, where a
+/// clearing would miss them.
 #[inline(never)]
 pub(crate) fn with_cleared<const BYTES: usize, T>(work: impl FnOnce() -> T) -> T {
-    let _cleared = Cleared::<BYTES>;
-    below_cushion(work)
+    let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| below_cushion(work)));
+    clear::<BYTES>();
+    done.unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
-/// Overwrites `BYTES` of the stack when it is dropped: after the work returned, and while a
-/// panic unwinds through the frame that holds it, below which the work's frames were.
-struct Cleared<const BYTES: usize>;
-
-impl<const BYTES: usize> Drop for Cleared<BYTES> {
-    fn drop(&mut self) {
-        clear::<BYTES>();
-    }
-}
-
-/// Stack the work's frames keep free below the frame that holds [`Cleared`]: more than the
-/// frames of dropping it take before the cleared bytes start, in an instrumented build too, so
-/// that the clearing reaches the top of the work's frames.
+/// Stack the work's frames keep free below the frame that clears: more than the frames of the
+/// clearing take before the cleared bytes start, in an instrumented build too, so that the
+/// clearing reaches the top of the work's frames.
 const CUSHION_BYTES: usize = 2 << 10;
 
 /// Runs `work` below [`CUSHION_BYTES`] of this frame, never written.
@@ -156,19 +149,25 @@ fn clear<const BYTES: usize>() {
 }
 
 #[cfg(test)]
-#[cfg(target_os = "linux")]
-mod tests {
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[allow(
+    unsafe_code,
+    reason = "mach_vm_read_overwrite and ReadProcessMemory are foreign functions"
+)]
+mod clearing {
     use super::*;
     use std::hint::black_box;
 
     /// After the clearing the stack below the caller holds none of the work. Work left uncleared
     /// shows that the reading finds what is there; it has a mark of its own, as the clearing
-    /// starts below the frames of `with_cleared_stack` and not where that work was.
+    /// starts below the frames of `with_cleared_stack` and not where that work was. A clearing
+    /// first makes the pages read exist: Windows commits a page of a stack when it is first used.
     #[test]
     fn a_cleared_stack_holds_none_of_the_work() {
         /// "SPC_STK!" and "SPC_SEE!", which nothing else on the stack holds.
         const MARK: u64 = 0x5350_435f_5354_4b21;
         const SEEN: u64 = 0x5350_435f_5345_4521;
+        clear_stack();
         assert_eq!(work(SEEN), !SEEN);
         assert!(stack_holds(!SEEN));
         assert_eq!(with_cleared_stack(|| work(MARK)), !MARK);
@@ -226,24 +225,85 @@ mod tests {
     /// what is cleared, less a margin for the frames of the clearing itself, as an instrumented
     /// build makes every frame larger. The word itself is made only after the reading, so that
     /// neither an argument saved on the stack nor a register saved by a callee puts it in the
-    /// window. It is read through the kernel, since Rust may not read memory no value was
+    /// window. It is read through the system, since Rust may not read memory no value was
     /// written to.
     #[inline(never)]
     fn stack_holds(complement: u64) -> bool {
-        use std::os::unix::fs::FileExt;
         let frame = 0u64;
-        let end = black_box(&raw const frame) as u64;
+        let end = black_box(&raw const frame) as usize;
         let mut below = vec![0u8; CLEARED_STACK_BYTES - (16 << 10)];
-        let start = end - below.len() as u64;
-        std::fs::File::open("/proc/self/mem")
-            .unwrap()
-            .read_exact_at(&mut below, start)
-            .unwrap();
+        read_own(end - below.len(), &mut below);
         let word = (!black_box(complement)).to_ne_bytes();
         // At every byte: 32-bit x86 aligns a `u64` to 4 bytes only, so the frames' words need not
         // start where 8-byte steps from the window's start would look.
         below.windows(word.len()).any(|bytes| bytes == word)
     }
+
+    /// Reads `into.len()` bytes of this process's memory from `start`, through the system.
+    #[cfg(target_os = "linux")]
+    fn read_own(start: usize, into: &mut [u8]) {
+        use std::os::unix::fs::FileExt;
+        let memory = std::fs::File::open("/proc/self/mem").unwrap();
+        memory.read_exact_at(into, start as u64).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    fn read_own(start: usize, into: &mut [u8]) {
+        // The task port of the process, which libc declares only as deprecated.
+        unsafe extern "C" {
+            static mach_task_self_: libc::mach_port_t;
+            fn mach_vm_read_overwrite(
+                task: libc::mach_port_t,
+                address: u64,
+                size: u64,
+                data: u64,
+                read: *mut u64,
+            ) -> libc::kern_return_t;
+        }
+        let mut read = 0;
+        // SAFETY: the call writes at most `into.len()` bytes, into `into`, and the count into
+        // `read`; the task port is the process's own, which the C library set up.
+        let status = unsafe {
+            mach_vm_read_overwrite(
+                mach_task_self_,
+                start as u64,
+                into.len() as u64,
+                into.as_mut_ptr() as u64,
+                &raw mut read,
+            )
+        };
+        assert_eq!((status, read), (0, into.len() as u64));
+    }
+
+    #[cfg(windows)]
+    fn read_own(start: usize, into: &mut [u8]) {
+        use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        let mut read = 0;
+        // SAFETY: the call writes at most `into.len()` bytes, into `into`, and the count into
+        // `read`; the handle is the constant that names the process itself.
+        let done = unsafe {
+            ReadProcessMemory(
+                GetCurrentProcess(),
+                start as *const _,
+                into.as_mut_ptr().cast(),
+                into.len(),
+                &raw mut read,
+            )
+        };
+        assert!(
+            done != 0 && read == into.len(),
+            "{}",
+            io::Error::last_os_error()
+        );
+    }
+}
+
+/// The protected stack, which only Linux reads back here.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod tests {
+    use super::*;
 
     /// A refused protected stack says which refusal it was.
     #[test]

@@ -19,8 +19,14 @@ pub(crate) fn enter_granting(_options: Options, folders: &[&crate::WritableFolde
     );
     #[cfg(target_os = "macos")]
     {
-        // Before the sandbox, which may not allow the call.
-        let reading = macos::refuse_debuggers();
+        // Before the sandbox, which may not allow the calls. PT_DENY_ATTACH stops ptrace, not
+        // task_for_pid: only the signature's hardened runtime, without get-task-allow, keeps a
+        // debugging tool of the user from the memory.
+        let reading = match (macos::refuse_debuggers(), macos::hardened()) {
+            (Outcome::Confirmed, Some(true)) => Outcome::Confirmed,
+            (Outcome::Confirmed, _) => Outcome::Unknown,
+            (refused, _) => refused,
+        };
         let paths = macos::folder_paths(folders);
         let (sockets, files, granted) = macos::enter_sandbox(paths.as_deref().unwrap_or_default());
         let writes = match (folders.is_empty(), granted) {
@@ -56,6 +62,12 @@ mod macos {
     use crate::Outcome;
 
     unsafe extern "C" {
+        fn csops(
+            pid: libc::pid_t,
+            ops: libc::c_uint,
+            status: *mut libc::c_void,
+            size: libc::size_t,
+        ) -> libc::c_int;
         fn sandbox_init(
             profile: *const libc::c_char,
             flags: u64,
@@ -146,6 +158,29 @@ mod macos {
         }
         found
     }
+    /// CS_OPS_STATUS of sys/codesign.h, and the status flags it reports: the hardened runtime, and
+    /// the get-task-allow entitlement, which lets a debugger in anyway.
+    const STATUS: libc::c_uint = 0;
+    const RUNTIME: u32 = 0x0001_0000;
+    const GET_TASK_ALLOW: u32 = 0x0000_0004;
+
+    /// Whether the code signature keeps other processes of the user from the memory: the hardened
+    /// runtime, without get-task-allow. `None` when the status cannot be read.
+    pub(super) fn hardened() -> Option<bool> {
+        let mut flags = 0u32;
+        // SAFETY: csops writes at most the four bytes of status into `flags`, which lives for
+        // the call; getpid takes nothing.
+        let read = unsafe {
+            csops(
+                libc::getpid(),
+                STATUS,
+                (&raw mut flags).cast(),
+                size_of::<u32>(),
+            )
+        } == 0;
+        read.then_some(flags & RUNTIME != 0 && flags & GET_TASK_ALLOW == 0)
+    }
+
     /// P_TRACED of sys/proc.h, as `kern.proc.pid` reports it in `kp_proc.p_flag`.
     const TRACED: i32 = 0x0000_0800;
 
@@ -591,9 +626,15 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
     Some(match (protection, outcome) {
         (P::NoCoreDumps, O::Confirmed) => "RLIMIT_CORE reads back 0",
         (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE did not read back 0",
-        (P::NoMemoryReading, O::Confirmed) => "PT_DENY_ATTACH accepted, with no debugger attached",
+        (P::NoMemoryReading, O::Confirmed) => {
+            "PT_DENY_ATTACH accepted with no debugger attached, under the hardened runtime without \
+             get-task-allow"
+        }
         (P::NoMemoryReading, O::Refused) => "a debugger is attached, or PT_DENY_ATTACH was refused",
-        (P::NoMemoryReading, O::Unknown) => "the process could not be asked whether it is traced",
+        (P::NoMemoryReading, O::Unknown) => {
+            "the process could not be asked whether it is traced, or it runs without the hardened \
+             runtime or with get-task-allow, so a debugging tool of the user may read it"
+        }
         (P::NoNewPrograms, O::Unknown) => "the sandbox profile allows no new program; not probed",
         (P::NoNewPrograms, O::Refused) => "the sandbox was not entered",
         (P::NoNewSockets, O::Confirmed) => {

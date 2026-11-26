@@ -37,11 +37,11 @@ pub(crate) struct WorkerProcess {
 }
 
 impl WorkerProcess {
-    /// Starts this program again in its own AppContainer: no capabilities, a hidden console of its
-    /// own, no handle inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker
-    /// variable with its options, pipe name and launch nonce. The program file must be readable by
-    /// app containers (Program Files is), or Windows refuses to start it. No worker on the terminal
-    /// here.
+    /// Starts this program again in its own AppContainer: no capabilities, no console, no handle
+    /// inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker variable with
+    /// its options, pipe name and launch nonce. The program file must be readable by less
+    /// privileged app containers (Program Files is), or Windows refuses to start it. No worker on
+    /// the terminal here.
     pub(crate) fn start(
         setting: &str,
         terminal: bool,
@@ -443,7 +443,7 @@ fn user() -> io::Result<String> {
 }
 
 /// A SID as the text an access list names it by.
-fn sid_text(sid: PSID) -> io::Result<String> {
+pub(super) fn sid_text(sid: PSID) -> io::Result<String> {
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
     let mut text: *mut u16 = ptr::null_mut();
     // SAFETY: the SID is valid; the call allocates a NUL-terminated string, freed below.
@@ -504,12 +504,61 @@ impl Container {
 
     /// Starts the program at `path` in this AppContainer, without capabilities, without one
     /// handle of this process's and without standard streams, with the worker's variable and
-    /// [`SYSTEM_VARIABLES`] as its environment. Returns the process and its number.
+    /// [`SYSTEM_VARIABLES`] as its environment. Returns the process and its number. It starts
+    /// suspended and runs only once its token's default list is the start-up list: a thread that
+    /// Windows starts in it before its census, such as the loader's, is as closed as the first.
     fn start(&self, path: &[u16], setting: &str) -> io::Result<(OwnedHandle, u32)> {
-        let (process, thread, id) = self.create(path, setting, 0)?;
+        use windows_sys::Win32::System::Threading::{
+            CREATE_SUSPENDED, ResumeThread, TerminateProcess,
+        };
+        let (process, thread, id) = self.create(path, setting, CREATE_SUSPENDED)?;
+        let resumed = self.give_start_up_list(&process).and_then(|()| {
+            // SAFETY: the first thread of the suspended worker, whose handle this call owns.
+            if unsafe { ResumeThread(thread.as_raw_handle()) } == u32::MAX {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+        if let Err(error) = resumed {
+            // SAFETY: the handle of the worker this call made, which never ran.
+            unsafe { TerminateProcess(process.as_raw_handle(), 1) };
+            return Err(error);
+        }
         drop(thread);
         let limited = limited_process(&process)?;
         Ok((limited, id))
+    }
+
+    /// Gives the token of the suspended worker `process` the start-up list as its default list,
+    /// and checks that it reads back so.
+    fn give_start_up_list(&self, process: &OwnedHandle) -> io::Result<()> {
+        use windows_sys::Win32::Security::{TOKEN_ADJUST_DEFAULT, TOKEN_QUERY};
+        use windows_sys::Win32::System::Threading::OpenProcessToken;
+        let access = super::start_up_access(&sid_text(self.0)?);
+        let mut token = ptr::null_mut();
+        // SAFETY: the worker's full process handle, which the caller owns; the call writes the
+        // token's handle, closed below.
+        let opened = unsafe {
+            OpenProcessToken(
+                process.as_raw_handle(),
+                TOKEN_ADJUST_DEFAULT | TOKEN_QUERY,
+                &mut token,
+            )
+        } != 0;
+        if !opened {
+            return Err(io::Error::last_os_error());
+        }
+        let set = super::restrict_default(token, access.as_ptr());
+        // SAFETY: closes the token's handle opened above, once.
+        unsafe { CloseHandle(token) };
+        if set {
+            Ok(())
+        } else {
+            Err(io::Error::other(
+                "the worker's token did not take its start-up access list",
+            ))
+        }
     }
 
     /// Makes the worker's process with `flags` beside the launcher's own. The process and its
@@ -523,7 +572,7 @@ impl Container {
     ) -> io::Result<(OwnedHandle, OwnedHandle, u32)> {
         use std::os::windows::ffi::OsStrExt;
         use windows_sys::Win32::System::Threading::{
-            CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT, CreateProcessW,
+            CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DETACHED_PROCESS,
             EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION, STARTUPINFOEXW,
         };
         let attributes = Attributes::new(self.0)?;
@@ -563,7 +612,7 @@ impl Container {
                 0,
                 EXTENDED_STARTUPINFO_PRESENT
                     | CREATE_UNICODE_ENVIRONMENT
-                    | CREATE_NO_WINDOW
+                    | DETACHED_PROCESS
                     | flags,
                 environment.as_mut_ptr().cast(),
                 ptr::null(),
@@ -624,61 +673,116 @@ impl Drop for Container {
     }
 }
 
-/// The attribute list of a worker's start: its AppContainer. Deleted when dropped, which
-/// happens only for a list that was initialized.
+/// The attribute list of a worker's start, deleted when dropped, which happens only for a list
+/// that was initialized. The worker gets its AppContainer, of the less privileged kind, without
+/// ALL APPLICATION PACKAGES, and from its creation the mitigation policies it would otherwise set
+/// on itself after its start-up code: no child process, no extension points, no unknown image.
+/// Its job it still makes itself: Windows nests no job with desktop limits in another, so one
+/// given at creation would fail the start of a launcher that runs in any job.
 struct Attributes {
     list: windows_sys::Win32::System::Threading::LPPROC_THREAD_ATTRIBUTE_LIST,
     _memory: Vec<u64>,
-    _capabilities: Box<windows_sys::Win32::Security::SECURITY_CAPABILITIES>,
+    _values: Box<Values>,
 }
+
+/// What the attributes point to, which lives as long as the list.
+struct Values {
+    capabilities: windows_sys::Win32::Security::SECURITY_CAPABILITIES,
+    packages: u32,
+    mitigations: u64,
+    children: u32,
+}
+
+/// How many attributes a worker's start has.
+const ATTRIBUTES: u32 = 4;
+
+/// PROCESS_CREATION_MITIGATION_POLICY_*_ALWAYS_ON of winbase.h for the policies the worker also
+/// sets on itself: extension points disabled (bit 32), and no remote image (52), none with a low
+/// label (56), System32's copy first (60).
+const CREATION_MITIGATIONS: u64 = (1 << 32) | (1 << 52) | (1 << 56) | (1 << 60);
 
 impl Attributes {
     fn new(container: PSID) -> io::Result<Self> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
-            InitializeProcThreadAttributeList, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
-            UpdateProcThreadAttribute,
+            InitializeProcThreadAttributeList,
+            PROC_THREAD_ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY,
+            PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, UpdateProcThreadAttribute,
         };
-        let capabilities = Box::new(SECURITY_CAPABILITIES {
-            AppContainerSid: container,
-            Capabilities: ptr::null_mut(),
-            CapabilityCount: 0,
-            Reserved: 0,
+        use windows_sys::Win32::System::WindowsProgramming::{
+            PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT,
+            PROCESS_CREATION_CHILD_PROCESS_RESTRICTED,
+        };
+        let values = Box::new(Values {
+            capabilities: SECURITY_CAPABILITIES {
+                AppContainerSid: container,
+                Capabilities: ptr::null_mut(),
+                CapabilityCount: 0,
+                Reserved: 0,
+            },
+            packages: PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT,
+            mitigations: CREATION_MITIGATIONS,
+            children: PROCESS_CREATION_CHILD_PROCESS_RESTRICTED,
         });
         let mut size = 0;
-        // SAFETY: with no list, the call only answers the size of a list of one attribute.
-        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut size) };
+        // SAFETY: with no list, the call only answers the size of a list of the attributes.
+        unsafe { InitializeProcThreadAttributeList(ptr::null_mut(), ATTRIBUTES, 0, &mut size) };
         let mut memory = vec![0_u64; size.div_ceil(8)];
         let list = memory.as_mut_ptr().cast();
         // SAFETY: the memory has the size the first call asked for.
-        if unsafe { InitializeProcThreadAttributeList(list, 1, 0, &mut size) } == 0 {
+        if unsafe { InitializeProcThreadAttributeList(list, ATTRIBUTES, 0, &mut size) } == 0 {
             // Not initialized: there is nothing to delete.
             return Err(io::Error::last_os_error());
         }
         let attributes = Self {
             list,
             _memory: memory,
-            _capabilities: capabilities,
+            _values: values,
         };
-        // SAFETY: the list is initialized with room for one attribute, which points to the boxed
-        // capabilities: they live as long as the list.
-        let updated = unsafe {
-            UpdateProcThreadAttribute(
-                list,
-                0,
-                PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES as usize,
-                (&raw const *attributes._capabilities).cast(),
+        let value = &*attributes._values;
+        let entries: [(u32, *const core::ffi::c_void, usize); ATTRIBUTES as usize] = [
+            (
+                PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+                (&raw const value.capabilities).cast(),
                 size_of::<SECURITY_CAPABILITIES>(),
-                ptr::null_mut(),
-                ptr::null(),
-            )
-        } != 0;
-        if updated {
-            Ok(attributes)
-        } else {
-            // The error of the update, read before the drop of the list replaces it.
-            Err(io::Error::last_os_error())
+            ),
+            (
+                PROC_THREAD_ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY,
+                (&raw const value.packages).cast(),
+                size_of::<u32>(),
+            ),
+            (
+                PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+                (&raw const value.mitigations).cast(),
+                size_of::<u64>(),
+            ),
+            (
+                PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY,
+                (&raw const value.children).cast(),
+                size_of::<u32>(),
+            ),
+        ];
+        for (attribute, pointer, length) in entries {
+            // SAFETY: the list is initialized with room for every attribute; each points into
+            // the boxed values, which live as long as the list.
+            let updated = unsafe {
+                UpdateProcThreadAttribute(
+                    list,
+                    0,
+                    attribute as usize,
+                    pointer,
+                    length,
+                    ptr::null_mut(),
+                    ptr::null(),
+                )
+            } != 0;
+            if !updated {
+                // The error of the update, read before the drop of the list replaces it.
+                return Err(io::Error::last_os_error());
+            }
         }
+        Ok(attributes)
     }
 }
 
@@ -695,7 +799,7 @@ pub(crate) fn starts_clean() -> bool {
     true
 }
 
-/// A worker is started with a hidden console of its own, never its parent's.
+/// A worker is started without a console.
 pub(crate) fn leave_terminal() -> bool {
     true
 }
@@ -839,6 +943,9 @@ mod handle_tests {
         let path: Vec<u16> = program.as_os_str().encode_wide().chain([0]).collect();
         let container = super::Container::of(&path)?;
         let (process, thread, id) = container.create(&path, "0,0,none,0", CREATE_SUSPENDED)?;
+        let start_up = container.give_start_up_list(&process);
+        let less_privileged = less_privileged(&process);
+        let mitigated = mitigated_from_creation(&process);
         let holds = |object: &std::os::windows::io::OwnedHandle, access| {
             super::super::with_access_list(access, |wanted| {
                 super::super::access_reads_back(object.as_raw_handle().cast(), wanted)
@@ -872,7 +979,78 @@ mod handle_tests {
             "another process of the user could open the worker's memory (opened {opened}, error \
              {error})"
         );
+        assert!(
+            start_up.is_ok(),
+            "the worker's token did not take its start-up list: {start_up:?}"
+        );
+        assert!(
+            less_privileged,
+            "the worker is not in a less privileged AppContainer"
+        );
+        assert!(
+            mitigated,
+            "the worker was made without its mitigation policies"
+        );
         Ok(())
+    }
+
+    /// Whether the token of the worker `process` is of a less privileged AppContainer. False when
+    /// it cannot be read, so that the caller still ends the worker before it asserts.
+    fn less_privileged(process: &std::os::windows::io::OwnedHandle) -> bool {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::Security::{
+            GetTokenInformation, TOKEN_QUERY, TokenIsLessPrivilegedAppContainer,
+        };
+        use windows_sys::Win32::System::Threading::OpenProcessToken;
+        let mut token = std::ptr::null_mut();
+        // SAFETY: the worker's full process handle; the call writes the token's handle, closed
+        // below.
+        if unsafe { OpenProcessToken(process.as_raw_handle(), TOKEN_QUERY, &mut token) } == 0 {
+            return false;
+        }
+        let (mut value, mut length) = (0_u32, 0);
+        // SAFETY: the call writes at most one DWORD into `value`, and the length it needed.
+        let read = unsafe {
+            GetTokenInformation(
+                token,
+                TokenIsLessPrivilegedAppContainer,
+                (&raw mut value).cast(),
+                size_of::<u32>() as u32,
+                &mut length,
+            )
+        } != 0;
+        // SAFETY: closes the token's handle opened above, once.
+        unsafe { CloseHandle(token) };
+        read && value != 0
+    }
+
+    /// Whether the worker `process` has, from its creation, the mitigation policies it would set
+    /// on itself: no extension points, images only from known places, no child process.
+    fn mitigated_from_creation(process: &std::os::windows::io::OwnedHandle) -> bool {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::System::Threading::{
+            GetProcessMitigationPolicy, PROCESS_MITIGATION_POLICY, ProcessChildProcessPolicy,
+            ProcessExtensionPointDisablePolicy, ProcessImageLoadPolicy,
+        };
+        let has = |policy: PROCESS_MITIGATION_POLICY, flags: u32| {
+            let mut read = 0_u32;
+            // SAFETY: the policy writes one DWORD; the handle is the worker's full one.
+            let got = unsafe {
+                GetProcessMitigationPolicy(
+                    process.as_raw_handle(),
+                    policy,
+                    (&raw mut read).cast(),
+                    size_of::<u32>(),
+                )
+            } != 0;
+            got && read & flags == flags
+        };
+        has(
+            ProcessExtensionPointDisablePolicy,
+            super::super::NO_EXTENSION_POINTS,
+        ) && has(ProcessImageLoadPolicy, super::super::KNOWN_IMAGES)
+            && has(ProcessChildProcessPolicy, super::super::NO_CHILD_PROCESSES)
     }
 
     /// Removes the debug privilege from the token of this test process, as the isolation tests

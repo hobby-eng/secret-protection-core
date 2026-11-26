@@ -515,7 +515,11 @@ fn required() -> Vec<Protection> {
     if support::initial_pid_namespace() {
         required.push(Protection::NoMemoryReading);
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    if support::hardened() {
+        required.push(Protection::NoMemoryReading);
+    }
+    #[cfg(windows)]
     required.push(Protection::NoMemoryReading);
     if cfg!(unix) {
         required.push(Protection::NoCoreDumps);

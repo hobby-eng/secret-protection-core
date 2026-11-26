@@ -114,18 +114,29 @@ jobs:
           persist-credentials: false
       - name: Install the pinned Rust toolchain
         run: rustup show
-      # A worker runs in an AppContainer, which starts only a program file that application
-      # packages may read and run, as the files under Program Files are.
-      - name: Let application packages read and run the test programs
+      # A worker runs in a less privileged AppContainer, which starts only a program file that
+      # ALL RESTRICTED APPLICATION PACKAGES may read and run, as the files under Program Files are.
+      - name: Let restricted application packages read and run the test programs
         if: runner.os == 'Windows'
         run: |
           New-Item -ItemType Directory -Force target | Out-Null
-          icacls target /grant "*S-1-15-2-1:(OI)(CI)RX"
+          icacls target /grant "*S-1-15-2-2:(OI)(CI)RX"
       - name: Run the tests
         run: cargo test --locked --no-fail-fast ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
       - name: Run the stack-clearing tests in the release profile
-        if: runner.os == 'Linux'
-        run: "cargo test --locked --release --lib stack::"
+        run: "cargo test --locked --release --lib ${{ matrix.target && format('--target {0}', matrix.target) || '' }} stack::"
+      # macOS confirms NoMemoryReading only under the hardened runtime: the isolation and worker
+      # programs again, ad hoc signed with it.
+      - name: Run the isolation and worker tests under the hardened runtime
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          for test in isolation worker; do
+            binary=$(cargo test --locked --no-run --test "$test" --message-format=json \
+              | jq -r 'select(.executable != null) | .executable')
+            codesign --sign - --force --options runtime "$binary"
+            SECRET_PROTECTION_CORE_TEST_HARDENED=1 "$binary"
+          done
 
   # The WebAssembly build has no test runner: wasm/ builds a module of checks, which Node runs.
   # Heap buffers, input encoding, and Unsupported from everything that needs processes, stacks or

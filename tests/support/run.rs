@@ -125,6 +125,13 @@ pub(crate) fn attaching_restricted() -> bool {
         .is_ok_and(|scope| matches!(scope.first(), Some(b'1'..=b'3')))
 }
 
+/// Whether CI signed this test program with the hardened runtime, as it does in a run of its own:
+/// only then does macOS confirm `NoMemoryReading`.
+#[cfg(target_os = "macos")]
+pub(crate) fn hardened() -> bool {
+    std::env::var_os("SECRET_PROTECTION_CORE_TEST_HARDENED").is_some()
+}
+
 /// Whether the program started in the first user namespace, where no process of its user outside
 /// it holds the right to attach to it. Read once: main calls it before any isolation moves the
 /// process into a namespace of its own.

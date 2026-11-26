@@ -277,6 +277,18 @@ const PROCESS_ACCESS: PCWSTR = w!("D:P(A;;0x100001;;;OW)");
 /// THREAD_QUERY_LIMITED_INFORMATION (0x0012_0800). READ_CONTROL lets a later call read the lists
 /// back, which it can no longer change.
 const THREAD_ACCESS: PCWSTR = w!("D:P(A;;0x120800;;;OW)");
+
+/// The default list a worker's token has from its start until its census (`worker::Container`):
+/// [`THREAD_ACCESS`], and the same rights for the worker's `package` SID, without which the
+/// worker, an AppContainer process, could not open the threads Windows starts in it meanwhile and
+/// read their lists back. No process gets more than THREAD_ACCESS gives the user.
+fn start_up_access(package: &str) -> Vec<u16> {
+    format!("D:P(A;;0x120800;;;OW)(A;;0x120800;;;{package})")
+        .encode_utf16()
+        .chain([0])
+        .collect()
+}
+
 /// MAXIMUM_ALLOWED of winnt.h: a handle with every right that the object's list grants.
 const MAXIMUM_ALLOWED: u32 = 0x0200_0000;
 /// The low mandatory level (S-1-16-4096), and its last sub-authority, SECURITY_MANDATORY_LOW_RID.
@@ -339,12 +351,19 @@ fn enter_with_census<E>(
     // SAFETY: the pseudo handle of this process needs no closing and has every right to it,
     // WRITE_DAC included.
     let process = restrict_access(unsafe { GetCurrentProcess() }, PROCESS_ACCESS);
-    let default_list = opened && restrict_default(token);
+    let default_list = opened && restrict_default(token, THREAD_ACCESS);
     // SAFETY: only a successful token open transfers ownership. Keep the token owned
     // across protocol errors so an interrupted startup cannot leak it.
     let _token_owner = opened.then(|| unsafe { OwnedHandle::from_raw_handle(token.cast()) });
+    // A worker's threads that Windows started before this point keep their start-up list.
+    let start_up = if opened { start_up_list(token) } else { None };
     let mut pinned = BTreeMap::new();
-    let (threads, _) = inspect_threads(census(threads::Phase::Access)?, true, &mut pinned);
+    let (threads, _) = inspect_threads(
+        census(threads::Phase::Access)?,
+        true,
+        start_up.as_ref().and_then(Descriptor::access_list),
+        &mut pinned,
+    );
     // Low integrity keeps the process from writing up, but not where a low label allows it, such
     // as AppData\LocalLow: it is applied, and file changes stay unreported. An AppContainer
     // token is lower still and refuses the change.
@@ -379,7 +398,7 @@ fn enter_with_census<E>(
     found.check(Protection::DesktopRestricted, desktop_restricted, true);
     let effective_threads = census(threads::Phase::Integrity)?;
     let integrity = match low {
-        Outcome::Confirmed => inspect_threads(effective_threads, false, &mut pinned).1,
+        Outcome::Confirmed => inspect_threads(effective_threads, false, None, &mut pinned).1,
         outcome => outcome,
     };
     found.set(Protection::LowIntegrity, integrity, true);
@@ -665,7 +684,7 @@ fn restrict_to(object: HANDLE, wanted: *mut ACL) -> bool {
     access_reads_back(object, wanted)
 }
 
-/// Whether the access list of `object` holds exactly the one entry of `wanted`.
+/// Whether the access list of `object` holds exactly the entries of `wanted`.
 fn access_reads_back(object: HANDLE, wanted: *const ACL) -> bool {
     let (mut current, mut descriptor) = (ptr::null_mut(), ptr::null_mut());
     // SAFETY: the call points `current` into a descriptor it allocates, freed below.
@@ -685,17 +704,16 @@ fn access_reads_back(object: HANDLE, wanted: *const ACL) -> bool {
         return false;
     }
     // SAFETY: both lists are valid while their descriptors live, which they do here.
-    let same = unsafe { same_only_entry(current, wanted) };
+    let same = unsafe { same_entries(current, wanted) };
     // SAFETY: frees the descriptor GetSecurityInfo allocated, once, after its last use.
     unsafe { LocalFree(descriptor) };
     same
 }
 
-/// Makes the access list of [`THREAD_ACCESS`] the default list of `token`, which every object the
-/// process makes afterwards without a list of its own gets, and returns whether it reads back as
-/// that one entry.
-fn restrict_default(token: HANDLE) -> bool {
-    with_access_list(THREAD_ACCESS, |wanted| {
+/// Makes the access list of `access` the default list of `token`, which every object the process
+/// makes afterwards without a list of its own gets, and returns whether it reads back so.
+fn restrict_default(token: HANDLE, access: PCWSTR) -> bool {
+    with_access_list(access, |wanted| {
         let default = TOKEN_DEFAULT_DACL {
             DefaultDacl: wanted,
         };
@@ -708,8 +726,9 @@ fn restrict_default(token: HANDLE) -> bool {
                 size_of::<TOKEN_DEFAULT_DACL>() as u32,
             )
         };
-        // TOKEN_DEFAULT_DACL and the list after it, of one entry with a SID of one sub-authority:
-        // 36 bytes, well within 256, in words aligned for the pointer.
+        // TOKEN_DEFAULT_DACL and the list after it, of two entries at most, one with a package SID
+        // of eight sub-authorities: under 100 bytes, well within 256, in words aligned for the
+        // pointer.
         let mut buffer = [0u64; 32];
         let mut length = 0;
         // SAFETY: the call writes at most the buffer's length into it, and the length it needed.
@@ -726,16 +745,49 @@ fn restrict_default(token: HANDLE) -> bool {
         // `wanted` lives for the closure.
         read && unsafe {
             let current = (*buffer.as_ptr().cast::<TOKEN_DEFAULT_DACL>()).DefaultDacl;
-            same_only_entry(current, wanted)
+            same_entries(current, wanted)
         }
     })
 }
 
-/// First pass hardens thread ACLs and pins handles. The second pass checks current
-/// effective tokens after the primary token has been lowered.
+/// The start-up list ([`start_up_access`]) of a process in an AppContainer, made with the package
+/// SID of its `token`; `None` outside one.
+fn start_up_list(token: HANDLE) -> Option<Descriptor> {
+    use windows_sys::Win32::Security::{TOKEN_APPCONTAINER_INFORMATION, TokenAppContainerSid};
+    // TOKEN_APPCONTAINER_INFORMATION and the SID after it, of eight sub-authorities at most: well
+    // within 128 bytes, in words aligned for the pointer.
+    let mut buffer = [0u64; 16];
+    let mut length = 0;
+    // SAFETY: the call writes at most the buffer's length into it, and the length it needed.
+    let read = unsafe {
+        GetTokenInformation(
+            token,
+            TokenAppContainerSid,
+            buffer.as_mut_ptr().cast(),
+            size_of::<[u64; 16]>() as u32,
+            &mut length,
+        )
+    } != 0;
+    if !read {
+        return None;
+    }
+    // SAFETY: the call filled the buffer with a pointer to a SID inside it, or a null one.
+    let package =
+        unsafe { (*buffer.as_ptr().cast::<TOKEN_APPCONTAINER_INFORMATION>()).TokenAppContainer };
+    if package.is_null() {
+        return None;
+    }
+    let text = worker::sid_text(package).ok()?;
+    Descriptor::of(start_up_access(&text).as_ptr()).ok()
+}
+
+/// First pass hardens thread ACLs and pins handles; in a worker it also accepts a thread that keeps
+/// the `start_up` list. The second pass checks current effective tokens after the primary token
+/// has been lowered.
 fn inspect_threads(
     ids: Option<Vec<u32>>,
     set_acl: bool,
+    start_up: Option<*mut ACL>,
     pinned: &mut BTreeMap<u32, OwnedHandle>,
 ) -> (Outcome, Outcome) {
     // SAFETY: these IDs identify the live thread performing this check and its process.
@@ -754,7 +806,8 @@ fn inspect_threads(
     let thread_list = Descriptor::of(THREAD_ACCESS).ok();
     let wanted = thread_list.as_ref().and_then(Descriptor::access_list);
     for id in ids {
-        let (restricted, level) = inspect_thread(id, process, caller, set_acl, wanted, pinned);
+        let (restricted, level) =
+            inspect_thread(id, process, caller, set_acl, wanted, start_up, pinned);
         all &= restricted;
         if let Some(level) = level
             && (level == Outcome::Refused || integrity == Outcome::Confirmed)
@@ -784,14 +837,15 @@ fn inspect_threads(
 }
 
 /// Gives the thread numbered `id` [`THREAD_ACCESS`] as its access list, and returns whether it
-/// reads back so. A thread that has ended since the snapshot is left out, and so is the thread
-/// of another process that has taken its number since.
+/// reads back so, or as the `start_up` list. A thread that has ended since the snapshot is left
+/// out, and so is the thread of another process that has taken its number since.
 fn inspect_thread(
     id: u32,
     process: u32,
     caller: u32,
     set_acl: bool,
     wanted: Option<*mut ACL>,
+    start_up: Option<*mut ACL>,
     pinned: &mut BTreeMap<u32, OwnedHandle>,
 ) -> (bool, Option<Outcome>) {
     if !set_acl && let Some(level) = threads::pinned_integrity(id, pinned) {
@@ -809,8 +863,8 @@ fn inspect_thread(
         );
     }
     // SAFETY: opens the thread with what its list grants: every right while it has the list it
-    // started with; READ_CONTROL and THREAD_QUERY_LIMITED_INFORMATION once it has THREAD_ACCESS.
-    // Closed below.
+    // started with; READ_CONTROL and THREAD_QUERY_LIMITED_INFORMATION once it has THREAD_ACCESS,
+    // or in a worker the start-up list. Closed below.
     let thread = unsafe { OpenThread(MAXIMUM_ALLOWED, 0, id) };
     if thread.is_null() {
         // SAFETY: reads this thread's last error, which OpenThread set.
@@ -838,8 +892,13 @@ fn inspect_thread(
     } else {
         None
     };
+    // A thread Windows started in a worker before its census keeps the start-up list, which the
+    // worker can read but not change.
     let holds = owner != 0
-        && (owner != process || !set_acl || wanted.is_some_and(|list| restrict_to(thread, list)));
+        && (owner != process
+            || !set_acl
+            || wanted.is_some_and(|list| restrict_to(thread, list))
+            || start_up.is_some_and(|list| access_reads_back(thread, list)));
     if set_acl && owner == process {
         pinned.insert(id, opened);
     }
@@ -871,21 +930,22 @@ fn thread_integrity(thread: HANDLE) -> Outcome {
     }
 }
 
-/// Whether the access lists `current` and `wanted` each hold one entry, and the same one.
+/// Whether the access lists `current` and `wanted` hold the same entries, at least one, in the
+/// same order.
 ///
 /// # Safety
 ///
 /// Each list is null or points to a valid access list.
-unsafe fn same_only_entry(current: *const ACL, wanted: *const ACL) -> bool {
-    // The bytes of the one entry of a list; `None` for a list with none or several.
-    let only_entry = |list: *const ACL| {
-        // SAFETY: by the contract above.
-        if unsafe { list.as_ref() }?.AceCount != 1 {
-            return None;
-        }
+unsafe fn same_entries(current: *const ACL, wanted: *const ACL) -> bool {
+    // SAFETY: by the contract above.
+    let (Some(have), Some(want)) = (unsafe { current.as_ref() }, unsafe { wanted.as_ref() }) else {
+        return false;
+    };
+    // The bytes of entry `at` of a list that holds it.
+    let entry = |list: *const ACL, at: u32| {
         let mut entry = ptr::null_mut();
-        // SAFETY: the list holds entry 0; GetAce points `entry` at it, inside the list.
-        if unsafe { GetAce(list, 0, &mut entry) } == 0 {
+        // SAFETY: the list holds entry `at`; GetAce points `entry` at it, inside the list.
+        if unsafe { GetAce(list, at, &mut entry) } == 0 {
             return None;
         }
         // SAFETY: an entry starts with its header, whose AceSize counts the whole entry, which
@@ -895,7 +955,12 @@ unsafe fn same_only_entry(current: *const ACL, wanted: *const ACL) -> bool {
             slice::from_raw_parts(entry.cast::<u8>(), size.into())
         })
     };
-    only_entry(current).is_some_and(|entry| only_entry(wanted) == Some(entry))
+    have.AceCount == want.AceCount
+        && want.AceCount > 0
+        && (0..u32::from(want.AceCount)).all(|at| {
+            let wanted_entry = entry(wanted, at);
+            wanted_entry.is_some() && entry(current, at) == wanted_entry
+        })
 }
 
 /// Lowers `token`, the token of the process, to low integrity, and returns whether it reads back
