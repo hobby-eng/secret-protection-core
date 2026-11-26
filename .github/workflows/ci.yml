@@ -81,6 +81,21 @@ jobs:
       # release profile too, as the library ships.
       - name: Run the stack-clearing tests in the release profile
         run: "cargo test --locked --release --lib stack::"
+      # No terminal change may wait for output to drain, which never ends while the output is
+      # stopped; a test terminal holds no output, so the terminal tests run under strace instead,
+      # and only changes that wait for nothing may sit beside the flushes of input. tcdrain is
+      # TCSBRK there. The source is read too, for macOS, which has no strace.
+      - name: Check that no terminal change waits for output
+        run: |
+          set -euo pipefail
+          command -v strace || { sudo apt-get update -q && sudo apt-get install -y -q strace; }
+          binary=$(cargo test --locked --no-run --lib --message-format=json \
+            | jq -r 'select(.executable != null) | .executable')
+          strace -f -qq -e trace=ioctl -o "$RUNNER_TEMP/ioctl.log" \
+            "$binary" os::unix::terminal --test-threads=1
+          grep -q TCFLSH "$RUNNER_TEMP/ioctl.log"
+          if grep -E 'TCSET[ASX][WF]|TCSBRK' "$RUNNER_TEMP/ioctl.log"; then exit 1; fi
+          if grep -rnE 'libc::(\{[^}]*)?(TCSADRAIN|TCSAFLUSH|TIOCSETA[WF]|TIOCDRAIN|tcdrain|tcsendbreak)' src; then exit 1; fi
       # Last, as it changes the runner: while Yama lets any process of the user attach, no worker
       # may start.
       - name: Run the worker tests with Yama's ptrace_scope at 0
