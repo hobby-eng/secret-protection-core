@@ -32,7 +32,8 @@ impl StackProperties {
 pub enum StackError {
     /// Windows and WebAssembly give a thread no stack of the program's choosing.
     Unsupported,
-    /// The size asked for cannot be a stack.
+    /// The size asked for cannot be rounded up to whole pages. A size the system cannot reserve,
+    /// such as one past `isize::MAX`, gives `System` with `OutOfMemory`.
     Size,
     /// The stack lacks a required property; these are the ones it has.
     NotProtected(StackProperties),
@@ -137,8 +138,9 @@ pub fn clear_stack() {
     clear::<CLEARED_STACK_BYTES>();
 }
 
-/// In WebAssembly a stack that runs over writes into the program's other memory with no guard
-/// page to stop it, so nothing is overwritten there.
+/// WebAssembly overwrites nothing: the stack lies in linear memory, where the crate cannot tell
+/// how much of it is left below the work. rustc puts it first, so a clearing past its start
+/// traps; another toolchain may put the program's data there instead.
 #[inline(never)]
 fn clear<const BYTES: usize>() {
     #[cfg(not(target_arch = "wasm32"))]

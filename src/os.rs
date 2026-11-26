@@ -17,7 +17,7 @@ pub(crate) use apple::{listed_access, owners_ignored};
 #[cfg(not(any(unix, windows)))]
 pub(crate) use heap::Pages;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{attaching_restricted, one_thread};
+pub(crate) use linux::{attaching_restricted, in_first_user_namespace, one_thread};
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) use linux::{enter_granting, evidence, shared_mappings};
 #[cfg(unix)]
@@ -265,15 +265,16 @@ impl Pages {
     unsafe_code,
     reason = "a raw pointer is neither Send nor Sync by itself"
 )]
-// SAFETY: the pages belong to one value; moving it to another thread moves the only handle, and
-// a shared reference only reads them.
+// SAFETY: the pages belong to one value; moving it to another thread moves the only handle.
 unsafe impl Send for Pages {}
 #[cfg(any(unix, windows))]
 #[allow(
     unsafe_code,
     reason = "a raw pointer is neither Send nor Sync by itself"
 )]
-// SAFETY: as for `Send`.
+// SAFETY: what a shared reference reaches only reads the pages, except `region`, whose page
+// protections only the owners of a `&mut` change (`ClosedSecret`), and the wipe of a stack, which
+// runs after its thread was joined.
 unsafe impl Sync for Pages {}
 
 /// Ends the process as a full heap does, for pages the system cannot give.

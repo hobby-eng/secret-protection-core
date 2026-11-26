@@ -1,7 +1,8 @@
 //! The console of a hidden line on Windows: its echo, its own line editing and Ctrl+C as a signal
 //! off, checked by reading the mode back, and the mode it had restored after. Only the standard
-//! handles are used; a worker has no console, so its parent reads the line. Ctrl+Break stays a
-//! signal, whose default handler ends the program before the mode comes back.
+//! handles are used; a worker's console is a hidden one of its own (`CREATE_NO_WINDOW`), which
+//! nobody types into, so its parent reads the line. Ctrl+Break stays a signal, whose default
+//! handler ends the program before the mode comes back.
 #![allow(
     unsafe_code,
     reason = "the console calls of Windows are foreign functions"
@@ -129,7 +130,8 @@ impl HiddenTerminal {
 
 impl HiddenTerminal {
     /// Puts back the mode it found, once. What was typed after Enter, such as the rest of a pasted
-    /// text, goes before the console echoes again.
+    /// text, goes just before the console echoes again: a key typed between the flush and the
+    /// change of mode goes to the next reader.
     pub(crate) fn restore(&mut self) -> io::Result<()> {
         if std::mem::replace(&mut self.restored, true) {
             return Ok(());

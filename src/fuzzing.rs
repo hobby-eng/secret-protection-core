@@ -5,7 +5,9 @@
 
 use std::io;
 
-use crate::{Isolation, Options, Secret, SecretLine};
+#[cfg(any(unix, windows))]
+use crate::SecretLine;
+use crate::{Isolation, Options, Secret};
 
 /// The worker's reading of the setting its parent wrote.
 pub fn setting(text: &str) -> Option<(u32, bool, &str)> {
@@ -75,7 +77,8 @@ pub fn roster(input: &[u8], most: usize) -> io::Result<Option<Vec<u32>>> {
 }
 
 /// What `read_hidden_line` makes of `input` on a Unix terminal, which sends UTF-8: how the line
-/// ended, and the line.
+/// ended, and the line. Where there is a terminal to read: Unix and Windows.
+#[cfg(any(unix, windows))]
 pub fn edit_utf8(input: &[u8], capacity: usize) -> (io::Result<crate::LineEnd>, String) {
     let mut rest = input;
     edit(capacity, || {
@@ -91,6 +94,7 @@ pub fn edit_utf8(input: &[u8], capacity: usize) -> (io::Result<crate::LineEnd>, 
 }
 
 /// As [`edit_utf8`] for the Windows console, which sends UTF-16.
+#[cfg(any(unix, windows))]
 pub fn edit_utf16(input: &[u16], capacity: usize) -> (io::Result<crate::LineEnd>, String) {
     let mut rest = input;
     edit(capacity, || {
@@ -105,6 +109,7 @@ pub fn edit_utf16(input: &[u16], capacity: usize) -> (io::Result<crate::LineEnd>
     })
 }
 
+#[cfg(any(unix, windows))]
 fn edit(
     capacity: usize,
     next: impl FnMut() -> io::Result<Option<char>>,

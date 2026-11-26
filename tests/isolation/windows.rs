@@ -17,9 +17,9 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcess, OpenProcessToken, OpenThread, PROCESS_VM_READ,
-    THREAD_GET_CONTEXT, THREAD_QUERY_LIMITED_INFORMATION, THREAD_SET_CONTEXT,
-    THREAD_SUSPEND_RESUME,
+    GetCurrentProcess, OpenProcess, OpenProcessToken, OpenThread,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ, THREAD_GET_CONTEXT,
+    THREAD_QUERY_LIMITED_INFORMATION, THREAD_SET_CONTEXT, THREAD_SUSPEND_RESUME,
 };
 
 /// A program of the same user can open the isolated process neither to read its memory nor
@@ -30,7 +30,11 @@ pub(super) fn cannot_be_opened(pid: u32) {
     // SAFETY: each call opens the process object of the child, inheriting no handle.
     expect_refused(
         "the process",
-        &[PROCESS_VM_READ, WRITE_DAC],
+        &[
+            PROCESS_VM_READ,
+            WRITE_DAC,
+            PROCESS_QUERY_LIMITED_INFORMATION,
+        ],
         |access| unsafe { OpenProcess(access, 0, pid) },
     );
     // SAFETY: takes a snapshot of the threads of the system, closed below.

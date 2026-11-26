@@ -23,6 +23,11 @@ const REQUEST_BUFFER: usize = 4096;
 /// It contains one byte per protection followed by the clean-start flag.
 pub(crate) const REPORT_BYTES: usize = Protection::COUNT + 1;
 
+/// The longest frame either side reads, whatever `most` allows: past it a 32-bit system could not
+/// reserve the pages, and a `Secret` of that size would end the program. The 256 KiB under
+/// `isize::MAX` leave room for the guard pages and the rounding up to pages of up to 64 KiB.
+const FRAME_LIMIT: usize = isize::MAX.unsigned_abs() - (256 << 10);
+
 /// A separate process running the same executable on Linux, macOS or Windows.
 /// Call [`serve`] first in the worker. The parent checks the startup report and the protections
 /// it required before sending a request. A worker must confirm [`Protection::WholeProcess`].
@@ -63,10 +68,11 @@ impl fmt::Display for WorkerError {
 impl std::error::Error for WorkerError {}
 
 impl Worker {
-    /// Starts the current executable without a terminal. Returns a worker after its startup check
-    /// passes and whole-process isolation and every protection in `required` are confirmed. The startup report has no deadline.
-    /// On Unix the check examines descriptors still open above standard error when [`serve`] runs.
-    /// On Windows the launcher disables inheritance and the worker does not enumerate handles.
+    /// Starts the current executable without a terminal, and returns the worker once its start was
+    /// clean and whole-process isolation and `required` are confirmed; no deadline. On Linux it
+    /// fails first with `PermissionDenied` unless Yama's `ptrace_scope` is 1 or more and the
+    /// program is in the first user namespace: else any process of the user could take the
+    /// worker (docs/API.md, "When a worker cannot be started safely").
     pub fn start(options: Options, required: &[Protection]) -> Result<Self, WorkerError> {
         Self::starting(options, required, false, None)
     }
@@ -95,7 +101,8 @@ impl Worker {
     /// through the parent; `/dev/null` when no standard stream is a terminal. The worker has no
     /// controlling terminal, so it cannot type into the shell (TIOCSTI) and `/dev/tty` does not
     /// open. There `read_hidden_line` reads with the echo off; as the worker has no job control,
-    /// the program must stay the foreground job and leave the terminal alone while it reads.
+    /// the program must stay the foreground job and leave the terminal alone while it reads. On
+    /// Linux it refuses as [`Worker::start`] does.
     pub fn start_on_terminal(
         options: Options,
         required: &[Protection],
@@ -115,23 +122,23 @@ impl Worker {
                 "a worker starts no worker: main calls serve first",
             )));
         }
-        let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
-        // On Linux the worker is dumpable from `exec` until its isolation: unless Yama keeps the
-        // user's other processes from attaching meanwhile, its channel may be theirs too, and a
-        // worker they took could report anything. So the parent decides, before the launch.
+        // On Linux the worker is dumpable from `exec` until its isolation, and in a user namespace
+        // its user owns it stays open to the user's processes after it too. Where any of them may
+        // attach, it could take the worker and its channel, and nothing the worker reported could
+        // be trusted: no worker starts.
         #[cfg(target_os = "linux")]
-        let attaching_restricted = crate::os::attaching_restricted();
+        if !crate::os::attaching_restricted() || !crate::os::in_first_user_namespace() {
+            return Err(WorkerError::Start(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "any process of this user could attach to a worker: it needs Yama's \
+                 kernel.yama.ptrace_scope at 1 or more, and the first user namespace",
+            )));
+        }
+        let setting = format!("{},{}", options.to_bits(), u8::from(terminal));
         let mut process = crate::os::WorkerProcess::start(&setting, terminal, deadline)
             .map_err(WorkerError::Start)?;
-        let started = Self::report(&mut process, deadline).and_then(|(isolation, clean)| {
-            #[cfg(target_os = "linux")]
-            let isolation = if attaching_restricted {
-                isolation
-            } else {
-                isolation.refusing(Protection::NoMemoryReading)
-            };
-            admit(isolation, clean, required)
-        });
+        let started = Self::report(&mut process, deadline)
+            .and_then(|(isolation, clean)| admit(isolation, clean, required));
         match started {
             Ok(isolation) => Ok(Self {
                 process,
@@ -169,7 +176,10 @@ impl Worker {
     }
 
     /// Sends a framed request and reads its reply into a [`Secret`]. A request too large for
-    /// the four-byte length is rejected before sending. A reply larger than `most` is refused.
+    /// the four-byte length is rejected before sending. A reply larger than `most` is refused;
+    /// up to `most`, the worker decides how much the parent reserves before the bytes arrive, and
+    /// like any `Secret` a reservation the system refuses ends the process: choose `most` as the
+    /// memory a worker may make the parent take.
     /// A failed exchange closes the transport, attempts shutdown and prevents further calls.
     /// Waiting for the reply has no deadline.
     pub fn call(&mut self, request: &[u8], most: usize) -> io::Result<Secret> {
@@ -258,7 +268,7 @@ pub(crate) fn read_answer(
     let mut length = [0; 4];
     read_exact(&mut length)?;
     let length = u32::from_le_bytes(length) as usize;
-    if length > most {
+    if length > most || length > FRAME_LIMIT {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "the answer is longer than allowed",
@@ -463,7 +473,7 @@ pub(crate) fn requests(
             return;
         }
         let length = u32::from_le_bytes(length) as usize;
-        if length > most {
+        if length > most || length > FRAME_LIMIT {
             return;
         }
         if length > request.capacity() {
@@ -495,6 +505,19 @@ pub(crate) fn requests(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// On a 32-bit system an answer longer than a `Secret` can hold is refused before anything is
+    /// allocated, whatever the caller's limit.
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn an_answer_past_what_a_secret_holds_is_refused() {
+        let mut header = &u32::MAX.to_le_bytes()[..];
+        let refused = read_answer(
+            |buffer| io::Read::read_exact(&mut header, buffer),
+            usize::MAX,
+        );
+        assert_eq!(refused.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
 
     /// A roster is a count and as many distinct, nonzero, ascending IDs, or zero for none.
     #[test]

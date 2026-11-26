@@ -27,6 +27,7 @@ pub(super) fn launch(
     args: &[*const libc::c_char],
     env: &[*const libc::c_char],
     _shared_table: bool,
+    deadline: Option<std::time::Instant>,
 ) -> io::Result<Child> {
     #[cfg(target_os = "linux")]
     if _shared_table {
@@ -71,6 +72,10 @@ pub(super) fn launch(
                 return Err(io::Error::from_raw_os_error(result));
             }
         }
+    }
+    // The pidfd attempt took its time: the deadline is read again before the fallback.
+    if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+        return Err(super::worker::late());
     }
     let mut pid = 0;
     // SAFETY: the strings and arrays are terminated, actions and attributes initialized.

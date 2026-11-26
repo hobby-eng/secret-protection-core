@@ -11,7 +11,9 @@ secret-protection-core = { path = ".." }
 [lib]
 crate-type = ["cdylib"]
 
+# The exports need `#[unsafe(no_mangle)]`, which lib.rs allows with its reason; no unsafe block.
 [lints.rust]
+unsafe_code = "deny"
 missing_docs = "deny"
 
 [lints.clippy]
@@ -19,5 +21,8 @@ all = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
+too_many_lines = "deny"
+mod_module_files = "deny"
+undocumented_unsafe_blocks = "deny"
 
 [workspace]

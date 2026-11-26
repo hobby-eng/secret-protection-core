@@ -37,10 +37,11 @@ pub(crate) struct WorkerProcess {
 }
 
 impl WorkerProcess {
-    /// Starts this program again in its own AppContainer: no capabilities, no console, no handle
-    /// inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker variable
-    /// with its options, pipe name and launch nonce. The program file must be readable by app containers
-    /// (Program Files is), or Windows refuses to start it. No worker on the terminal here.
+    /// Starts this program again in its own AppContainer: no capabilities, a hidden console of its
+    /// own, no handle inherited, and an environment containing [`SYSTEM_VARIABLES`] and the worker
+    /// variable with its options, pipe name and launch nonce. The program file must be readable by
+    /// app containers (Program Files is), or Windows refuses to start it. No worker on the terminal
+    /// here.
     pub(crate) fn start(
         setting: &str,
         terminal: bool,
@@ -694,7 +695,7 @@ pub(crate) fn starts_clean() -> bool {
     true
 }
 
-/// A worker is started without a console.
+/// A worker is started with a hidden console of its own, never its parent's.
 pub(crate) fn leave_terminal() -> bool {
     true
 }

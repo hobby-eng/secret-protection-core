@@ -267,10 +267,11 @@ fn move_working_set(change: isize) -> bool {
 }
 
 /// The access list the process gets: one entry, for its owner (OWNER RIGHTS, `OW`), which replaces
-/// the owner's implicit rights to read and change the list, and grants only SYNCHRONIZE,
-/// PROCESS_QUERY_LIMITED_INFORMATION and PROCESS_TERMINATE (0x0010_1001); `P` keeps out the entries
-/// a parent would pass on.
-const PROCESS_ACCESS: PCWSTR = w!("D:P(A;;0x101001;;;OW)");
+/// the owner's implicit rights to read and change the list, and grants only SYNCHRONIZE and
+/// PROCESS_TERMINATE (0x0010_0001); `P` keeps out the entries a parent would pass on. Not
+/// PROCESS_QUERY_LIMITED_INFORMATION, with which another process of the user would open the
+/// process's token and change the default list of the threads it starts later.
+const PROCESS_ACCESS: PCWSTR = w!("D:P(A;;0x100001;;;OW)");
 /// The access list of every thread, and the default list of the token, which the threads started
 /// later get: one entry for the owner, as above, granting only READ_CONTROL, SYNCHRONIZE and
 /// THREAD_QUERY_LIMITED_INFORMATION (0x0012_0800). READ_CONTROL lets a later call read the lists

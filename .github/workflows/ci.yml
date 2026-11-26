@@ -81,8 +81,8 @@ jobs:
       # release profile too, as the library ships.
       - name: Run the stack-clearing tests in the release profile
         run: "cargo test --locked --release --lib stack::"
-      # Last, as it changes the runner: a worker that starts while Yama lets any process of the
-      # user attach must report its memory open.
+      # Last, as it changes the runner: while Yama lets any process of the user attach, no worker
+      # may start.
       - name: Run the worker tests with Yama's ptrace_scope at 0
         run: |
           sudo sysctl -w kernel.yama.ptrace_scope=0

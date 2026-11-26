@@ -336,9 +336,12 @@ pub(crate) fn enter_granting(options: Options, folders: &[&crate::WritableFolder
     // only a process that is not dumpable keeps a crash off the disk.
     found.check(P::NoCoreDumps, core_limit && !dumpable, true);
     // A tracer attached before the call keeps reading, whatever the flag says. One outside
-    // the PID namespace of /proc shows as none there.
+    // the PID namespace of /proc shows as none there, and in a user namespace its user owns any
+    // process of that user may attach.
     let reading = match (dumpable, traced()) {
-        (false, Some(false)) if tracers_show() => Outcome::Confirmed,
+        (false, Some(false)) if tracers_show() && started_in_first_user_namespace() => {
+            Outcome::Confirmed
+        }
         (false, Some(false) | None) => Outcome::Unknown,
         _ => Outcome::Refused,
     };
@@ -818,6 +821,21 @@ fn tracers_show() -> bool {
     std::fs::read_link("/proc/self/ns/pid").is_ok_and(|name| name.as_os_str() == "pid:[4026531836]")
 }
 
+/// Whether the program started in the first user namespace of the system. A process of the user
+/// that owns the namespace a program started in may attach to it from outside, whatever its
+/// dumpable flag and Yama say. Read once, before this crate enters a namespace of its own.
+fn started_in_first_user_namespace() -> bool {
+    static FIRST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FIRST.get_or_init(in_first_user_namespace)
+}
+
+/// Whether the process is in the first user namespace now: the kernel's PROC_USER_INIT_INO. A
+/// worker starts in the namespace its parent is in.
+pub(crate) fn in_first_user_namespace() -> bool {
+    std::fs::read_link("/proc/self/ns/user")
+        .is_ok_and(|name| name.as_os_str() == "user:[4026531837]")
+}
+
 /// Whether the process has one thread: only then may it enter a user namespace of its own, and
 /// only then do the filters, which a thread passes on to the threads it starts, hold for the whole
 /// process. An Android app always has other threads.
@@ -830,7 +848,8 @@ pub(crate) fn one_thread() -> bool {
 
 /// Whether Yama lets no process of the user attach to one it did not start: `ptrace_scope` 1 or
 /// more. A worker is dumpable from `exec` until its isolation; without this, another process of
-/// the user could take its channel then. Its ancestors may still attach, but they launched it.
+/// the user could take it, and its channel, then. Its ancestors may still attach, but they
+/// launched it.
 #[cfg(target_os = "linux")]
 pub(crate) fn attaching_restricted() -> bool {
     std::fs::read("/proc/sys/kernel/yama/ptrace_scope")
@@ -889,6 +908,8 @@ impl Drop for Entering {
 #[cfg(target_os = "linux")]
 fn enter_own_namespaces() -> bool {
     static MADE: AtomicBool = AtomicBool::new(false);
+    // Where the program started, read before it leaves for a namespace of its own.
+    started_in_first_user_namespace();
     // SAFETY: unshare takes flags only and touches no memory of this process.
     if unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET | libc::CLONE_NEWIPC) } == 0
     {
@@ -1029,12 +1050,10 @@ pub(crate) fn evidence(protection: Protection, outcome: Outcome) -> Option<&'sta
         }
         (P::NoCoreDumps, O::Refused) => "RLIMIT_CORE or the dumpable flag did not read back",
         (P::NoMemoryReading, O::Confirmed) => "not dumpable, and no thread has a tracer",
-        (P::NoMemoryReading, O::Refused) => {
-            "the process is dumpable or a thread has a tracer, or a worker started while Yama let \
-             any process of the user attach"
-        }
+        (P::NoMemoryReading, O::Refused) => "the process is dumpable, or a thread has a tracer",
         (P::NoMemoryReading, O::Unknown) => {
-            "the threads could not be read, or a PID namespace of its own hides outside tracers"
+            "the threads could not be read, a PID namespace of its own hides outside tracers, or \
+             the program started in a user namespace, where its user may attach"
         }
         (P::NoNewSockets, O::Confirmed) => "the filter answers its mark, and a socket was refused",
         (P::NoNewSockets, O::Refused) => {

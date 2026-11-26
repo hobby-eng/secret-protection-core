@@ -230,6 +230,8 @@ fn its_own() -> &'static [u8] {
     reason = "the table of every check and role of the program, read best whole"
 )]
 fn main() {
+    #[cfg(target_os = "linux")]
+    support::first_user_namespace();
     // The `late` role opens a file of its own before it comes to `serve`.
     #[cfg(unix)]
     let early = (std::env::var(ROLE).as_deref() == Ok("late"))
@@ -354,25 +356,29 @@ fn main() {
         support::finish();
         return;
     }
+    // Where any process of the user may attach, no Linux worker starts, and that is all there is
+    // to check: CI runs this program once more with ptrace_scope 0.
     #[cfg(target_os = "linux")]
-    run(
-        "a worker started while Yama lets any process of the user attach reports its memory open",
-        || {
-            use secret_protection_core::Outcome;
-            let worker = Worker::start(Options::new(), &[Protection::WholeProcess]).unwrap();
-            let expected = if !support::attaching_restricted() {
-                Outcome::Refused
-            } else if support::initial_pid_namespace() {
-                Outcome::Confirmed
-            } else {
-                Outcome::Unknown
-            };
-            assert_eq!(
-                worker.isolation().outcome(Protection::NoMemoryReading),
-                expected
-            );
-        },
-    );
+    if !support::attaching_restricted() || !support::first_user_namespace() {
+        run(
+            "no worker starts while any process of the user may attach",
+            || {
+                for started in [
+                    Worker::start(Options::new(), &[]),
+                    Worker::start_within(Options::new(), &[], Duration::from_secs(10)),
+                    Worker::start_on_terminal(Options::new(), &[]),
+                ] {
+                    assert!(matches!(
+                        started,
+                        Err(WorkerError::Start(error))
+                            if error.kind() == std::io::ErrorKind::PermissionDenied
+                    ));
+                }
+            },
+        );
+        support::finish();
+        return;
+    }
     #[cfg(target_os = "linux")]
     run(
         "a worker with another thread at its start is refused before a request",
@@ -506,7 +512,7 @@ fn main() {
 fn required() -> Vec<Protection> {
     let mut required = vec![Protection::WholeProcess];
     #[cfg(target_os = "linux")]
-    if support::initial_pid_namespace() && support::attaching_restricted() {
+    if support::initial_pid_namespace() {
         required.push(Protection::NoMemoryReading);
     }
     #[cfg(not(target_os = "linux"))]

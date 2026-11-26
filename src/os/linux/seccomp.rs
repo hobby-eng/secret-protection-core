@@ -146,7 +146,7 @@ mod calls {
 /// The terminal's requests, which a program that reads a hidden line makes: TCGETS, TCSETS,
 /// TCSETSW and TCSETSF, their termios2 forms, which newer C libraries use (glibc 2.42 and
 /// later), and TIOCGWINSZ. Tracing a terminal program that reads hidden input with glibc 2.43
-/// shows no other.
+/// shows no other; the restore's TCFLSH has a rule of its own, for its argument.
 const TERMINAL_REQUESTS: [u32; 9] = [
     libc::TCGETS as u32,
     libc::TCSETS as u32,
@@ -158,6 +158,10 @@ const TERMINAL_REQUESTS: [u32; 9] = [
     libc::TCSETSF2 as u32,
     libc::TIOCGWINSZ as u32,
 ];
+
+/// prctl's core scheduling, whose cookie it can share to and from other processes (linux/prctl.h);
+/// libc does not name it for every target.
+const PR_SCHED_CORE: u32 = 62;
 
 /// The flags of an open that can change a file.
 const WRITE_FLAGS: u32 =
@@ -414,8 +418,9 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
             instruction(RETURN, 0, 0, ALLOW),
         ],
     ));
-    // The mark, which a probe reads, and the two options that would let other programs of
-    // the user read the memory again; every other prctl is allowed.
+    // The mark, which a probe reads, the two options that would let other programs of the user
+    // read the memory again, and core scheduling, which can act on another process; every other
+    // prctl is allowed.
     let marked = libc::SECCOMP_RET_ERRNO | MARK | options;
     let mut prctl = vec![instruction(LOAD_WORD, 0, 0, argument(0))];
     prctl.extend(answer_if(IF_EQUAL, MARK_OPTION, marked));
@@ -431,6 +436,7 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
     }
     prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_DUMPABLE as u32, REFUSE));
     prctl.extend(answer_if(IF_EQUAL, libc::PR_SET_PTRACER as u32, REFUSE));
+    prctl.extend(answer_if(IF_EQUAL, PR_SCHED_CORE, REFUSE));
     prctl.push(instruction(RETURN, 0, 0, ALLOW));
     program.extend(for_call(calls::PRCTL, &prctl));
     // A datagram with an address of its own, through a socket opened before: only a call
@@ -475,21 +481,31 @@ fn program(options: u32, own: libc::pid_t) -> Vec<libc::sock_filter> {
             ));
         }
     }
-    // Last, as its final answer allows every other call: an ioctl is allowed only with a
-    // terminal request, each test of which jumps to that answer.
+    // Last, as its final answer allows every other call.
+    program.extend(ioctl_rule());
+    program
+}
+
+/// An ioctl is allowed only with a terminal request, each test of which jumps to the final
+/// answer, or as TCFLSH that drops the input waiting (TCIFLUSH), which a hidden line's restore
+/// makes; never the output. Every other call is allowed.
+fn ioctl_rule() -> Vec<libc::sock_filter> {
     let requests = TERMINAL_REQUESTS.len() as u8;
-    program.extend([
-        instruction(IF_EQUAL, 0, requests + 2, calls::IOCTL),
+    let mut rule = vec![
+        instruction(IF_EQUAL, 0, requests + 5, calls::IOCTL),
         instruction(LOAD_WORD, 0, 0, argument(1)),
-    ]);
+    ];
     for (index, &request) in (0..).zip(&TERMINAL_REQUESTS) {
-        program.push(instruction(IF_EQUAL, requests - index, 0, request));
+        rule.push(instruction(IF_EQUAL, requests - index + 3, 0, request));
     }
-    program.extend([
+    rule.extend([
+        instruction(IF_EQUAL, 0, 2, libc::TCFLSH as u32),
+        instruction(LOAD_WORD, 0, 0, argument(2)),
+        instruction(IF_EQUAL, 1, 0, libc::TCIFLUSH as u32),
         instruction(RETURN, 0, 0, REFUSE),
         instruction(RETURN, 0, 0, ALLOW),
     ]);
-    program
+    rule
 }
 
 /// Reads the rules marked on the calling thread or inherited from its creator. The marker

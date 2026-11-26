@@ -43,6 +43,8 @@ pub extern "C" fn __asan_default_options() -> *const std::ffi::c_char {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    support::first_user_namespace();
     let role = std::env::var(ROLE);
     #[cfg(all(
         target_os = "linux",
@@ -90,6 +92,8 @@ fn main() {
         Ok("traced-sibling") => linux::traced_role(true),
         #[cfg(target_os = "linux")]
         Ok("locked") => linux::locked_role(),
+        #[cfg(target_os = "linux")]
+        Ok("in-user-namespace") => linux::in_user_namespace_role(),
         #[cfg(not(target_arch = "wasm32"))]
         Ok("writer") => writer(),
         #[cfg(unix)]
@@ -277,6 +281,11 @@ fn checks() {
     run(
         "locking all memory is reported as the kernel answered",
         linux::locking_all_memory_is_reported,
+    );
+    #[cfg(target_os = "linux")]
+    run(
+        "a program started in a user namespace reads its memory unknown and starts no worker",
+        linux::a_program_in_a_user_namespace_is_open_to_its_user,
     );
     #[cfg(all(
         target_os = "linux",

@@ -125,10 +125,22 @@ pub(crate) fn attaching_restricted() -> bool {
         .is_ok_and(|scope| matches!(scope.first(), Some(b'1'..=b'3')))
 }
 
+/// Whether the program started in the first user namespace, where no process of its user outside
+/// it holds the right to attach to it. Read once: main calls it before any isolation moves the
+/// process into a namespace of its own.
+#[cfg(target_os = "linux")]
+pub(crate) fn first_user_namespace() -> bool {
+    static FIRST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FIRST.get_or_init(|| {
+        std::fs::read_link("/proc/self/ns/user")
+            .is_ok_and(|link| link.as_os_str() == "user:[4026531837]")
+    })
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn check_memory_reading(isolation: secret_protection_core::Isolation) {
     use secret_protection_core::{Outcome, Protection};
-    let expected = if initial_pid_namespace() {
+    let expected = if initial_pid_namespace() && first_user_namespace() {
         Outcome::Confirmed
     } else {
         Outcome::Unknown

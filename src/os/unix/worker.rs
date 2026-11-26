@@ -277,7 +277,7 @@ fn deliver(
 }
 
 /// The error of a deadline that passed.
-fn late() -> io::Error {
+pub(super) fn late() -> io::Error {
     io::Error::new(io::ErrorKind::TimedOut, "the worker did not answer in time")
 }
 
@@ -386,6 +386,7 @@ fn spawn(
         &arguments,
         &environment,
         !_private_table,
+        deadline,
     )
 }
 
@@ -554,6 +555,24 @@ pub(super) fn check(answer: libc::c_int) -> io::Result<()> {
 mod launch_tests {
     use super::*;
     use std::fs::File;
+
+    #[test]
+    fn a_launch_past_its_deadline_starts_nothing() {
+        let (input, _to) = channel().unwrap();
+        let (_from, output) = channel().unwrap();
+        let streams = [
+            above_streams(input).unwrap(),
+            above_streams(output).unwrap(),
+        ];
+        let past = Some(std::time::Instant::now());
+        for private in [false, true] {
+            let refused = spawn(c"/bin/true", &[], &streams, None, private, past).err();
+            assert_eq!(
+                refused.map(|error| error.kind()),
+                Some(io::ErrorKind::TimedOut)
+            );
+        }
+    }
 
     #[test]
     fn private_launcher_preserves_parent_descriptors_and_returns_no_private_fd() -> io::Result<()> {

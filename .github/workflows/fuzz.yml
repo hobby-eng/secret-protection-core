@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# A new campaign for the same tag or branch replaces one that still runs.
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # The fuzz targets, as the fuzz workspace's manifest names its binaries.
   targets:

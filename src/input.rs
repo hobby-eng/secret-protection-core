@@ -345,7 +345,7 @@ fn too_long() -> io::Error {
 /// The next character of UTF-8 input, whose bytes `read_byte` puts one at a time into a buffer
 /// that is wiped when the character is whole; `false` from it is the end of the input. `None` at
 /// the end, an error for bytes that are no UTF-8 or end inside a character.
-#[cfg(unix)]
+#[cfg(any(unix, all(fuzzing, windows)))]
 pub(crate) fn utf8_char(
     mut read_byte: impl FnMut(&mut u8) -> io::Result<bool>,
 ) -> io::Result<Option<char>> {
@@ -367,7 +367,7 @@ pub(crate) fn utf8_char(
 
 /// The next character of UTF-16 input, as the Windows console gives it, one unit at a time into
 /// a buffer that is wiped; a character beyond the first 65,536 takes two. `None` at the end.
-#[cfg(any(windows, fuzzing, all(test, unix)))]
+#[cfg(any(windows, all(any(fuzzing, test), unix)))]
 pub(crate) fn utf16_char(
     mut read_unit: impl FnMut(&mut u16) -> io::Result<bool>,
 ) -> io::Result<Option<char>> {
@@ -389,7 +389,7 @@ pub(crate) fn utf16_char(
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, all(fuzzing, windows)))]
 fn not_utf8() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
@@ -397,7 +397,7 @@ fn not_utf8() -> io::Error {
     )
 }
 
-#[cfg(any(windows, fuzzing, all(test, unix)))]
+#[cfg(any(windows, all(any(fuzzing, test), unix)))]
 fn not_utf16() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidData,
@@ -461,6 +461,8 @@ mod tests {
         line.remove_last();
         assert_eq!(line.characters(), 0);
         assert_eq!(format!("{line:?}"), "SecretLine(0 characters, hidden)");
+        line.push('ж').unwrap();
+        assert_eq!(format!("{line:?}"), "SecretLine(1 characters, hidden)");
         assert_eq!(
             format!("{:?}", Keystroke::Char('a')),
             "Keystroke::Char(hidden)"

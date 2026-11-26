@@ -71,9 +71,9 @@ mod macos {
     /// URLs, preferences), signals to others and the user's other terminals.
     ///
     /// The own terminal, named by path from the standard streams, gets data writes and ioctls,
-    /// not mode or owner changes. The sandbox cannot tell one ioctl from another, so through a
-    /// controlling terminal it also admits TIOCSTI, input the shell reads as the user's: a worker
-    /// has none (`setsid`).
+    /// not mode or owner changes. The ioctls are not named, so the profile does not rely on
+    /// refusing TIOCSTI, input the shell reads as the user's, through a controlling terminal: a
+    /// worker has none (`setsid`).
     fn profile(folders: &[String]) -> Option<std::ffi::CString> {
         let terminals = own_terminals();
         let own: String = terminals

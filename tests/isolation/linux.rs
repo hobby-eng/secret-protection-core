@@ -685,6 +685,8 @@ fn the_dump_settings_cannot_be_undone() {
     for (option, value) in [
         (libc::PR_SET_DUMPABLE, 1),
         (libc::PR_SET_PTRACER, libc::PR_SET_PTRACER_ANY),
+        // PR_SCHED_CORE, whose cookie can be shared to and from other processes.
+        (62, 0),
     ] {
         // SAFETY: prctl takes integers and touches no memory of this process.
         let result = unsafe {
@@ -784,6 +786,50 @@ pub(super) fn a_traced_process_is_not_reported_unreadable(role: &str) {
     process.kill().unwrap();
     process.wait().unwrap();
     assert_eq!(line, "readable\n");
+}
+
+/// A program started in a user namespace its user owns, as `unshare -U` makes, may be attached to
+/// by any process of that user from outside, whatever its dumpable flag says.
+pub(super) fn a_program_in_a_user_namespace_is_open_to_its_user() {
+    use std::os::unix::process::CommandExt;
+    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .env(super::ROLE, "in-user-namespace")
+        .stdout(std::process::Stdio::null());
+    // SAFETY: between fork and exec the closure calls unshare, which takes flags only, and reads
+    // errno; it allocates nothing.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::unshare(libc::CLONE_NEWUSER) == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        });
+    }
+    match command.output() {
+        Ok(output) => {
+            crate::support::role_ended("in-user-namespace", output.status, &output.stderr)
+        }
+        Err(error) => crate::support::skip(&format!("no user namespace of its own: {error}")),
+    }
+}
+
+/// The `in-user-namespace` role: started in a namespace of its own, its memory reads unknown
+/// after isolation, and no worker starts.
+pub(super) fn in_user_namespace_role() {
+    use secret_protection_core::{Options, Outcome, Protection, Worker, WorkerError};
+    // Before the isolation, whose filter would refuse the worker's sockets on its own.
+    let started = Worker::start(Options::new(), &[]);
+    assert!(matches!(
+        started,
+        Err(WorkerError::Start(error)) if error.kind() == io::ErrorKind::PermissionDenied
+    ));
+    let isolation = Isolation::enter();
+    assert_eq!(
+        isolation.outcome(Protection::NoMemoryReading),
+        Outcome::Unknown
+    );
 }
 
 /// In a child process, which may lock all its memory: the answer agrees with the kernel's
@@ -898,6 +944,12 @@ fn what_a_secret_command_needs_still_works(terminal: &OwnedFd, secret_memory: bo
         }
         let mut size: libc::winsize = std::mem::zeroed();
         assert_eq!(libc::ioctl(terminal, libc::TIOCGWINSZ, &raw mut size), 0);
+        // tcflush drops the input waiting on the terminal, and only that.
+        assert_eq!(libc::tcflush(terminal, libc::TCIFLUSH), 0);
+        for queue in [libc::TCOFLUSH, libc::TCIOFLUSH] {
+            let result = libc::tcflush(terminal, queue);
+            assert_eq!(error_of(result.into()), Some(libc::EACCES), "{queue}");
+        }
     }
     // A secret still gets secret memory where the rest of the process gets it.
     assert_eq!(is_secret_memory(&Secret::with_capacity(1)), secret_memory);

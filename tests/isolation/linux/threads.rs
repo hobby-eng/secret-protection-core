@@ -63,6 +63,15 @@ pub(crate) fn threads_role(sync: bool) {
     assert!(!isolation.empty_network);
     drop(ask);
     sibling.join().unwrap();
+    // Below ABI 8 the option cannot reach the other thread, and the check above shows only that
+    // the call says so.
+    if sync && (1..8).contains(&abi) {
+        eprintln!(
+            "{}Landlock ABI {abi} has no thread synchronization; \
+             the layer reaching another thread was not exercised",
+            crate::support::NOT_CHECKED
+        );
+    }
 }
 
 /// The `foreign-sibling` role: a thread that holds a filter of its own makes the kernel refuse
